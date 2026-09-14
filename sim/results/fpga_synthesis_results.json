@@ -1,0 +1,82 @@
+[
+  {
+    "module": "axi4_skid_buffer",
+    "lut": 70,
+    "ff": 132,
+    "carry": 0,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "sdc_resilient_filter",
+    "lut": 16128,
+    "ff": 17720,
+    "carry": 80,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "qos_scheduler_queue",
+    "lut": 3742,
+    "ff": 3520,
+    "carry": 212,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "reorder_buffer_rob",
+    "lut": 17304,
+    "ff": 34952,
+    "carry": 60,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "slack_aware_arbiter",
+    "lut": 2642,
+    "ff": 6,
+    "carry": 10,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "ddr5_cmd_engine",
+    "lut": 2202,
+    "ff": 2604,
+    "carry": 288,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "ecc_scrubber",
+    "lut": 544,
+    "ff": 142,
+    "carry": 48,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "wdata_buffer",
+    "lut": 2354,
+    "ff": 5576,
+    "carry": 12,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "addr_mapper_ddr5",
+    "lut": 10,
+    "ff": 94,
+    "carry": 0,
+    "bram": 0,
+    "status": "PASS"
+  },
+  {
+    "module": "axi_slave_frontend",
+    "lut": 1196,
+    "ff": 1872,
+    "carry": 64,
+    "bram": 0,
+    "status": "PASS"
+  }
+]

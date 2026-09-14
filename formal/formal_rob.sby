@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 10
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv reorder_buffer_rob.sv
+chparam -set ROB_DEPTH 8 reorder_buffer_rob
+prep -top reorder_buffer_rob
+
+[files]
+/mnt/d/RAM/rtl/core/reorder_buffer_rob.sv

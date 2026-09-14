@@ -1,0 +1,63 @@
+# ==============================================================================
+# Git Ignore Configuration for Q-Shield DDR5/DDR4 Secure Memory Controller
+# Strictly keeping ONLY functional hardware source code & tests on GitHub
+# ==============================================================================
+
+# Binaries, Executables & Third-party Tool Archives
+*.exe
+tools/verible/
+
+# Python & Cocotb build caches
+__pycache__/
+*.py[cod]
+*.pytest_cache/
+sim_build/
+results.xml
+*.vcd
+*.fst
+*.hier
+obj_dir/
+
+# SymbiYosys formal verification run directories
+formal/formal_*/
+*.sby.tmp/
+
+# Simulation traces & transient dump files
+sim/cmd_counter.txt
+sim/traces/*.ch*
+synth/
+
+# Vivado / Yosys temporary logs & runs
+*.log
+*.jou
+*.str
+.Xil/
+_xmsgs/
+
+# Operating System & Editor Artifacts
+.DS_Store
+Thumbs.db
+[Dd]esktop.ini
+*.swp
+*.bak
+*.tmp
+.vscode/
+.idea/
+.agents/
+AGENTS.md
+
+# ==============================================================================
+# EXCLUDED: Academic Manuscripts, Proposals & Reference Papers (LOCAL ONLY)
+# ==============================================================================
+paper/
+doc/
+docs/
+tailieuthamkhao/
+reports/
+PROPOSAL_QSHIELD.md
+implementation_plan.md
+walkthrough.md
+*.pdf
+*.docx
+~$*
+scratch/

@@ -1,0 +1,46 @@
+name: Hardware CI & Full Verification Regression
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  regression:
+    name: RTL Lint & Cocotb Hardware Regression
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Hardware Simulators & Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog build-essential
+
+      - name: Install Python Verification Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install cocotb cocotb-coverage pyslang pytest
+
+      - name: Run Master Verification & Fault Campaign Suite
+        run: |
+          python run_all_tests.py
+
+      - name: Upload Verification & Fault Campaign Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-regression-reports
+          path: |
+            reports/
+            sim_build/
+          if-no-files-found: ignore

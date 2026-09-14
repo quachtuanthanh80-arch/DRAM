@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 10
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv sdc_resilient_filter.sv
+chparam -set TABLE_ENTRIES 8 sdc_resilient_filter
+prep -top sdc_resilient_filter
+
+[files]
+/mnt/d/RAM/rtl/core/sdc_resilient_filter.sv

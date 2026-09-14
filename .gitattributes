@@ -1,0 +1,46 @@
+# ==============================================================================
+# Git Attributes for RISC-V + Secure MAC Hardware SoC Project
+# ==============================================================================
+
+# Set default behavior to automatically normalize line endings to LF
+* text=auto eol=lf
+
+# Hardware Description & Verification Files (Always LF)
+*.v           text eol=lf
+*.sv          text eol=lf
+*.vh          text eol=lf
+*.svh         text eol=lf
+*.f           text eol=lf
+
+# Synthesis & Constraints (TCL & XDC)
+*.tcl         text eol=lf
+*.xdc         text eol=lf
+*.xpr         text eol=lf
+*.wcfg        text eol=lf
+
+# Software & Embedded Firmware
+*.c           text eol=lf
+*.h           text eol=lf
+*.s           text eol=lf
+*.hex         text eol=lf
+
+# Python & Scripts
+*.py          text eol=lf
+*.sh          text eol=lf
+*.ps1         text eol=crlf
+
+# Documentation & Data
+*.md          text eol=lf
+*.json        text eol=lf
+*.csv         text eol=lf
+*.txt         text eol=lf
+
+# Binary Files (Do not alter line endings or perform text diffs)
+*.docx        binary
+*.pdf         binary
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.bit         binary
+*.dcp         binary
+*.wdb         binary
