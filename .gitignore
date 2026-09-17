@@ -62,3 +62,5 @@ walkthrough.md
 *.zip
 ~$*
 scratch/
+tools/download_sota_papers.py
+
