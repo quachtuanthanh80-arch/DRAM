@@ -33,10 +33,27 @@ def main():
     total_failed = 0
     start_time = time.time()
 
+    # Resolve Cocotb share directory to guarantee robust make execution across environments
+    env = os.environ.copy()
+    cocotb_share = None
+    try:
+        import cocotb_tools.config
+        cocotb_share = cocotb_tools.config.makefiles_dir
+    except Exception:
+        try:
+            import cocotb.config
+            cocotb_share = cocotb.config.makefiles_dir
+        except Exception:
+            pass
+
+    if cocotb_share and os.path.exists(cocotb_share):
+        env["COCOTB_SHARE_DIR"] = cocotb_share
+        print(f"[*] Configured COCOTB_SHARE_DIR = {cocotb_share}")
+
     for name, path in suites:
         print(f"\n[*] Executing: {name}...")
         t0 = time.time()
-        res = subprocess.run(["make", "sim"], cwd=path, capture_output=True, text=True)
+        res = subprocess.run(["make", "sim"], cwd=path, env=env, capture_output=True, text=True)
         elapsed = time.time() - t0
 
         if res.returncode == 0:
@@ -44,10 +61,9 @@ def main():
             total_passed += 1
         else:
             print(f"[FAIL] {name} exited with code {res.returncode}")
-            print("--- Error Output Tail ---")
-            lines = (res.stdout + res.stderr).strip().splitlines()
-            for l in lines[-25:]:
-                print(f"  | {l}")
+            print("--- Output Log ---")
+            combined_output = (res.stdout + "\n" + res.stderr).strip()
+            print(combined_output if combined_output else "  (No output captured)")
             total_failed += 1
 
     total_time = time.time() - start_time

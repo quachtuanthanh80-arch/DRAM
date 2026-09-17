@@ -26,4 +26,5 @@ MODULE ?= test_top_e2e
 EXTRA_ARGS += --trace -Wno-DECLFILENAME -Wno-MULTITOP -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL \
               -I$(ROOT_DIR)/rtl/frontend -I$(ROOT_DIR)/rtl/cdc -I$(ROOT_DIR)/rtl/core -I$(ROOT_DIR)/rtl/backend -I$(ROOT_DIR)/rtl/top
 
-include $(shell cocotb-config --makefiles)/Makefile.sim
+COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
+include $(COCOTB_SHARE_DIR)/Makefile.sim
