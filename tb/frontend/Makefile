@@ -2,8 +2,10 @@
 SIM ?= verilator
 TOPLEVEL_LANG ?= verilog
 
-VERILOG_SOURCES += $(PWD)/../../rtl/frontend/axi4_skid_buffer.sv
-VERILOG_SOURCES += $(PWD)/../../rtl/frontend/axi_slave_frontend.sv
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+
+VERILOG_SOURCES += $(ROOT_DIR)/rtl/frontend/axi4_skid_buffer.sv
+VERILOG_SOURCES += $(ROOT_DIR)/rtl/frontend/axi_slave_frontend.sv
 
 TOPLEVEL = axi_slave_frontend
 MODULE = test_frontend

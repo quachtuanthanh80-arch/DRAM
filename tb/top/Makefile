@@ -3,25 +3,27 @@ TOPLEVEL_LANG ?= verilog
 SIM ?= verilator
 WAVES ?= 1
 
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+
 VERILOG_SOURCES = \
-    /mnt/d/RAM/rtl/frontend/axi4_skid_buffer.sv \
-    /mnt/d/RAM/rtl/frontend/axi_slave_frontend.sv \
-    /mnt/d/RAM/rtl/frontend/wdata_buffer.sv \
-    /mnt/d/RAM/rtl/frontend/addr_mapper_ddr5.sv \
-    /mnt/d/RAM/rtl/cdc/rst_sync.sv \
-    /mnt/d/RAM/rtl/cdc/async_fifo_cdc.sv \
-    /mnt/d/RAM/rtl/core/sdc_resilient_filter.sv \
-    /mnt/d/RAM/rtl/core/qos_scheduler_queue.sv \
-    /mnt/d/RAM/rtl/core/reorder_buffer_rob.sv \
-    /mnt/d/RAM/rtl/backend/slack_aware_arbiter.sv \
-    /mnt/d/RAM/rtl/backend/ddr5_cmd_engine.sv \
-    /mnt/d/RAM/rtl/backend/ecc_scrubber.sv \
-    /mnt/d/RAM/rtl/top/axi_ddr5_mc_top.sv
+    $(ROOT_DIR)/rtl/frontend/axi4_skid_buffer.sv \
+    $(ROOT_DIR)/rtl/frontend/axi_slave_frontend.sv \
+    $(ROOT_DIR)/rtl/frontend/wdata_buffer.sv \
+    $(ROOT_DIR)/rtl/frontend/addr_mapper_ddr5.sv \
+    $(ROOT_DIR)/rtl/cdc/rst_sync.sv \
+    $(ROOT_DIR)/rtl/cdc/async_fifo_cdc.sv \
+    $(ROOT_DIR)/rtl/core/sdc_resilient_filter.sv \
+    $(ROOT_DIR)/rtl/core/qos_scheduler_queue.sv \
+    $(ROOT_DIR)/rtl/core/reorder_buffer_rob.sv \
+    $(ROOT_DIR)/rtl/backend/slack_aware_arbiter.sv \
+    $(ROOT_DIR)/rtl/backend/ddr5_cmd_engine.sv \
+    $(ROOT_DIR)/rtl/backend/ecc_scrubber.sv \
+    $(ROOT_DIR)/rtl/top/axi_ddr5_mc_top.sv
 
 TOPLEVEL ?= axi_ddr5_mc_top
 MODULE ?= test_top_e2e
 
 EXTRA_ARGS += --trace -Wno-DECLFILENAME -Wno-MULTITOP -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL \
-              -I/mnt/d/RAM/rtl/frontend -I/mnt/d/RAM/rtl/cdc -I/mnt/d/RAM/rtl/core -I/mnt/d/RAM/rtl/backend -I/mnt/d/RAM/rtl/top
+              -I$(ROOT_DIR)/rtl/frontend -I$(ROOT_DIR)/rtl/cdc -I$(ROOT_DIR)/rtl/core -I$(ROOT_DIR)/rtl/backend -I$(ROOT_DIR)/rtl/top
 
 include $(shell cocotb-config --makefiles)/Makefile.sim

@@ -2,7 +2,9 @@
 SIM ?= verilator
 TOPLEVEL_LANG ?= verilog
 
-VERILOG_SOURCES += $(PWD)/../../rtl/core/sdc_resilient_filter.sv
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+
+VERILOG_SOURCES += $(ROOT_DIR)/rtl/core/sdc_resilient_filter.sv
 
 TOPLEVEL = sdc_resilient_filter
 MODULE = test_sdc_filter
