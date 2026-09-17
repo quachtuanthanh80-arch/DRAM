@@ -7,7 +7,7 @@
 [![Tổng hợp FPGA](https://img.shields.io/badge/T%E1%BB%95ng%20h%E1%BB%A3p%20FPGA-Yosys%200.52%20(46k%20LUTs)-orange.svg)](syn/)
 [![Mô phỏng kiến trúc](https://img.shields.io/badge/M%C3%B4%20ph%E1%BB%8Fng-Ramulator2%20(36%20runs)-blueviolet.svg)](sim/)
 [![Băng thông](https://img.shields.io/badge/B%C4%83ng%20th%C3%B4ng-137.2%20GB%2Fs%20(8--CH)-success.svg)](sim/)
-[![Giấy phép](https://img.shields.io/badge/Gi%E1%BB%A7y%20ph%C3%A9p-Apache%202.0-lightgrey.svg)](LICENSE)
+[![Giấy phép](https://img.shields.io/badge/Gi%E1%BB%A7y%20ph%C3%A9p-MIT-lightgrey.svg)](LICENSE)
 
 ---
 

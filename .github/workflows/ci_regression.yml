@@ -21,10 +21,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Hardware Simulators & Tools
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y verilator build-essential zlib1g-dev make
+          sudo apt-get install -y build-essential zlib1g-dev make help2man flex bison
+
+      - name: Set up Verilator Simulator (>= 5.036)
+        uses: veryl-lang/setup-verilator@v1
 
       - name: Install Python Verification Dependencies
         run: |
