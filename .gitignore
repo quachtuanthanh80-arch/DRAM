@@ -59,5 +59,6 @@ implementation_plan.md
 walkthrough.md
 *.pdf
 *.docx
+*.zip
 ~$*
 scratch/

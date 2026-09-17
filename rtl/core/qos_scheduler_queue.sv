@@ -6,6 +6,9 @@
 // Standard    : IEEE 1800-2017 SystemVerilog (Synthesizable & Formal Clean)
 //=============================================================================
 
+`timescale 1ns / 1ps
+
+/* verilator lint_off UNUSEDPARAM */
 module qos_scheduler_queue #(
     parameter int AXI_ID_WIDTH     = 4,
     parameter int AXI_QOS_WIDTH    = 4,

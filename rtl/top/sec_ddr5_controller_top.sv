@@ -477,7 +477,18 @@ module sec_ddr5_controller_top #(
         .dfi_wrdata_mask (dfi_a_wrdata_mask),
         .dfi_rddata_en   (dfi_a_rddata_en),
         .dfi_rddata      (dfi_a_rddata),
-        .dfi_rddata_valid(dfi_a_rddata_valid)
+        .dfi_rddata_valid(dfi_a_rddata_valid),
+        .dfi_reset_n     (),
+        .dfi_init_start  (),
+        .dfi_init_complete(1'b1),
+        .phy_initialized (),
+        .dfi_ctrlupd_req (),
+        .dfi_ctrlupd_ack (1'b0),
+        .dfi_phyupd_req  (1'b0),
+        .dfi_phyupd_ack  (),
+        .dfi_lp_req      (),
+        .dfi_lp_ack      (1'b0),
+        .dfi_lp_wakeup   ()
     );
 
     dfi_phy_adapter #(
@@ -511,7 +522,18 @@ module sec_ddr5_controller_top #(
         .dfi_wrdata_mask (dfi_b_wrdata_mask),
         .dfi_rddata_en   (dfi_b_rddata_en),
         .dfi_rddata      (dfi_b_rddata),
-        .dfi_rddata_valid(dfi_b_rddata_valid)
+        .dfi_rddata_valid(dfi_b_rddata_valid),
+        .dfi_reset_n     (),
+        .dfi_init_start  (),
+        .dfi_init_complete(1'b1),
+        .phy_initialized (),
+        .dfi_ctrlupd_req (),
+        .dfi_ctrlupd_ack (1'b0),
+        .dfi_phyupd_req  (1'b0),
+        .dfi_phyupd_ack  (),
+        .dfi_lp_req      (),
+        .dfi_lp_ack      (1'b0),
+        .dfi_lp_wakeup   ()
     );
 
     assign controller_idle = adapter_idle && !pipe_busy && fifo_a_rempty && fifo_b_rempty;

@@ -1,0 +1,110 @@
+[
+  {
+    "dram": "DDR4-3200",
+    "channels": 1,
+    "scheme": "Baseline",
+    "cycles": 22673,
+    "read_latency_ns": 154.56,
+    "throughput_mbps": 22374.17,
+    "hit_rate_pct": 16.38,
+    "note": "OK",
+    "speedup": "1.00x"
+  },
+  {
+    "dram": "DDR4-3200",
+    "channels": 2,
+    "scheme": "Baseline",
+    "cycles": 11011,
+    "read_latency_ns": 130.52,
+    "throughput_mbps": 45392.28,
+    "hit_rate_pct": 18.74,
+    "note": "OK",
+    "speedup": "2.03x"
+  },
+  {
+    "dram": "DDR4-3200",
+    "channels": 3,
+    "scheme": "Baseline",
+    "cycles": "N/A (Non-PoT)",
+    "read_latency_ns": "N/A (Modulo-3)",
+    "throughput_mbps": 0.0,
+    "speedup": "N/A",
+    "note": "Non-power-of-two channel count requires specialized hardware modulo/hash interleaving."
+  },
+  {
+    "dram": "DDR4-3200",
+    "channels": 4,
+    "scheme": "Baseline",
+    "cycles": 5703,
+    "read_latency_ns": 94.34,
+    "throughput_mbps": 86742.84,
+    "hit_rate_pct": 23.68,
+    "note": "OK",
+    "speedup": "3.88x"
+  },
+  {
+    "dram": "DDR4-3200",
+    "channels": 8,
+    "scheme": "Baseline",
+    "cycles": 4999,
+    "read_latency_ns": 47.03,
+    "throughput_mbps": 99511.74,
+    "hit_rate_pct": 29.59,
+    "note": "OK",
+    "speedup": "4.45x"
+  },
+  {
+    "dram": "DDR5-4800",
+    "channels": 1,
+    "scheme": "Baseline",
+    "cycles": 48485,
+    "read_latency_ns": 208.02,
+    "throughput_mbps": 15684.47,
+    "hit_rate_pct": 3.73,
+    "note": "OK",
+    "speedup": "1.00x"
+  },
+  {
+    "dram": "DDR5-4800",
+    "channels": 2,
+    "scheme": "Baseline",
+    "cycles": 22197,
+    "read_latency_ns": 214.35,
+    "throughput_mbps": 33712.11,
+    "hit_rate_pct": 7.34,
+    "note": "OK",
+    "speedup": "2.15x"
+  },
+  {
+    "dram": "DDR5-4800",
+    "channels": 3,
+    "scheme": "Baseline",
+    "cycles": "N/A (Non-PoT)",
+    "read_latency_ns": "N/A (Modulo-3)",
+    "throughput_mbps": 0.0,
+    "speedup": "N/A",
+    "note": "Non-power-of-two channel count requires specialized hardware modulo/hash interleaving."
+  },
+  {
+    "dram": "DDR5-4800",
+    "channels": 4,
+    "scheme": "Baseline",
+    "cycles": 10947,
+    "read_latency_ns": 178.49,
+    "throughput_mbps": 66670.88,
+    "hit_rate_pct": 9.27,
+    "note": "OK",
+    "speedup": "4.25x"
+  },
+  {
+    "dram": "DDR5-4800",
+    "channels": 8,
+    "scheme": "Baseline",
+    "cycles": 5270,
+    "read_latency_ns": 101.48,
+    "throughput_mbps": 137206.25,
+    "hit_rate_pct": 13.04,
+    "note": "OK",
+    "speedup": "8.75x"
+  }
+]

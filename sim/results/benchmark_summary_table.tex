@@ -1,0 +1,56 @@
+% Auto-generated Benchmark Summary Table for IEEE Transactions
+\begin{table*}[t]
+\centering
+\caption{Comprehensive Performance & Resilience Comparison across Architectures and Baselines}
+\label{tab:benchmark_summary}
+\begin{tabular}{lllrrrrr}
+\hline
+DRAM Preset & Workload & Scheme & Cycles & Latency (ns) & Throughput (MB/s) & Hit Rate (\%) & Throttled \\
+\hline
+DDR4-3200 & Benign & Baseline & 22673 & 154.56 & 22374.17 & 16.4\% & 0 \\
+DDR4-3200 & Benign & BlockHammer & 22673 & 154.56 & 22374.17 & 16.4\% & 0 \\
+DDR4-3200 & Benign & \textbf{Q-Shield} & 22673 & 154.56 & 22374.17 & 16.4\% & 0 \\
+DDR4-3200 & RowHammer & Baseline & 45337 & 197.94 & 11220.93 & 98.3\% & 0 \\
+DDR4-3200 & RowHammer & BlockHammer & 314930 & 1283.59 & 1615.35 & 98.3\% & 0 \\
+DDR4-3200 & RowHammer & \textbf{Q-Shield} & 45337 & 197.94 & 11220.93 & 98.3\% & 52 \\
+DDR4-3200 & Mixed & Baseline & 34603 & 180.21 & 14657.32 & 30.9\% & 0 \\
+DDR4-3200 & Mixed & BlockHammer & 1019360 & 4588.54 & 497.55 & 30.9\% & 0 \\
+DDR4-3200 & Mixed & \textbf{Q-Shield} & 34114 & 178.02 & 14867.42 & 31.0\% & 293 \\
+DDR4-3200 & Blacksmith & Baseline & 50688 & 333.92 & 8511.11 & 56.2\% & 0 \\
+DDR4-3200 & Blacksmith & BlockHammer & 718154 & 4504.84 & 599.30 & 55.5\% & 0 \\
+DDR4-3200 & Blacksmith & \textbf{Q-Shield} & 49489 & 327.58 & 8733.87 & 56.5\% & 288 \\
+DDR5-4800 & Benign & Baseline & 48485 & 208.02 & 15684.47 & 3.7\% & 0 \\
+DDR5-4800 & Benign & BlockHammer & 48485 & 208.02 & 15684.47 & 3.7\% & 0 \\
+DDR5-4800 & Benign & PRAC & 48485 & 208.02 & 15684.47 & 3.7\% & 0 \\
+DDR5-4800 & Benign & \textbf{Q-Shield} & 48485 & 208.02 & 15684.47 & 3.7\% & 0 \\
+DDR5-4800 & RowHammer & Baseline & 71656 & 211.89 & 10666.35 & 98.3\% & 0 \\
+DDR5-4800 & RowHammer & BlockHammer & 476158 & 1297.32 & 1605.16 & 98.2\% & 0 \\
+DDR5-4800 & RowHammer & PRAC & 71656 & 211.89 & 10666.35 & 98.3\% & 0 \\
+DDR5-4800 & RowHammer & \textbf{Q-Shield} & 71656 & 211.89 & 10666.35 & 98.3\% & 55 \\
+DDR5-4800 & Mixed & Baseline & 61021 & 211.83 & 12487.50 & 30.8\% & 0 \\
+DDR5-4800 & Mixed & BlockHammer & 1532669 & 4604.15 & 497.17 & 30.7\% & 0 \\
+DDR5-4800 & Mixed & PRAC & 61021 & 211.83 & 12487.50 & 30.8\% & 0 \\
+DDR5-4800 & Mixed & \textbf{Q-Shield} & 61021 & 211.83 & 12487.50 & 30.8\% & 299 \\
+DDR5-4800 & Blacksmith & Baseline & 90753 & 403.20 & 7126.70 & 56.5\% & 0 \\
+DDR5-4800 & Blacksmith & BlockHammer & 1226072 & 5127.35 & 529.52 & 55.3\% & 0 \\
+DDR5-4800 & Blacksmith & PRAC & 90753 & 403.20 & 7126.70 & 56.5\% & 0 \\
+DDR5-4800 & Blacksmith & \textbf{Q-Shield} & 90753 & 403.20 & 7126.70 & 56.5\% & 288 \\
+DDR5-5600 & Benign & Baseline & 50212 & 184.41 & 17640.83 & 5.4\% & 0 \\
+DDR5-5600 & Benign & BlockHammer & 50212 & 184.41 & 17640.83 & 5.4\% & 0 \\
+DDR5-5600 & Benign & PRAC & 50212 & 184.41 & 17640.83 & 5.4\% & 0 \\
+DDR5-5600 & Benign & \textbf{Q-Shield} & 50212 & 184.41 & 17640.83 & 5.4\% & 0 \\
+DDR5-5600 & RowHammer & Baseline & 83500 & 210.93 & 10666.13 & 98.3\% & 0 \\
+DDR5-5600 & RowHammer & BlockHammer & 554850 & 1294.87 & 1605.16 & 98.2\% & 0 \\
+DDR5-5600 & RowHammer & PRAC & 83500 & 210.93 & 10666.13 & 98.3\% & 0 \\
+DDR5-5600 & RowHammer & \textbf{Q-Shield} & 83500 & 210.93 & 10666.13 & 98.3\% & 50 \\
+DDR5-5600 & Mixed & Baseline & 65440 & 196.41 & 13568.65 & 31.5\% & 0 \\
+DDR5-5600 & Mixed & BlockHammer & 1608797 & 4143.43 & 551.92 & 31.4\% & 0 \\
+DDR5-5600 & Mixed & PRAC & 65440 & 196.41 & 13568.65 & 31.5\% & 0 \\
+DDR5-5600 & Mixed & \textbf{Q-Shield} & 65440 & 196.41 & 13568.65 & 31.5\% & 268 \\
+DDR5-5600 & Blacksmith & Baseline & 97744 & 374.25 & 7695.86 & 58.0\% & 0 \\
+DDR5-5600 & Blacksmith & BlockHammer & 1067711 & 3696.92 & 701.83 & 57.2\% & 0 \\
+DDR5-5600 & Blacksmith & PRAC & 97744 & 374.25 & 7695.86 & 58.0\% & 0 \\
+DDR5-5600 & Blacksmith & \textbf{Q-Shield} & 97744 & 374.25 & 7695.86 & 58.0\% & 216 \\
+\hline
+\end{tabular}
+\end{table*}

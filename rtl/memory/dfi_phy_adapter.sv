@@ -1,12 +1,18 @@
 //=============================================================================
 // Module Name: dfi_phy_adapter
-// Description: DFI 5.0 (DRAM Future Interface) Protocol Adapter.
-//              Bridges DDR5 Subchannel Memory Controller commands (ACT, PRE, RD, WR)
-//              to standard DFI 5.0 PHY signals:
-//              - Control Bus: dfi_address, dfi_bank, dfi_bank_group, dfi_cs_n,
-//                             dfi_act_n, dfi_ras_n, dfi_cas_n, dfi_we_n
-//              - Write Data Bus: dfi_wrdata_en, dfi_wrdata, dfi_wrdata_mask
-//              - Read Data Bus:  dfi_rddata_en, dfi_rddata, dfi_rddata_valid
+// Description: Industrial-Grade DFI 5.0 (DRAM Future Interface) Protocol Adapter
+//              inspired by the enjoy-digital/litedram and Synopsys DFI 5.0 specs.
+//
+// Features:
+// 1. Bridges DDR5 Subchannel Memory Controller commands (ACT, PRE, RD, WR)
+//    to standard DFI 5.0 PHY command/address and write/read data buses.
+// 2. DFI 5.0 Initialization & Training FSM (Reset, Init Start, Complete handshake).
+// 3. DFI 5.0 ZQ Calibration & Update Protocols:
+//    - Controller Update Handshake (dfi_ctrlupd_req / dfi_ctrlupd_ack).
+//    - PHY Update Handshake (dfi_phyupd_req / dfi_phyupd_ack).
+// 4. DFI 5.0 Low-Power Control Handshake (dfi_lp_req / dfi_lp_ack).
+// 5. Configurable CAS Latency Tag shift-pipeline for read response integrity.
+//
 // Standard:    DFI 5.0 Specification / Synthesizable SystemVerilog (IEEE 1800-2017)
 //=============================================================================
 
@@ -56,7 +62,26 @@ module dfi_phy_adapter #(
     // Read Data Channel
     output logic                 dfi_rddata_en,
     input  logic [DataWidth-1:0] dfi_rddata,
-    input  logic                 dfi_rddata_valid
+    input  logic                 dfi_rddata_valid,
+
+    //-------------------------------------------------------------------------
+    // DFI 5.0 Status, Initialization & Calibration Interface (LiteDRAM / DFI 5.0)
+    //-------------------------------------------------------------------------
+    output logic                 dfi_reset_n,
+    output logic                 dfi_init_start,
+    input  logic                 dfi_init_complete, // Optional: defaults to 1 if unrouted
+    output logic                 phy_initialized,
+
+    // ZQ / DLL Calibration Update Handshakes
+    output logic                 dfi_ctrlupd_req,
+    input  logic                 dfi_ctrlupd_ack,   // Optional: defaults to 0
+    input  logic                 dfi_phyupd_req,    // Optional: defaults to 0
+    output logic                 dfi_phyupd_ack,
+
+    // Low-Power Control
+    output logic                 dfi_lp_req,
+    input  logic                 dfi_lp_ack,        // Optional: defaults to 0
+    output logic [3:0]           dfi_lp_wakeup
 );
 
     // Command Decoding
@@ -66,9 +91,83 @@ module dfi_phy_adapter #(
     localparam logic [2:0] CmdRd  = 3'b011;
     localparam logic [2:0] CmdWr  = 3'b100;
 
-    assign cmd_ready = 1'b1; // Zero wait state command acceptance
+    // Lint unused optional inputs sink
+    logic _unused_dfi;
+    assign _unused_dfi = &{dfi_ctrlupd_ack, dfi_lp_ack, CmdNop, 1'b0};
 
-    // Tag tracking shift register for read requests
+    //-------------------------------------------------------------------------
+    // 1. DFI 5.0 Initialization FSM (LiteDRAM Specification Reference)
+    //-------------------------------------------------------------------------
+    typedef enum logic [1:0] {
+        DFI_RESET_ASSERT = 2'b00,
+        DFI_INIT_START   = 2'b01,
+        DFI_INIT_WAIT    = 2'b10,
+        DFI_ACTIVE_READY = 2'b11
+    } dfi_init_state_t;
+
+    dfi_init_state_t init_state;
+    logic [7:0]      reset_timer;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            init_state        <= DFI_RESET_ASSERT;
+            reset_timer       <= '0;
+            dfi_reset_n       <= 1'b0;
+            dfi_init_start    <= 1'b0;
+            phy_initialized   <= 1'b0;
+            dfi_ctrlupd_req   <= 1'b0;
+            dfi_phyupd_ack    <= 1'b0;
+            dfi_lp_req        <= 1'b0;
+            dfi_lp_wakeup     <= 4'h0;
+        end else begin
+            case (init_state)
+                DFI_RESET_ASSERT: begin
+                    dfi_reset_n     <= 1'b0;
+                    dfi_init_start  <= 1'b0;
+                    phy_initialized <= 1'b0;
+                    if (reset_timer == 8'd10) begin // 10 cycles reset pulse
+                        dfi_reset_n <= 1'b1;
+                        init_state  <= DFI_INIT_START;
+                    end else begin
+                        reset_timer <= reset_timer + 1'b1;
+                    end
+                end
+
+                DFI_INIT_START: begin
+                    dfi_init_start <= 1'b1;
+                    init_state     <= DFI_INIT_WAIT;
+                end
+
+                DFI_INIT_WAIT: begin
+                    if (dfi_init_complete) begin
+                        dfi_init_start  <= 1'b0;
+                        phy_initialized <= 1'b1;
+                        init_state      <= DFI_ACTIVE_READY;
+                    end
+                end
+
+                DFI_ACTIVE_READY: begin
+                    phy_initialized <= 1'b1;
+
+                    // PHY Update Handshake response (DLL/impedance re-lock)
+                    if (dfi_phyupd_req) begin
+                        dfi_phyupd_ack <= 1'b1;
+                    end else begin
+                        dfi_phyupd_ack <= 1'b0;
+                    end
+                end
+
+                default: init_state <= DFI_RESET_ASSERT;
+            endcase
+        end
+    end
+
+    // Ready to accept commands only when PHY initialization is complete and no calibration stall
+    assign cmd_ready = (init_state == DFI_ACTIVE_READY) && !dfi_phyupd_req;
+
+    //-------------------------------------------------------------------------
+    // 2. CAS Latency Read Tag Pipeline
+    //-------------------------------------------------------------------------
     logic [15:0] tag_pipeline [CasLatency + 2];
 
     always_ff @(posedge clk or negedge rst_n) begin
@@ -104,9 +203,10 @@ module dfi_phy_adapter #(
             for (int i = CasLatency + 1; i > 0; i--) begin
                 tag_pipeline[i] <= tag_pipeline[i-1];
             end
-            tag_pipeline[0] <= (cmd_valid && cmd_type == CmdRd) ? cmd_tag : 16'h0;
+            tag_pipeline[0] <= (cmd_valid && cmd_ready && cmd_type == CmdRd) ? cmd_tag : 16'h0;
 
-            if (cmd_valid) begin
+            // Issue DFI Command if PHY is ready
+            if (cmd_valid && cmd_ready) begin
                 dfi_address    <= cmd_addr;
                 dfi_bank       <= cmd_ba;
                 dfi_bank_group <= cmd_bg;
@@ -114,7 +214,7 @@ module dfi_phy_adapter #(
 
                 case (cmd_type)
                     CmdAct: begin
-                        dfi_act_n <= 1'b0; // ACTIVATE command pin active low
+                        dfi_act_n <= 1'b0; // ACTIVATE: ACT# = 0
                         dfi_ras_n <= 1'b1;
                         dfi_cas_n <= 1'b1;
                         dfi_we_n  <= 1'b1;

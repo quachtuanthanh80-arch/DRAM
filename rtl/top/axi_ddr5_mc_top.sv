@@ -738,6 +738,10 @@ module axi_ddr5_mc_top #(
         .i_raw_data          (dram_wb_data),
         .i_raw_ecc           (8'h00),
 
+        .i_fault_inject_en   (1'b0),
+        .i_fault_inject_type (2'b00),
+        .i_fault_inject_bit  (6'd0),
+
         .o_corrected_valid   (),
         .o_corrected_data    (),
         .o_single_err        (),

@@ -41,6 +41,11 @@ module ecc_scrubber #(
     input  logic [DATA_WIDTH-1:0]                        i_raw_data,
     input  logic [ECC_WIDTH-1:0]                         i_raw_ecc,
 
+    // OpenTitan-inspired Fault Injection Interface (for Verification & Diagnostic Testing)
+    input  logic                                         i_fault_inject_en,
+    input  logic [1:0]                                   i_fault_inject_type, // 01: Single-Bit, 10: Double-Bit
+    input  logic [5:0]                                   i_fault_inject_bit,
+
     // Error Reporting & Corrected Output
     output logic                                         o_corrected_valid,
     output logic [DATA_WIDTH-1:0]                        o_corrected_data,
@@ -51,6 +56,30 @@ module ecc_scrubber #(
 );
 
     //=========================================================================
+    // Fault Injection Pre-processing (OpenTitan Architecture Reference)
+    //=========================================================================
+    logic [DATA_WIDTH-1:0] effective_data;
+    logic [ECC_WIDTH-1:0]  effective_ecc;
+
+    always_comb begin
+        effective_data = i_raw_data;
+        effective_ecc  = i_raw_ecc;
+        if (i_fault_inject_en) begin
+            case (i_fault_inject_type)
+                2'b01: begin // Single-bit flip
+                    effective_data[i_fault_inject_bit] = ~i_raw_data[i_fault_inject_bit];
+                end
+                2'b10: begin // Double-bit flip (SDC injection)
+                    effective_data[i_fault_inject_bit] = ~i_raw_data[i_fault_inject_bit];
+                    effective_data[(i_fault_inject_bit == 6'd63) ? 6'd0 : (i_fault_inject_bit + 1'b1)] = 
+                        ~i_raw_data[(i_fault_inject_bit == 6'd63) ? 6'd0 : (i_fault_inject_bit + 1'b1)];
+                end
+                default: ;
+            endcase
+        end
+    end
+
+    //=========================================================================
     // SEC-DED Syndrome & Parity Matrix (Standard 64-bit data + 8-bit ECC)
     // Parity bits P[0..6] check Hamming code subsets, P[7] is overall parity.
     //=========================================================================
@@ -59,17 +88,17 @@ module ecc_scrubber #(
     logic [6:0] syn;
     logic syn_zero;
 
-    assign overall_parity = (^i_raw_data) ^ (^i_raw_ecc);
+    assign overall_parity = (^effective_data) ^ (^effective_ecc);
     assign syn_zero       = (syn == 7'd0);
 
     always_comb begin
-        syn[0] = i_raw_ecc[0] ^ ^(i_raw_data & 64'h5555_5555_5555_5555);
-        syn[1] = i_raw_ecc[1] ^ ^(i_raw_data & 64'h6666_6666_6666_6666);
-        syn[2] = i_raw_ecc[2] ^ ^(i_raw_data & 64'h7878_7878_7878_7878);
-        syn[3] = i_raw_ecc[3] ^ ^(i_raw_data & 64'h7F80_7F80_7F80_7F80);
-        syn[4] = i_raw_ecc[4] ^ ^(i_raw_data & 64'h7FFF_8000_7FFF_8000);
-        syn[5] = i_raw_ecc[5] ^ ^(i_raw_data & 64'h7FFF_FFFF_8000_0000);
-        syn[6] = i_raw_ecc[6] ^ ^(i_raw_data & 64'h8000_0000_0000_0000);
+        syn[0] = effective_ecc[0] ^ ^(effective_data & 64'h5555_5555_5555_5555);
+        syn[1] = effective_ecc[1] ^ ^(effective_data & 64'h6666_6666_6666_6666);
+        syn[2] = effective_ecc[2] ^ ^(effective_data & 64'h7878_7878_7878_7878);
+        syn[3] = effective_ecc[3] ^ ^(effective_data & 64'h7F80_7F80_7F80_7F80);
+        syn[4] = effective_ecc[4] ^ ^(effective_data & 64'h7FFF_8000_7FFF_8000);
+        syn[5] = effective_ecc[5] ^ ^(effective_data & 64'h7FFF_FFFF_8000_0000);
+        syn[6] = effective_ecc[6] ^ ^(effective_data & 64'h8000_0000_0000_0000);
     end
 
     // SEC-DED Classification:
