@@ -1,33 +1,5 @@
 #!/usr/bin/env python3
-"""
-===============================================================================
-Script: run_all_tests.py
-Description: Master CI & Hardware Regression Test Runner for Q-Shield
-             Executes Cocotb 2.1 + Verilator test suites across all modules:
-             1. Frontend (AXI4 Slave, Skid Buffer, Address Mapper)
-             2. Core (SDC Resilient Filter, QoS Queue, 16-entry ROB)
-             3. Backend (Timing-Slack Matrix Arbiter, DDR5 Command Engine, ECC)
-             4. Top-Level E2E Full Subsystem Integration
-===============================================================================
-"""
 
-import os
-import sys
-import subprocess
-import time
-import shutil
-
-def main():
-    root_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # If running on Windows and native 'make' is not present, dispatch to WSL
-    if sys.platform == "win32" and shutil.which("make") is None and shutil.which("wsl") is not None:
-        print("[*] Native 'make' not detected on Windows host. Dispatching to WSL environment...")
-        drive, rest = os.path.splitdrive(os.path.abspath(__file__))
-        drive_letter = drive.replace(":", "").lower()
-        wsl_path = f"/mnt/{drive_letter}" + rest.replace("\\", "/")
-        ret = subprocess.run(["wsl", "--", "python3", wsl_path] + sys.argv[1:])
-        sys.exit(ret.returncode)
 
     suites = [
         ("Frontend Stage (AXI4 Slave, Skid Buffer & Mapper)", os.path.join(root_dir, "tb", "frontend")),
