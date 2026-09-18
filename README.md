@@ -394,7 +394,7 @@ python sim/test_multichannel.py
 
 ---
 
-## 📜 Danh Mục Mã Nguồn RTL & Trích Dẫn Khoa Học
+## 📜 Danh Mục Mã Nguồn RTL
 
 Mã nguồn RTL phần cứng được mở hoàn toàn và có khả năng tổng hợp trên các công cụ chuẩn công nghiệp:
 - **Bộ điều khiển nhớ hoàn chỉnh:** [`rtl/top/axi_ddr5_mc_top.sv`](rtl/top/axi_ddr5_mc_top.sv)
@@ -408,12 +408,3 @@ Mã nguồn RTL phần cứng được mở hoàn toàn và có khả năng tổ
 - **Adapter giao diện vật lý DFI 5.0:** [`rtl/memory/dfi_phy_adapter.sv`](rtl/memory/dfi_phy_adapter.sv)
 - **Đường ống tăng tốc mật mã AES-256-XTS:** [`rtl/crypto/subchannel_aes_xts_pipe.sv`](rtl/crypto/subchannel_aes_xts_pipe.sv)
 - **Khối thanh ghi cấu hình bảo mật APB4 CSR:** [`rtl/bus/apb_csr_regs.sv`](rtl/bus/apb_csr_regs.sv)
-
-```bibtex
-@article{qshield2026,
-  title   = {{Q-Shield}: A High-Throughput, Zero-Bubble and {SDC}-Resilient {DDR5/DDR4} Memory Controller},
-  author  = {Quach, Tuan Thanh and Contributors},
-  journal = {IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD) / TVLSI},
-  year    = {2026}
-}
-```
