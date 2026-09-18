@@ -161,6 +161,26 @@ def main():
                 os.path.join(root, "rtl", "top", "axi_ddr5_mc_top.sv"),
                 os.path.join(root, "tb", "top", "tb_axi_ddr5_mc_top.sv"),
             ]
+        },
+        {
+            "name": "Top-Level Integration: Inline AES-256-XTS Secure DDR5 Controller",
+            "top": "tb_sec_ddr5_controller_top",
+            "sources": [
+                os.path.join(root, "rtl", "crypto", "aes_pkg.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_sbox.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_sbox_composite.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_tweak_gen.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_round_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "subchannel_aes_xts_pipe.sv"),
+                os.path.join(root, "rtl", "bus", "axi4_skid_buffer.sv"),
+                os.path.join(root, "rtl", "bus", "apb_csr_regs.sv"),
+                os.path.join(root, "rtl", "bus", "axi4_slave_adapter.sv"),
+                os.path.join(root, "rtl", "memory", "async_fifo_cdc.sv"),
+                os.path.join(root, "rtl", "memory", "ddr5_subchannel_scheduler.sv"),
+                os.path.join(root, "rtl", "memory", "dfi_phy_adapter.sv"),
+                os.path.join(root, "rtl", "top", "sec_ddr5_controller_top.sv"),
+                os.path.join(root, "tb", "top", "tb_sec_ddr5_controller_top.sv"),
+            ]
         }
     ]
 

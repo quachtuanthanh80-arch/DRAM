@@ -53,6 +53,8 @@ WORKLOADS = {
     "RowHammer": os.path.join(TRACES_DIR, "trace_rowhammer.trace"),
     "Mixed": os.path.join(TRACES_DIR, "trace_mixed.trace"),
     "Blacksmith": os.path.join(TRACES_DIR, "trace_blacksmith.trace"),
+    "RowPress": os.path.join(TRACES_DIR, "trace_rowpress.trace"),
+    "MultiTenant": os.path.join(TRACES_DIR, "trace_multitenant_adversarial.trace"),
 }
 
 def run_single_benchmark(dram_name, dram_info, workload_name, trace_path, scheme):

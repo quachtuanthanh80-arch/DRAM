@@ -1,0 +1,47 @@
+[
+  {
+    "workload": "Benign Standard (PARSEC/SPEC)",
+    "accesses": 5000,
+    "mitigations": 350,
+    "escaped_bitflips": 0,
+    "detection_rate": "100.0%",
+    "fpr": "7.000%",
+    "status": "SECURE"
+  },
+  {
+    "workload": "Standard RowHammer (Alternating)",
+    "accesses": 5000,
+    "mitigations": 624,
+    "escaped_bitflips": 0,
+    "detection_rate": "100.0%",
+    "fpr": "N/A (Attack)",
+    "status": "SECURE"
+  },
+  {
+    "workload": "IEEE S&P Blacksmith (Multi-Sided)",
+    "accesses": 5000,
+    "mitigations": 41,
+    "escaped_bitflips": 0,
+    "detection_rate": "100.0%",
+    "fpr": "N/A (Attack)",
+    "status": "SECURE"
+  },
+  {
+    "workload": "RowPress (Prolonged t_ACT Hammer)",
+    "accesses": 5000,
+    "mitigations": 462,
+    "escaped_bitflips": 0,
+    "detection_rate": "100.0%",
+    "fpr": "N/A (Attack)",
+    "status": "SECURE"
+  },
+  {
+    "workload": "8-Thread Multi-Tenant Adversarial",
+    "accesses": 8000,
+    "mitigations": 302,
+    "escaped_bitflips": 0,
+    "detection_rate": "100.0%",
+    "fpr": "N/A (Attack)",
+    "status": "SECURE"
+  }
+]
