@@ -1,12 +1,7 @@
 # Q-Shield: Bộ Điều Khiển Bộ Nhớ DDR5/DDR4 An Toàn, Thông Lượng Cao, Không Chu Kỳ Rỗng (Zero-Bubble) và Kháng Lỗi Sai Lệch Dữ Liệu Âm Thầm (SDC)
 
 [![Ngôn ngữ](https://img.shields.io/badge/Ng%C3%B4n%20ng%E1%BB%AF-SystemVerilog%20IEEE%201800--2017-blue.svg)](https://en.wikipedia.org/wiki/SystemVerilog)
-[![Kiểm chứng hình thức](https://img.shields.io/badge/Ki%E1%BB%83m%20ch%E1%BB%A9ng%20h%C3%ACnh%20th%E1%BB%A9c-SymbiYosys%20%2B%20Z3%20(PASS)-success.svg)](formal/)
-[![Cocotb](https://img.shields.io/badge/Ki%E1%BB%83m%20th%E1%BB%AD-Cocotb%202.1.0%20(11%2F11%20PASS)-brightgreen.svg)](tb/)
-[![Hồi quy phần cứng](https://img.shields.io/badge/H%E1%BB%93i%20quy%20ph%E1%BA%A7n%20c%E1%BB%A9ng-7%2F7%20PASS%20(100%25)-brightgreen.svg)](run_iverilog_regression.py)
-[![ASIC 45nm](https://img.shields.io/badge/ASIC%2045nm-424.1%20MHz%20%7C%20148k%20GE-blue.svg)](synth/asic/README.md)
-[![Tổng hợp FPGA](https://img.shields.io/badge/T%E1%BB%95ng%20h%E1%BB%A3p%20FPGA-Yosys%200.52%20(46k%20LUTs)-orange.svg)](syn/)
-[![Mô phỏng kiến trúc](https://img.shields.io/badge/M%C3%B4%20ph%E1%BB%8Fng-Ramulator2%20(36%20runs)-blueviolet.svg)](sim/)
+[!úc](https://img.shields.io/badge/M%C3%B4%20ph%E1%BB%8Fng-Ramulator2%20(36%20runs)-blueviolet.svg)](sim/)
 [![Băng thông](https://img.shields.io/badge/B%C4%83ng%20th%C3%B4ng-137.2%20GB%2Fs%20(8--CH)-success.svg)](sim/)
 [![Giấy phép](https://img.shields.io/badge/Gi%E1%BA%A5y%20ph%C3%A9p-MIT-lightgrey.svg)](LICENSE)
 
