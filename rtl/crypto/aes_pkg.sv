@@ -27,11 +27,8 @@ package aes_pkg;
         logic [15:0][7:0] bytes;
     } aes_block_t;
 
-    // Round Constants (Rcon) for Key Expansion
-    localparam logic [7:0] Rcon [1:10] = '{
-        8'h01, 8'h02, 8'h04, 8'h08, 8'h10,
-        8'h20, 8'h40, 8'h80, 8'h1b, 8'h36
-    };
+    // Round Constants (Rcon) for Key Expansion (10 bytes packed)
+    localparam logic [79:0] Rcon = 80'h361b8040201008040201;
 
     // Galois Field GF(2^8) xtime: multiplication by {02} modulo irreducible poly x^8 + x^4 + x^3 + x + 1 (0x11b)
     function automatic logic [7:0] gf256_xtime(input logic [7:0] b);

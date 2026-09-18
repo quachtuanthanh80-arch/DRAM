@@ -15,9 +15,20 @@ import os
 import sys
 import subprocess
 import time
+import shutil
 
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # If running on Windows and native 'make' is not present, dispatch to WSL
+    if sys.platform == "win32" and shutil.which("make") is None and shutil.which("wsl") is not None:
+        print("[*] Native 'make' not detected on Windows host. Dispatching to WSL environment...")
+        drive, rest = os.path.splitdrive(os.path.abspath(__file__))
+        drive_letter = drive.replace(":", "").lower()
+        wsl_path = f"/mnt/{drive_letter}" + rest.replace("\\", "/")
+        ret = subprocess.run(["wsl", "--", "python3", wsl_path] + sys.argv[1:])
+        sys.exit(ret.returncode)
+
     suites = [
         ("Frontend Stage (AXI4 Slave, Skid Buffer & Mapper)", os.path.join(root_dir, "tb", "frontend")),
         ("Core Security & QoS (SDC Filter, Queue & ROB)", os.path.join(root_dir, "tb", "core")),
@@ -38,16 +49,16 @@ def main():
     cocotb_share = None
     try:
         import cocotb_tools.config
-        cocotb_share = cocotb_tools.config.makefiles_dir
+        cocotb_share = str(cocotb_tools.config.makefiles_dir)
     except Exception:
         try:
             import cocotb.config
-            cocotb_share = cocotb.config.makefiles_dir
+            cocotb_share = str(cocotb.config.makefiles_dir)
         except Exception:
             pass
 
     if cocotb_share and os.path.exists(cocotb_share):
-        env["COCOTB_SHARE_DIR"] = cocotb_share
+        env["COCOTB_SHARE_DIR"] = str(cocotb_share)
         print(f"[*] Configured COCOTB_SHARE_DIR = {cocotb_share}")
 
     for name, path in suites:

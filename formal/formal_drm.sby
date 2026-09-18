@@ -1,0 +1,13 @@
+[options]
+mode bmc
+depth 20
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv directed_refresh_manager.sv
+prep -top directed_refresh_manager
+
+[files]
+/mnt/d/RAM/rtl/backend/directed_refresh_manager.sv

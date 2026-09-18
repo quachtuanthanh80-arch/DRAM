@@ -121,6 +121,27 @@ def main():
             ]
         },
         {
+            "name": "Crypto Stage 1: AES S-Box NIST Vector Verification",
+            "top": "tb_aes_sbox_test",
+            "sources": [
+                os.path.join(root, "rtl", "crypto", "aes_sbox.sv"),
+                os.path.join(root, "tb", "crypto", "tb_aes_sbox_test.sv"),
+            ]
+        },
+        {
+            "name": "Crypto Stage 2: Dual-Lane AES-256-XTS Pipelined Engine",
+            "top": "tb_aes_xts_pipe",
+            "sources": [
+                os.path.join(root, "rtl", "crypto", "aes_pkg.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_sbox.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_sbox_composite.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_tweak_gen.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_round_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "subchannel_aes_xts_pipe.sv"),
+                os.path.join(root, "tb", "crypto", "tb_aes_xts_pipe.sv"),
+            ]
+        },
+        {
             "name": "Top-Level Integration: AXI4 DDR5 Secure Memory Controller",
             "top": "tb_axi_ddr5_mc_top",
             "sources": [

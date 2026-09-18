@@ -17,14 +17,22 @@ module tb_aes_sbox_test;
         .out_byte(out_byte)
     );
 
-    typedef logic [7:0] byte_t;
-    localparam byte_t InVals[8]   = '{8'h00, 8'h01, 8'h53, 8'hd4, 8'hff, 8'h10, 8'h45, 8'h2b};
-    localparam byte_t ExpVals[8]  = '{8'h63, 8'h7c, 8'hed, 8'h48, 8'h16, 8'hca, 8'h6e, 8'hf1};
+    logic [7:0] InVals[8];
+    logic [7:0] ExpVals[8];
 
     int pass_count = 0;
     int fail_count = 0;
 
     initial begin
+        InVals[0] = 8'h00; ExpVals[0] = 8'h63;
+        InVals[1] = 8'h01; ExpVals[1] = 8'h7c;
+        InVals[2] = 8'h53; ExpVals[2] = 8'hed;
+        InVals[3] = 8'hd4; ExpVals[3] = 8'h48;
+        InVals[4] = 8'hff; ExpVals[4] = 8'h16;
+        InVals[5] = 8'h10; ExpVals[5] = 8'hca;
+        InVals[6] = 8'h45; ExpVals[6] = 8'h6e;
+        InVals[7] = 8'h2b; ExpVals[7] = 8'hf1;
+
         $display("==========================================================");
         $display("[TESTBENCH] Starting Automated Verification for AES S-Box...");
         $display("==========================================================");

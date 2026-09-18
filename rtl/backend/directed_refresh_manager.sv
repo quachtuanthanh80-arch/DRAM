@@ -180,7 +180,13 @@ module directed_refresh_manager #(
 
     // Arbitration between Directed Refresh and ECC Patrol Scrubbing
     always_comb begin
-        if (!queue_empty) begin
+        if (!rst_n) begin
+            o_mitigation_req  = 1'b0;
+            o_mitigation_bg   = '0;
+            o_mitigation_bank = '0;
+            o_mitigation_row  = '0;
+            o_scrub_grant     = 1'b0;
+        end else if (!queue_empty) begin
             // Directed Refresh has highest priority
             o_mitigation_req  = 1'b1;
             o_mitigation_bg   = q_bg[rd_idx];
@@ -203,4 +209,61 @@ module directed_refresh_manager #(
         end
     end
 
+`ifdef FORMAL
+    initial assume (!rst_n);
+    always_ff @(posedge clk) begin
+        if ($past(!rst_n))
+            assume (rst_n);
+    end
+
+    //=========================================================================
+    // Formal Verification Properties & Safety Invariants (SVA)
+    //=========================================================================
+    always_comb begin
+        if (!rst_n) begin
+            assert (count == '0);
+            assert (queue_empty);
+            assert (!o_queue_full);
+            assert (!o_mitigation_req);
+            assert (!o_scrub_grant);
+        end else begin
+            // 1. Queue Occupancy Invariant: count must never exceed QUEUE_DEPTH
+            assert (count <= QUEUE_DEPTH[PTR_W:0]);
+
+            // 2. Full Flag Determinism
+            if (count >= QUEUE_DEPTH[PTR_W:0]) begin
+                assert (o_queue_full);
+            end else begin
+                assert (!o_queue_full);
+            end
+
+            // 3. Priority Invariant: If victim queue has entries, mitigation request must be directed refresh
+            if (!queue_empty) begin
+                assert (o_mitigation_req);
+                assert (!o_scrub_grant);
+                assert (o_mitigation_bg == q_bg[rd_idx]);
+                assert (o_mitigation_bank == q_bank[rd_idx]);
+                assert (o_mitigation_row == q_row[rd_idx]);
+            end
+
+            // 4. Idle Invariant: When queue is empty and no patrol scrub request, no mitigation request
+            if (queue_empty && !i_scrub_req) begin
+                assert (!o_mitigation_req);
+                assert (!o_scrub_grant);
+            end
+
+            // 5. Scrub Pass-Through: When queue is empty and scrub req is active, scrub grant matches mitigation grant
+            if (queue_empty && i_scrub_req) begin
+                assert (o_mitigation_req);
+                assert (o_scrub_grant == i_mitigation_grant);
+                assert (o_mitigation_bg == i_scrub_bg);
+                assert (o_mitigation_bank == i_scrub_bank);
+                assert (o_mitigation_row == i_scrub_row);
+            end
+        end
+    end
+`endif
+
 endmodule: directed_refresh_manager
+
+

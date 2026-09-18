@@ -291,4 +291,41 @@ module slack_aware_arbiter #(
         end
     end
 
+`ifdef FORMAL
+    //=========================================================================
+    // Formal Verification Properties & Safety Invariants (SVA)
+    //=========================================================================
+    always_comb begin
+        if (rst_n) begin
+            // 1. Mutual Exclusion: Mitigation grant and User Issue grant are strictly mutually exclusive
+            assert (!(o_issue_grant_valid && o_mitigation_grant));
+
+            // 2. Mitigation Command Integrity
+            if (o_cmd_valid && o_cmd_is_mitigation) begin
+                assert (!o_issue_grant_valid);
+                assert (o_mitigation_grant);
+                assert (o_cmd_bg == i_mitigation_bg);
+                assert (o_cmd_bank == i_mitigation_bank);
+                assert (o_cmd_row == i_mitigation_row);
+            end
+
+            // 3. User Command Integrity: Issued BG must have had valid candidate
+            if (o_cmd_valid && !o_cmd_is_mitigation) begin
+                assert (o_issue_grant_valid);
+                assert (o_cmd_bg == o_issue_grant_bg);
+                assert (i_cand_valid[o_cmd_bg]);
+            end
+
+            // 4. Idle Bus Invariant: When neither user nor mitigation is legal, o_cmd_valid must be 0
+            if (!can_issue_user_cmd && !can_issue_mitigation) begin
+                assert (!o_cmd_valid);
+                assert (!o_issue_grant_valid);
+                assert (!o_mitigation_grant);
+            end
+        end
+    end
+`endif
+
 endmodule
+
+
