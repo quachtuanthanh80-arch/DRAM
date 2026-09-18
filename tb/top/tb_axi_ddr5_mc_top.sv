@@ -205,6 +205,25 @@ module tb_axi_ddr5_mc_top;
         s_axi_bready <= 1'b0;
     endtask
 
+    // Helper task: AXI4 read request
+    task automatic axi_read(
+        input logic [AXI_ID_WIDTH-1:0]   id,
+        input logic [AXI_ADDR_WIDTH-1:0] addr
+    );
+        @(negedge clk_axi);
+        s_axi_arid    <= id;
+        s_axi_araddr  <= addr;
+        s_axi_arlen   <= 8'd0;
+        s_axi_arsize  <= 3'b011;
+        s_axi_arburst <= 2'b01;
+        s_axi_arqos   <= 4'd2;
+        s_axi_arvalid <= 1'b1;
+
+        while (!s_axi_arready) @(posedge clk_axi);
+        @(negedge clk_axi);
+        s_axi_arvalid <= 1'b0;
+    endtask
+
     // Main Test Sequence
     initial begin
         $display("================================================================");
@@ -315,6 +334,29 @@ module tb_axi_ddr5_mc_top;
 
         $display("[PASS] TEST 5: Burst writes accepted and processed across bank groups");
         test_passed++;
+
+        //---------------------------------------------------------------------
+        // TEST 6: End-to-End RowHammer SDC Defense & Throttling Telemetry
+        //---------------------------------------------------------------------
+        $display("[TEST 6] RowHammer SDC Defense: Blasting Target Row > Threshold");
+        cfg_rh_threshold = 16'd4;
+        cfg_window_size  = 16'd100;
+        repeat (5) @(posedge clk_axi);
+
+        for (int i = 0; i < 8; i++) begin
+            axi_read(4'h1 + i[3:0], 32'h0005_0000);
+            repeat (2) @(posedge clk_axi);
+        end
+
+        repeat (30) @(posedge clk_axi);
+
+        if (o_throttled_events > 0) begin
+            $display("[PASS] TEST 6: Observed %0d throttled events (Expected > 0)", o_throttled_events);
+            test_passed++;
+        end else begin
+            $display("[FAIL] TEST 6: Expected throttled events > 0, got %0d", o_throttled_events);
+            test_failed++;
+        end
 
         //---------------------------------------------------------------------
         // Summary

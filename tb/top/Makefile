@@ -13,8 +13,10 @@ VERILOG_SOURCES = \
     $(ROOT_DIR)/rtl/cdc/rst_sync.sv \
     $(ROOT_DIR)/rtl/cdc/async_fifo_cdc.sv \
     $(ROOT_DIR)/rtl/core/sdc_resilient_filter.sv \
+    $(ROOT_DIR)/rtl/core/adaptive_threshold_engine.sv \
     $(ROOT_DIR)/rtl/core/qos_scheduler_queue.sv \
     $(ROOT_DIR)/rtl/core/reorder_buffer_rob.sv \
+    $(ROOT_DIR)/rtl/backend/directed_refresh_manager.sv \
     $(ROOT_DIR)/rtl/backend/slack_aware_arbiter.sv \
     $(ROOT_DIR)/rtl/backend/ddr5_cmd_engine.sv \
     $(ROOT_DIR)/rtl/backend/ecc_scrubber.sv \

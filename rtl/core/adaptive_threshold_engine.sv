@@ -48,7 +48,7 @@ module adaptive_threshold_engine #(
     wire [COUNT_WIDTH-1:0] base_thresh = (cfg_base_thresh != '0) ? cfg_base_thresh : 16'd2048;
     wire [COUNT_WIDTH-1:0] max_thresh  = (cfg_max_thresh != '0)  ? cfg_max_thresh  : 16'd8192;
 
-    assign o_dynamic_thresh = cfg_ate_en ? dynamic_thresh_reg : base_thresh;
+    assign o_dynamic_thresh = (cfg_ate_en && (epoch_counter != 16'd0)) ? dynamic_thresh_reg : base_thresh;
     assign o_sample_epochs  = epoch_counter;
 
     localparam int WINDOW_LIMIT = WINDOW_CYCLES - 1;
@@ -63,6 +63,7 @@ module adaptive_threshold_engine #(
         end else begin
             if (!cfg_ate_en) begin
                 dynamic_thresh_reg <= base_thresh;
+                epoch_counter      <= 16'd0;
                 window_timer       <= 16'd0;
                 prev_accesses      <= i_telemetry_accesses;
                 prev_throttles     <= i_telemetry_throttles;
@@ -71,6 +72,7 @@ module adaptive_threshold_engine #(
                     // Sample Epoch Triggered
                     logic [31:0] delta_access;
                     logic [31:0] delta_thrtl;
+                    logic [COUNT_WIDTH-1:0] curr_thresh;
                     logic [COUNT_WIDTH-1:0] step_up;
                     logic [COUNT_WIDTH-1:0] step_dn;
 
@@ -82,31 +84,39 @@ module adaptive_threshold_engine #(
                     window_timer   <= 16'd0;
                     epoch_counter  <= epoch_counter + 1'b1;
 
+                    // Reference threshold for this epoch's adaptation
+                    curr_thresh = (epoch_counter == 16'd0) ? base_thresh : dynamic_thresh_reg;
+
                     // EWMA step calculations
-                    step_up = (max_thresh - dynamic_thresh_reg) >> alpha_shift;
-                    step_dn = (dynamic_thresh_reg - base_thresh) >> alpha_shift;
+                    step_up = (max_thresh - curr_thresh) >> alpha_shift;
+                    step_dn = (curr_thresh - base_thresh) >> alpha_shift;
                     if (step_up == '0) step_up = 16'd1;
                     if (step_dn == '0) step_dn = 16'd1;
 
                     // If throttle rate > 3.125% (delta_thrtl > delta_access >> 5) and >= 4 throttles:
                     // Relax threshold (increase)
                     if ((delta_thrtl > (delta_access >> 5)) && (delta_thrtl >= 32'd4)) begin
-                        if ((dynamic_thresh_reg + step_up) <= max_thresh) begin
-                            dynamic_thresh_reg <= dynamic_thresh_reg + step_up;
+                        if ((curr_thresh + step_up) <= max_thresh) begin
+                            dynamic_thresh_reg <= curr_thresh + step_up;
                         end else begin
                             dynamic_thresh_reg <= max_thresh;
                         end
                     end
                     // Otherwise, if throttles are negligible: tighten threshold towards baseline
                     else if (delta_thrtl <= 32'd2) begin
-                        if (dynamic_thresh_reg > (base_thresh + step_dn)) begin
-                            dynamic_thresh_reg <= dynamic_thresh_reg - step_dn;
+                        if (curr_thresh > (base_thresh + step_dn)) begin
+                            dynamic_thresh_reg <= curr_thresh - step_dn;
                         end else begin
                             dynamic_thresh_reg <= base_thresh;
                         end
+                    end else begin
+                        dynamic_thresh_reg <= curr_thresh;
                     end
                 end else begin
                     window_timer <= window_timer + 1'b1;
+                    if (epoch_counter == 16'd0) begin
+                        dynamic_thresh_reg <= base_thresh;
+                    end
                 end
             end
         end
