@@ -617,7 +617,8 @@ module axi_ddr5_mc_top #(
         .o_mitigation_row    (drm_mitigation_row),
         .i_mitigation_grant  (drm_mitigation_grant),
 
-        .o_drm_ref_count     (drm_ref_count)
+        .o_drm_ref_count     (drm_ref_count),
+        .o_queue_full        ()
     );
 
     //=========================================================================

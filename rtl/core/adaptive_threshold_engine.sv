@@ -51,6 +51,8 @@ module adaptive_threshold_engine #(
     assign o_dynamic_thresh = cfg_ate_en ? dynamic_thresh_reg : base_thresh;
     assign o_sample_epochs  = epoch_counter;
 
+    localparam int WINDOW_LIMIT = WINDOW_CYCLES - 1;
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             dynamic_thresh_reg <= 16'd2048;
@@ -65,7 +67,7 @@ module adaptive_threshold_engine #(
                 prev_accesses      <= i_telemetry_accesses;
                 prev_throttles     <= i_telemetry_throttles;
             end else begin
-                if (window_timer >= (WINDOW_CYCLES - 1)) begin
+                if (int'(window_timer) >= WINDOW_LIMIT) begin
                     // Sample Epoch Triggered
                     logic [31:0] delta_access;
                     logic [31:0] delta_thrtl;

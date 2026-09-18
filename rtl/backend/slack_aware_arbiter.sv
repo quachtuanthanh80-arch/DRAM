@@ -127,11 +127,11 @@ module slack_aware_arbiter #(
             reg_drain_mode <= 1'b0;
         end else begin
             if (!reg_drain_mode) begin
-                if (eligible_write_count >= DRAIN_HIGH_THRESH) begin
+                if (int'(eligible_write_count) >= DRAIN_HIGH_THRESH) begin
                     reg_drain_mode <= 1'b1;
                 end
             end else begin
-                if (eligible_write_count <= DRAIN_LOW_THRESH) begin
+                if (int'(eligible_write_count) <= DRAIN_LOW_THRESH) begin
                     reg_drain_mode <= 1'b0;
                 end
             end

@@ -130,7 +130,7 @@ module directed_refresh_manager #(
                         // Enqueue Victim 1: Row + 1
                         q_bg[wr_idx]   <= aggr_bg;
                         q_bank[wr_idx] <= aggr_bank;
-                        q_row[wr_idx]  <= aggr_row + 1'b1;
+                        q_row[wr_idx]  <= aggr_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1};
                         wr_ptr         <= wr_ptr + 1'b1;
 
                         inj_bg      <= aggr_bg;
@@ -145,7 +145,7 @@ module directed_refresh_manager #(
                     // Enqueue Victim 2: Row - 1
                     q_bg[wr_idx]   <= inj_bg;
                     q_bank[wr_idx] <= inj_bank;
-                    q_row[wr_idx]  <= inj_row - 1'b1;
+                    q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-1){1'b0}}, 1'b1};
                     wr_ptr         <= wr_ptr + 1'b1;
 
                     if (inj_victim2) begin
@@ -159,7 +159,7 @@ module directed_refresh_manager #(
                     // Enqueue Victim 3: Row + 2
                     q_bg[wr_idx]   <= inj_bg;
                     q_bank[wr_idx] <= inj_bank;
-                    q_row[wr_idx]  <= inj_row + 2'd2;
+                    q_row[wr_idx]  <= inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd2};
                     wr_ptr         <= wr_ptr + 1'b1;
                     inj_state      <= 3'd3;
                 end
@@ -168,7 +168,7 @@ module directed_refresh_manager #(
                     // Enqueue Victim 4: Row - 2
                     q_bg[wr_idx]   <= inj_bg;
                     q_bank[wr_idx] <= inj_bank;
-                    q_row[wr_idx]  <= inj_row - 2'd2;
+                    q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd2};
                     wr_ptr         <= wr_ptr + 1'b1;
                     inj_state      <= 3'd0;
                 end
