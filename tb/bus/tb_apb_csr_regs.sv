@@ -49,6 +49,23 @@ module tb_apb_csr_regs;
     logic                 block_encrypted_pulse;
     logic                 pipeline_stall_active;
 
+    // SDC, DRM, ATE & Security Control Signals
+    logic [15:0]          cfg_sdc_thresh;
+    logic [15:0]          cfg_window_size;
+    logic [15:0]          cfg_scrub_interval;
+    logic [15:0]          cfg_rowpress_thresh;
+    logic                 cfg_drm_en;
+    logic                 cfg_drm_victim2_en;
+    logic                 cfg_ate_en;
+    logic [3:0]           cfg_ate_alpha_shift;
+
+    logic [31:0]          telem_accesses;
+    logic [31:0]          telem_throttles;
+    logic [15:0]          ecc_single_err_cnt;
+    logic [15:0]          ecc_double_err_cnt;
+    logic [15:0]          rowpress_alert_cnt;
+    logic [15:0]          ate_dynamic_thresh;
+
     // Instantiate DUT
     apb_csr_regs #(
         .AddrWidth(AddrWidth),
@@ -77,7 +94,21 @@ module tb_apb_csr_regs;
         .pipe_busy             (pipe_busy),
         .core_status_flags     (core_status_flags),
         .block_encrypted_pulse (block_encrypted_pulse),
-        .pipeline_stall_active (pipeline_stall_active)
+        .pipeline_stall_active (pipeline_stall_active),
+        .cfg_sdc_thresh        (cfg_sdc_thresh),
+        .cfg_window_size       (cfg_window_size),
+        .cfg_scrub_interval    (cfg_scrub_interval),
+        .cfg_rowpress_thresh   (cfg_rowpress_thresh),
+        .cfg_drm_en            (cfg_drm_en),
+        .cfg_drm_victim2_en    (cfg_drm_victim2_en),
+        .cfg_ate_en            (cfg_ate_en),
+        .cfg_ate_alpha_shift   (cfg_ate_alpha_shift),
+        .telem_accesses        (telem_accesses),
+        .telem_throttles       (telem_throttles),
+        .ecc_single_err_cnt    (ecc_single_err_cnt),
+        .ecc_double_err_cnt    (ecc_double_err_cnt),
+        .rowpress_alert_cnt    (rowpress_alert_cnt),
+        .ate_dynamic_thresh    (ate_dynamic_thresh)
     );
 
     // Test tracking
@@ -210,8 +241,9 @@ module tb_apb_csr_regs;
 
         // TEST 5: Tamper Defense (Key Readback Zeroization)
         tests_run++;
-        begin
-            automatic logic key_read_zero = 1'b1;
+        begin : test5_blk
+            logic key_read_zero;
+            key_read_zero = 1'b1;
             for (int i = 0; i < 8; i++) begin
                 apb_read(12'h010 + (i * 4), rdata);
                 if (rdata != 32'h0) key_read_zero = 1'b0;
@@ -258,6 +290,61 @@ module tb_apb_csr_regs;
             tests_passed++;
         end else begin
             $display("[FAIL] Test 7: Perf counter mismatch. Got %0d, Expected 10", rdata);
+            tests_failed++;
+        end
+
+        // TEST 8: SDC, RowPress, DRM, ATE Configuration CSRs
+        tests_run++;
+        apb_write(12'h070, 32'd1024);       // SDC threshold
+        apb_write(12'h07C, 32'd4096);       // RowPress threshold
+        apb_write(12'h080, 32'h0000_0001);  // DRM config: drm_en=1, victim2_en=0
+        apb_write(12'h084, 32'h0000_0051);  // ATE config: ate_en=1, alpha_shift=5
+        @(posedge pclk);
+
+        apb_read(12'h070, rdata);
+        if (rdata == 32'd1024 && cfg_sdc_thresh == 16'd1024 &&
+            cfg_rowpress_thresh == 16'd4096 && cfg_drm_victim2_en == 1'b0 &&
+            cfg_ate_alpha_shift == 4'd5) begin
+            $display("[PASS] Test 8: SDC/RowPress/DRM/ATE configuration registers read/write verified.");
+            tests_passed++;
+        end else begin
+            $display("[FAIL] Test 8: Configuration CSR mismatch. rdata=%0d, thresh=%0d", rdata, cfg_sdc_thresh);
+            tests_failed++;
+        end
+
+        // TEST 9: Hardware Telemetry Counters Readout
+        tests_run++;
+        telem_accesses     <= 32'h0012_3456;
+        telem_throttles    <= 32'h0000_0078;
+        ecc_single_err_cnt <= 16'h0003;
+        ecc_double_err_cnt <= 16'h0001;
+        rowpress_alert_cnt <= 16'h0002;
+        ate_dynamic_thresh <= 16'd1280;
+        @(posedge pclk);
+
+        apb_read(12'h090, rdata); // Read telem accesses
+        if (rdata == 32'h0012_3456) begin
+            apb_read(12'h094, rdata); // Read throttles
+            if (rdata == 32'h0000_0078) begin
+                $display("[PASS] Test 9: Hardware telemetry registers readback accurate.");
+                tests_passed++;
+            end else begin
+                $display("[FAIL] Test 9: Telem throttles mismatch. Got %h", rdata);
+                tests_failed++;
+            end
+        end else begin
+            $display("[FAIL] Test 9: Telem accesses mismatch. Got %h", rdata);
+            tests_failed++;
+        end
+
+        // TEST 10: Version ID Register ("QSHD" = 0x51534844)
+        tests_run++;
+        apb_read(12'h0FC, rdata);
+        if (rdata == 32'h5153_4844) begin
+            $display("[PASS] Test 10: Version ID register verified: 0x%08X (ASCII 'QSHD').", rdata);
+            tests_passed++;
+        end else begin
+            $display("[FAIL] Test 10: Version ID mismatch. Got 0x%08X, Expected 0x51534844", rdata);
             tests_failed++;
         end
 

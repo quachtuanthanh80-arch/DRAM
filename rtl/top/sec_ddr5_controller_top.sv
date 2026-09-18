@@ -145,6 +145,16 @@ module sec_ddr5_controller_top #(
     logic         block_encrypted_pulse;
     logic         pipeline_stall_active;
 
+    // SDC, DRM, ATE & Security Control Signals
+    logic [15:0]  csr_cfg_sdc_thresh;
+    logic [15:0]  csr_cfg_window_size;
+    logic [15:0]  csr_cfg_scrub_interval;
+    logic [15:0]  csr_cfg_rowpress_thresh;
+    logic         csr_cfg_drm_en;
+    logic         csr_cfg_drm_victim2_en;
+    logic         csr_cfg_ate_en;
+    logic [3:0]   csr_cfg_ate_alpha_shift;
+
     assign security_locked = sec_locked;
 
     apb_csr_regs #(
@@ -174,7 +184,21 @@ module sec_ddr5_controller_top #(
         .pipe_busy             (pipe_busy),
         .core_status_flags     (8'h00),
         .block_encrypted_pulse (block_encrypted_pulse),
-        .pipeline_stall_active (pipeline_stall_active)
+        .pipeline_stall_active (pipeline_stall_active),
+        .cfg_sdc_thresh        (csr_cfg_sdc_thresh),
+        .cfg_window_size       (csr_cfg_window_size),
+        .cfg_scrub_interval    (csr_cfg_scrub_interval),
+        .cfg_rowpress_thresh   (csr_cfg_rowpress_thresh),
+        .cfg_drm_en            (csr_cfg_drm_en),
+        .cfg_drm_victim2_en    (csr_cfg_drm_victim2_en),
+        .cfg_ate_en            (csr_cfg_ate_en),
+        .cfg_ate_alpha_shift   (csr_cfg_ate_alpha_shift),
+        .telem_accesses        (32'd0),
+        .telem_throttles       (32'd0),
+        .ecc_single_err_cnt    (16'd0),
+        .ecc_double_err_cnt    (16'd0),
+        .rowpress_alert_cnt    (16'd0),
+        .ate_dynamic_thresh    (16'd0)
     );
 
     // Expand 15 Round Keys for AES-256 (Simplified Key Expansion Wiring)

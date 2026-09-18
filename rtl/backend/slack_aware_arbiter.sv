@@ -22,7 +22,9 @@ module slack_aware_arbiter #(
     parameter int COL_WIDTH       = 10,
     parameter int AXI_ID_WIDTH    = 4,
     parameter int AXI_LEN_WIDTH   = 8,
-    parameter int QUEUE_PTR_WIDTH = 3
+    parameter int QUEUE_PTR_WIDTH = 3,
+    parameter int DRAIN_HIGH_THRESH = 4,
+    parameter int DRAIN_LOW_THRESH  = 0
 )(
     input  logic                                         clk,
     input  logic                                         rst_n,
@@ -59,7 +61,7 @@ module slack_aware_arbiter #(
     output logic                                         o_mitigation_grant,
 
     //-------------------------------------------------------------------------
-    // Grant feedback to qos_scheduler_queue (to dequeue winning entry)
+    // Arbitration Issue Grant to qos_scheduler_queue
     //-------------------------------------------------------------------------
     output logic                                         o_issue_grant_valid,
     output logic [BG_WIDTH-1:0]                          o_issue_grant_bg,
@@ -76,7 +78,8 @@ module slack_aware_arbiter #(
     output logic [ROW_WIDTH-1:0]                         o_cmd_row,
     output logic [COL_WIDTH-1:0]                         o_cmd_col,
     output logic [AXI_LEN_WIDTH-1:0]                     o_cmd_len,
-    output logic                                         o_cmd_is_mitigation
+    output logic                                         o_cmd_is_mitigation,
+    output logic                                         o_drain_mode
 );
 
     //=========================================================================
@@ -105,11 +108,43 @@ module slack_aware_arbiter #(
     // Mask candidates with Bank Group timing readiness
     wire [BG_COUNT-1:0] eligible_cand = i_cand_valid & i_bg_ready;
 
+    //=========================================================================
+    // Write-Drain / Read-Burst Mode State Machine
+    //=========================================================================
+    logic [3:0] eligible_write_count;
+    always_comb begin
+        eligible_write_count = '0;
+        for (int bg = 0; bg < BG_COUNT; bg++) begin
+            if (eligible_cand[bg] && i_cand_is_write[bg]) begin
+                eligible_write_count = eligible_write_count + 1'b1;
+            end
+        end
+    end
+
+    logic reg_drain_mode;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            reg_drain_mode <= 1'b0;
+        end else begin
+            if (!reg_drain_mode) begin
+                if (eligible_write_count >= DRAIN_HIGH_THRESH) begin
+                    reg_drain_mode <= 1'b1;
+                end
+            end else begin
+                if (eligible_write_count <= DRAIN_LOW_THRESH) begin
+                    reg_drain_mode <= 1'b0;
+                end
+            end
+        end
+    end
+
+    assign o_drain_mode = reg_drain_mode;
+
     // Round-Robin state for fairness when QoS levels tie
     logic [BG_WIDTH-1:0] last_served_bg;
 
     //=========================================================================
-    // 4-Tier Selection Logic
+    // 4-Tier Selection Logic (with Write-Drain / Read-Burst Directional Bias)
     //=========================================================================
     logic                winner_found;
     logic [BG_WIDTH-1:0] winner_bg;
@@ -122,7 +157,7 @@ module slack_aware_arbiter #(
         cur_bg       = '0;
         max_qos      = '0;
 
-        // Tier 1: Check Starved Candidates (Emergency Boost)
+        // Tier 1: Check Starved Candidates (Emergency Boost - Strict Priority)
         for (int i = 0; i < BG_COUNT; i++) begin
             cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
             if (eligible_cand[cur_bg] && i_cand_starved[cur_bg] && !winner_found) begin
@@ -131,16 +166,34 @@ module slack_aware_arbiter #(
             end
         end
 
-        // Tier 2: Unthrottled Normal Traffic (Highest QoS wins; RR on tie)
+        // Tier 2: Unthrottled Normal Traffic
         if (!winner_found) begin
+            // Sub-pass 2A: Preferred direction (Writes if drain_mode, Reads if !drain_mode)
             max_qos = 4'd0;
             for (int i = 0; i < BG_COUNT; i++) begin
                 cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
                 if (eligible_cand[cur_bg] && !i_cand_throttled[cur_bg]) begin
-                    if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
-                        winner_found = 1'b1;
-                        winner_bg    = cur_bg;
-                        max_qos      = cand_qos[cur_bg];
+                    if (i_cand_is_write[cur_bg] == reg_drain_mode) begin
+                        if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
+                            winner_found = 1'b1;
+                            winner_bg    = cur_bg;
+                            max_qos      = cand_qos[cur_bg];
+                        end
+                    end
+                end
+            end
+
+            // Sub-pass 2B: Fallback to opposite direction if preferred direction not present
+            if (!winner_found) begin
+                max_qos = 4'd0;
+                for (int i = 0; i < BG_COUNT; i++) begin
+                    cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
+                    if (eligible_cand[cur_bg] && !i_cand_throttled[cur_bg]) begin
+                        if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
+                            winner_found = 1'b1;
+                            winner_bg    = cur_bg;
+                            max_qos      = cand_qos[cur_bg];
+                        end
                     end
                 end
             end
@@ -148,14 +201,32 @@ module slack_aware_arbiter #(
 
         // Tier 3: Throttled RowHammer Traffic (Degraded service)
         if (!winner_found) begin
+            // Sub-pass 3A: Preferred direction
             max_qos = 4'd0;
             for (int i = 0; i < BG_COUNT; i++) begin
                 cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
                 if (eligible_cand[cur_bg] && i_cand_throttled[cur_bg]) begin
-                    if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
-                        winner_found = 1'b1;
-                        winner_bg    = cur_bg;
-                        max_qos      = cand_qos[cur_bg];
+                    if (i_cand_is_write[cur_bg] == reg_drain_mode) begin
+                        if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
+                            winner_found = 1'b1;
+                            winner_bg    = cur_bg;
+                            max_qos      = cand_qos[cur_bg];
+                        end
+                    end
+                end
+            end
+
+            // Sub-pass 3B: Fallback
+            if (!winner_found) begin
+                max_qos = 4'd0;
+                for (int i = 0; i < BG_COUNT; i++) begin
+                    cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
+                    if (eligible_cand[cur_bg] && i_cand_throttled[cur_bg]) begin
+                        if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
+                            winner_found = 1'b1;
+                            winner_bg    = cur_bg;
+                            max_qos      = cand_qos[cur_bg];
+                        end
                     end
                 end
             end

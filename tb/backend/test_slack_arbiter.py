@@ -128,3 +128,60 @@ async def test_opportunistic_slack_mitigation(dut):
     assert int(dut.o_cmd_bg.value) == 4
     assert int(dut.o_cmd_row.value) == 0x0123
     dut._log.info("Opportunistic slack mitigation grant verified successfully!")
+
+@cocotb.test()
+async def test_write_drain_mode(dut):
+    """Verify Write-Drain mode enters upon >= 4 writes and prioritizes write bursts"""
+    clock = Clock(dut.clk, 2.5, unit="ns")
+    cocotb.start_soon(clock.start())
+
+    await reset_dut(dut)
+
+    # Initially: 1 Read (BG0, QoS=15), 1 Write (BG1, QoS=8)
+    # writes = 1 < 4 => drain_mode should be 0 (Read burst mode)
+    cand_valid = (1 << 0) | (1 << 1)
+    cand_is_write = (1 << 1) # BG1 is write, BG0 is read
+    cand_qos = (15 << (0*4)) | (8 << (1*4))
+    cand_id = (0x0 << 0) | (0x1 << 4)
+
+    dut.i_cand_valid.value = cand_valid
+    dut.i_cand_is_write.value = cand_is_write
+    dut.i_cand_qos.value = cand_qos
+    dut.i_cand_id.value = cand_id
+
+    await RisingEdge(dut.clk)
+    await Timer(1, unit="ns")
+
+    assert int(dut.o_drain_mode.value) == 0, "drain_mode should be 0 for < 4 writes"
+    assert int(dut.o_cmd_is_write.value) == 0, "Read should win in Read-Burst mode"
+    assert int(dut.o_cmd_bg.value) == 0
+
+    # Now present 4 Writes (BG1, BG2, BG3, BG4 with QoS=2) and 1 Read (BG0 with higher QoS=15)
+    cand_valid = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4)
+    cand_is_write = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4)
+    cand_qos = (15 << 0) | (2 << 4) | (2 << 8) | (2 << 12) | (2 << 16)
+
+    dut.i_cand_valid.value = cand_valid
+    dut.i_cand_is_write.value = cand_is_write
+    dut.i_cand_qos.value = cand_qos
+
+    await RisingEdge(dut.clk)
+    await Timer(1, unit="ns")
+
+    # Now write_count = 4 >= DRAIN_HIGH_THRESH => drain_mode must be 1!
+    assert int(dut.o_drain_mode.value) == 1, "drain_mode should be 1 when write count >= 4"
+    # In drain mode, Write must win over Read even though Read has higher QoS (15 vs 2)!
+    assert int(dut.o_cmd_is_write.value) == 1, "Write should win in Write-Drain mode"
+    dut._log.info("Write-Drain mode entered and write candidate successfully prioritized!")
+
+    # Drain all writes: set write candidates to 0
+    dut.i_cand_valid.value = (1 << 0) # Only BG0 read remains
+    dut.i_cand_is_write.value = 0
+
+    await RisingEdge(dut.clk)
+    await Timer(1, unit="ns")
+
+    assert int(dut.o_drain_mode.value) == 0, "drain_mode should reset to 0 when writes reach 0"
+    assert int(dut.o_cmd_is_write.value) == 0
+    dut._log.info("Write-Drain mode exited back to Read-Burst mode successfully!")
+

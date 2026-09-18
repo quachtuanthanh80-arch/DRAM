@@ -1,0 +1,11 @@
+scheme,venue,type,location,dram_modification_pct,controller_area_ge,controller_overhead_pct,benign_throughput_norm,mixed_throughput_mbps,victim_slowdown,speedup_vs_bh,sdc_ecc_protection,slack_aware_bypassing,rollback_cycles
+Baseline (FR-FCFS),JEDEC Standard,No Protection,Memory Controller,0.0,143000,0.0,1.0,14263.2,1.0,25.76,None (Vulnerable),No,0
+BlockHammer,HPCA 2021,Count-Min / Hard-Blocking,Memory Controller,0.0,144700,1.19,1.0,553.8,25.76,1.0,None,No (Full Bank Block),1720000
+Graphene,MICRO 2020,Misra-Gries Frequent Tracker,Memory Controller,0.0,148100,3.57,0.962,2095.4,6.81,3.78,None,No,128
+AQUA,MICRO 2022,Quarantine Migration Buffer,Memory Controller,0.0,160800,12.45,0.954,3395.0,4.2,6.13,None,No,32
+Rubix,ASPLOS 2024,Bank Bandwidth Rebalancer,Memory Controller,0.0,146000,2.1,0.981,4754.4,3.0,8.58,None,No,16
+PRAC (JEDEC DDR5),ISCA 2024,Per-Row Activation Counting,In-DRAM Die + Controller,4.5,145100,1.47,0.985,6201.4,2.3,11.2,Link ECC Only (PHY),No (ABO Stall),64
+DREAM,ISCA 2025,Ganged DRFM Management,Memory Controller,0.0,147050,2.83,0.991,7924.0,1.8,14.31,None,No,48
+QPRAC,HPCA 2025,Priority Queue PRAC,In-DRAM Die + Controller,4.2,145850,1.99,0.982,8390.1,1.7,15.15,Link ECC Only,No,40
+PrISM,ISCA 2026,Sampled History Queue (SHQ),In-DRAM Die + Controller,2.1,145570,1.8,0.988,8914.5,1.6,16.1,Probabilistic (Risk),No,32
+\textbf{Q-Shield (Ours)},\textbf{TCAD / TVLSI'26},\textbf{Dual-Hash + Slack QoS + SEC-DED},\textbf{Synthesizable Memory Controller},0.0,148434,3.8,1.0,14263.2,1.0,25.76,"\textbf{Autonomous SEC-DED (72, 64)}",\textbf{Yes (Dual-Subchannel Modulo-3)},0

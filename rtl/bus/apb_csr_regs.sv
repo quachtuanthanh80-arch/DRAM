@@ -44,18 +44,49 @@ module apb_csr_regs #(
     input  logic                 pipe_busy,
     input  logic [7:0]           core_status_flags,
     input  logic                 block_encrypted_pulse, // Pulse when 1 block passes pipe
-    input  logic                 pipeline_stall_active  // High when pipe is stalled
+    input  logic                 pipeline_stall_active, // High when pipe is stalled
+
+    // SDC & Security Configuration Outputs
+    output logic [15:0]          cfg_sdc_thresh,
+    output logic [15:0]          cfg_window_size,
+    output logic [15:0]          cfg_scrub_interval,
+    output logic [15:0]          cfg_rowpress_thresh,
+    output logic                 cfg_drm_en,
+    output logic                 cfg_drm_victim2_en,
+    output logic                 cfg_ate_en,
+    output logic [3:0]           cfg_ate_alpha_shift,
+
+    // Hardware Telemetry Inputs
+    input  logic [31:0]          telem_accesses,
+    input  logic [31:0]          telem_throttles,
+    input  logic [15:0]          ecc_single_err_cnt,
+    input  logic [15:0]          ecc_double_err_cnt,
+    input  logic [15:0]          rowpress_alert_cnt,
+    input  logic [15:0]          ate_dynamic_thresh
 );
 
     // Register Address Offsets
-    localparam logic [AddrWidth-1:0] AddrCtrl        = 12'h000;
-    localparam logic [AddrWidth-1:0] AddrStatus      = 12'h004;
-    localparam logic [AddrWidth-1:0] AddrSecLock    = 12'h008;
-    localparam logic [AddrWidth-1:0] AddrKey1Base   = 12'h010; // 0x010 .. 0x02C (8 regs)
-    localparam logic [AddrWidth-1:0] AddrKey2Base   = 12'h030; // 0x030 .. 0x04C (8 regs)
-    localparam logic [AddrWidth-1:0] AddrPerfCycles = 12'h060;
-    localparam logic [AddrWidth-1:0] AddrPerfBlocks = 12'h064;
-    localparam logic [AddrWidth-1:0] AddrPerfStalls = 12'h068;
+    localparam logic [AddrWidth-1:0] AddrCtrl           = 12'h000;
+    localparam logic [AddrWidth-1:0] AddrStatus         = 12'h004;
+    localparam logic [AddrWidth-1:0] AddrSecLock       = 12'h008;
+    localparam logic [AddrWidth-1:0] AddrKey1Base      = 12'h010; // 0x010 .. 0x02C (8 regs)
+    localparam logic [AddrWidth-1:0] AddrKey2Base      = 12'h030; // 0x030 .. 0x04C (8 regs)
+    localparam logic [AddrWidth-1:0] AddrPerfCycles    = 12'h060;
+    localparam logic [AddrWidth-1:0] AddrPerfBlocks    = 12'h064;
+    localparam logic [AddrWidth-1:0] AddrPerfStalls    = 12'h068;
+    localparam logic [AddrWidth-1:0] AddrSdcThresh     = 12'h070;
+    localparam logic [AddrWidth-1:0] AddrWindowSize    = 12'h074;
+    localparam logic [AddrWidth-1:0] AddrScrubInterval = 12'h078;
+    localparam logic [AddrWidth-1:0] AddrRowPressThresh= 12'h07C;
+    localparam logic [AddrWidth-1:0] AddrDrmConfig     = 12'h080;
+    localparam logic [AddrWidth-1:0] AddrAteConfig     = 12'h084;
+    localparam logic [AddrWidth-1:0] AddrTelemAccess   = 12'h090;
+    localparam logic [AddrWidth-1:0] AddrTelemThrtl    = 12'h094;
+    localparam logic [AddrWidth-1:0] AddrEccSingle     = 12'h098;
+    localparam logic [AddrWidth-1:0] AddrEccDouble     = 12'h09C;
+    localparam logic [AddrWidth-1:0] AddrRowPressAlert = 12'h0A0;
+    localparam logic [AddrWidth-1:0] AddrAteDynThresh  = 12'h0A4;
+    localparam logic [AddrWidth-1:0] AddrVersionId     = 12'h0FC;
 
     // Security Lock Magic Value
     localparam logic [31:0] SecLockMagic = 32'hA55A_0001;
@@ -67,6 +98,14 @@ module apb_csr_regs #(
     logic [31:0] reg_key2 [8];
     logic [7:0]  key1_loaded_mask;
     logic [7:0]  key2_loaded_mask;
+
+    // SDC, DRM, ATE & Security Control Registers
+    logic [31:0] reg_sdc_thresh;
+    logic [31:0] reg_window_size;
+    logic [31:0] reg_scrub_interval;
+    logic [31:0] reg_rowpress_thresh;
+    logic [31:0] reg_drm_config;
+    logic [31:0] reg_ate_config;
 
     // Performance Counters
     logic [31:0] perf_cycles;
@@ -88,6 +127,16 @@ module apb_csr_regs #(
     assign perf_cnt_en   = reg_ctrl[2];
     assign auto_tweak_en = reg_ctrl[3];
     assign sec_locked    = reg_sec_locked;
+
+    // Drive SDC & Security Configuration Outputs
+    assign cfg_sdc_thresh      = reg_sdc_thresh[15:0];
+    assign cfg_window_size     = reg_window_size[15:0];
+    assign cfg_scrub_interval  = reg_scrub_interval[15:0];
+    assign cfg_rowpress_thresh = reg_rowpress_thresh[15:0];
+    assign cfg_drm_en          = reg_drm_config[0];
+    assign cfg_drm_victim2_en  = reg_drm_config[1];
+    assign cfg_ate_en          = reg_ate_config[0];
+    assign cfg_ate_alpha_shift = reg_ate_config[7:4];
 
     assign keys_valid    = (&key1_loaded_mask) && (&key2_loaded_mask);
 
@@ -122,10 +171,16 @@ module apb_csr_regs #(
     // APB Write Register Process
     always_ff @(posedge pclk or negedge presetn) begin
         if (!presetn) begin
-            reg_ctrl         <= 32'h0000_0009; // Default: enc_enable=1, auto_tweak_en=1
-            reg_sec_locked   <= 1'b0;
-            key1_loaded_mask <= 8'h00;
-            key2_loaded_mask <= 8'h00;
+            reg_ctrl            <= 32'h0000_0009; // Default: enc_enable=1, auto_tweak_en=1
+            reg_sec_locked      <= 1'b0;
+            key1_loaded_mask    <= 8'h00;
+            key2_loaded_mask    <= 8'h00;
+            reg_sdc_thresh      <= 32'd2048;
+            reg_window_size     <= 32'd3900;
+            reg_scrub_interval  <= 32'd1000;
+            reg_rowpress_thresh <= 32'd5000;
+            reg_drm_config      <= 32'h0000_0003; // Default: drm_en=1, victim2_en=1
+            reg_ate_config      <= 32'h0000_0041; // Default: ate_en=1, alpha_shift=4
             for (int i = 0; i < 8; i++) begin
                 reg_key1[i] <= 32'h0;
                 reg_key2[i] <= 32'h0;
@@ -146,6 +201,30 @@ module apb_csr_regs #(
                         if (pwdata == SecLockMagic) begin
                             reg_sec_locked <= 1'b1;
                         end
+                    end
+
+                    AddrSdcThresh: begin
+                        reg_sdc_thresh <= apply_strb(reg_sdc_thresh, pwdata, pstrb);
+                    end
+
+                    AddrWindowSize: begin
+                        reg_window_size <= apply_strb(reg_window_size, pwdata, pstrb);
+                    end
+
+                    AddrScrubInterval: begin
+                        reg_scrub_interval <= apply_strb(reg_scrub_interval, pwdata, pstrb);
+                    end
+
+                    AddrRowPressThresh: begin
+                        reg_rowpress_thresh <= apply_strb(reg_rowpress_thresh, pwdata, pstrb);
+                    end
+
+                    AddrDrmConfig: begin
+                        reg_drm_config <= apply_strb(reg_drm_config, pwdata, pstrb);
+                    end
+
+                    AddrAteConfig: begin
+                        reg_ate_config <= apply_strb(reg_ate_config, pwdata, pstrb);
                     end
 
                     default: begin
@@ -202,6 +281,58 @@ module apb_csr_regs #(
 
             AddrPerfStalls: begin
                 prdata = perf_stalls;
+            end
+
+            AddrSdcThresh: begin
+                prdata = reg_sdc_thresh;
+            end
+
+            AddrWindowSize: begin
+                prdata = reg_window_size;
+            end
+
+            AddrScrubInterval: begin
+                prdata = reg_scrub_interval;
+            end
+
+            AddrRowPressThresh: begin
+                prdata = reg_rowpress_thresh;
+            end
+
+            AddrDrmConfig: begin
+                prdata = reg_drm_config;
+            end
+
+            AddrAteConfig: begin
+                prdata = reg_ate_config;
+            end
+
+            AddrTelemAccess: begin
+                prdata = telem_accesses;
+            end
+
+            AddrTelemThrtl: begin
+                prdata = telem_throttles;
+            end
+
+            AddrEccSingle: begin
+                prdata = {16'h0, ecc_single_err_cnt};
+            end
+
+            AddrEccDouble: begin
+                prdata = {16'h0, ecc_double_err_cnt};
+            end
+
+            AddrRowPressAlert: begin
+                prdata = {16'h0, rowpress_alert_cnt};
+            end
+
+            AddrAteDynThresh: begin
+                prdata = {16'h0, ate_dynamic_thresh};
+            end
+
+            AddrVersionId: begin
+                prdata = 32'h5153_4844; // ASCII "QSHD"
             end
 
             default: begin

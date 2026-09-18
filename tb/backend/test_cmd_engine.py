@@ -172,3 +172,42 @@ async def test_row_conflict_precharge_and_activate(dut):
 
     assert rd_issued, "CMD_RD was not issued after tRCD delay on Row Conflict!"
     dut._log.info("Row-Conflict PRE -> ACT -> RD sequence verified successfully!")
+
+@cocotb.test()
+async def test_rowpress_detection(dut):
+    """Verify RowPress detection fires alert when a bank remains open beyond threshold"""
+    clock = Clock(dut.clk, 2.5, unit="ns")
+    cocotb.start_soon(clock.start())
+
+    dut.cfg_rowpress_thresh.value = 20 # Low threshold for simulation
+    await reset_dut(dut)
+
+    # Open bank: BG 1, Bank 2, Row 0x0ABC
+    dut.i_cmd_valid.value = 1
+    dut.i_cmd_is_write.value = 0
+    dut.i_cmd_bg.value = 1
+    dut.i_cmd_bank.value = 2
+    dut.i_cmd_row.value = 0x0ABC
+    dut.i_cmd_col.value = 0x04
+    dut.i_cmd_len.value = 0
+    dut.i_cmd_tag.value = 0x7
+
+    await RisingEdge(dut.clk)
+    dut.i_cmd_valid.value = 0
+
+    alert_seen = False
+    for cycle in range(30):
+        await RisingEdge(dut.clk)
+        await Timer(1, unit="ns")
+        if int(dut.o_rowpress_alert.value) == 1:
+            alert_seen = True
+            assert int(dut.o_rowpress_bg.value) == 1
+            assert int(dut.o_rowpress_bank.value) == 2
+            assert int(dut.o_rowpress_row.value) == 0x0ABC
+            assert int(dut.o_rowpress_alert_cnt.value) >= 1
+            dut._log.info(f"RowPress attack alert fired at cycle {cycle}! Aggressor row: {hex(int(dut.o_rowpress_row.value))}")
+            break
+
+    assert alert_seen, "RowPress alert did not fire after keeping bank open > 20 cycles!"
+    dut._log.info("RowPress attack detection verified successfully!")
+

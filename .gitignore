@@ -5,6 +5,7 @@
 
 # Binaries, Executables & Third-party Tool Archives
 *.exe
+*.vvp
 tools/verible/
 
 # Python & Cocotb build caches

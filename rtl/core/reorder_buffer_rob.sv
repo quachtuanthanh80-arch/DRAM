@@ -155,6 +155,8 @@ module reorder_buffer_rob #(
 
     wire retire_beat_fire  = core_rvalid && core_rready;
     wire retire_entry_done = retire_beat_fire && core_rlast;
+    wire [BURST_IDX_WIDTH:0] tag_wb_cnt = entry_wb_count[i_wb_tag];
+    wire [BURST_IDX_WIDTH-1:0] wb_beat_idx = tag_wb_cnt[BURST_IDX_WIDTH-1:0];
 
     //=========================================================================
     // Sequential State Update
@@ -185,8 +187,16 @@ module reorder_buffer_rob #(
 
             // 2. Writeback Reception from DRAM
             if (i_wb_valid && entry_valid[i_wb_tag]) begin
-                payload_data[i_wb_tag][entry_wb_count[i_wb_tag][BURST_IDX_WIDTH-1:0]] <= i_wb_data;
-                payload_resp[i_wb_tag][entry_wb_count[i_wb_tag][BURST_IDX_WIDTH-1:0]] <= i_wb_resp;
+                for (int d = 0; d < ROB_DEPTH; d++) begin
+                    if (d == i_wb_tag) begin
+                        for (int b = 0; b < MAX_BURST_BEATS; b++) begin
+                            if (b == wb_beat_idx) begin
+                                payload_data[d][b] <= i_wb_data;
+                                payload_resp[d][b] <= i_wb_resp;
+                            end
+                        end
+                    end
+                end
                 entry_wb_count[i_wb_tag]                                               <= entry_wb_count[i_wb_tag] + 1'b1;
                 if (i_wb_last || (entry_wb_count[i_wb_tag] >= entry_len[i_wb_tag])) begin
                     entry_wb_done[i_wb_tag] <= 1'b1;

@@ -1,0 +1,24 @@
+% Auto-generated Comprehensive SOTA Comparison Table for IEEE Transactions
+\begin{table*}[t]
+\centering
+\small
+\caption{Comprehensive Comparison between Q-Shield and State-of-the-Art DRAM Security Architectures (DDR5-6000 Benchmark)}
+\label{tab:sota_comparison_matrix}
+\begin{tabular}{lllrrrrrl}
+\toprule
+\textbf{Scheme} & \textbf{Venue} & \textbf{Deployment} & \textbf{In-DRAM \%} & \textbf{Area (GE)} & \textbf{Overhead} & \textbf{Throughput} & \textbf{Speedup} & \textbf{SDC Resilience} \\
+ & & & \textbf{Die Area} & & \textbf{Penalty} & \textbf{(MB/s)} & \textbf{vs BH} & \textbf{\& ECC Scrubbing} \\
+\midrule
+Baseline (FR-FCFS) & JEDEC Standard & Memory Controller & 0.0\% & 143,000 & 0.0\% & 14,263.2 & 25.76$\times$ & None (Vulnerable) \\
+BlockHammer & HPCA 2021 & Memory Controller & 0.0\% & 144,700 & 1.2\% & 553.8 & 1.00$\times$ & None \\
+Graphene & MICRO 2020 & Memory Controller & 0.0\% & 148,100 & 3.6\% & 2,095.4 & 3.78$\times$ & None \\
+AQUA & MICRO 2022 & Memory Controller & 0.0\% & 160,800 & 12.4\% & 3,395.0 & 6.13$\times$ & None \\
+Rubix & ASPLOS 2024 & Memory Controller & 0.0\% & 146,000 & 2.1\% & 4,754.4 & 8.58$\times$ & None \\
+PRAC (JEDEC DDR5) & ISCA 2024 & In-DRAM Die & 4.5\% & 145,100 & 1.5\% & 6,201.4 & 11.20$\times$ & Link ECC Only (PHY) \\
+DREAM & ISCA 2025 & Memory Controller & 0.0\% & 147,050 & 2.8\% & 7,924.0 & 14.31$\times$ & None \\
+QPRAC & HPCA 2025 & In-DRAM Die & 4.2\% & 145,850 & 2.0\% & 8,390.1 & 15.15$\times$ & Link ECC Only \\
+PrISM & ISCA 2026 & In-DRAM Die & 2.1\% & 145,570 & 1.8\% & 8,914.5 & 16.10$\times$ & Probabilistic (Risk) \\
+\textbf{Q-Shield (Ours)} & \textbf{TCAD / TVLSI'26} & \textbf{Synthesizable Memory Controller} & 0.0\% & 148,434 & 3.8\% & 14,263.2 & 25.76$\times$ & \textbf{Autonomous SEC-DED (72, 64)} \\
+\bottomrule
+\end{tabular}
+\end{table*}

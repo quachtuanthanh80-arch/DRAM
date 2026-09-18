@@ -165,7 +165,14 @@ module axi_ddr5_mc_top #(
     logic [1:0]                rob_rresp;
     logic                      rob_rlast;
 
-    
+    // Write Decoupling Buffer Command Signals
+    logic                      wbuf_cmd_valid;
+    logic                      wbuf_cmd_ready;
+    logic [AXI_ID_WIDTH-1:0]   wbuf_cmd_id;
+    logic [AXI_ADDR_WIDTH-1:0] wbuf_cmd_addr;
+    logic [7:0]                wbuf_cmd_len;
+    logic [AXI_QOS_WIDTH-1:0]  wbuf_cmd_qos;
+
     // B Channel Response Generator for Write Bursts
     logic                      bresp_valid;
     logic [AXI_ID_WIDTH-1:0]   bresp_id;
@@ -267,13 +274,6 @@ module axi_ddr5_mc_top #(
     );
 
     // Write Decoupling Buffer
-    logic                      wbuf_cmd_valid;
-    logic                      wbuf_cmd_ready;
-    logic [AXI_ID_WIDTH-1:0]   wbuf_cmd_id;
-    logic [AXI_ADDR_WIDTH-1:0] wbuf_cmd_addr;
-    logic [7:0]                wbuf_cmd_len;
-    logic [AXI_QOS_WIDTH-1:0]  wbuf_cmd_qos;
-
     logic                      wbuf_data_valid;
     logic [AXI_DATA_WIDTH-1:0] wbuf_data;
     logic                      wbuf_data_last;
@@ -483,6 +483,34 @@ module axi_ddr5_mc_top #(
     logic                      sdc_throttled;
     logic [31:0]               telemetry_throttles;
 
+    // SDC, RowPress & DRM Interconnect
+    logic                      sdc_mitigation_req;
+    logic [BG_WIDTH-1:0]       sdc_mitigation_bg;
+    logic [BANK_WIDTH-1:0]     sdc_mitigation_bank;
+    logic [ROW_WIDTH-1:0]      sdc_mitigation_row;
+    logic                      sdc_alert;
+    logic [31:0]               telemetry_accesses;
+    logic [15:0]               ate_dynamic_thresh;
+
+    logic [15:0]               ddr_rowpress_alert_cnt;
+    logic                      ddr_rowpress_alert;
+    logic [BG_WIDTH-1:0]       ddr_rowpress_bg;
+    logic [BANK_WIDTH-1:0]     ddr_rowpress_bank;
+    logic [ROW_WIDTH-1:0]      ddr_rowpress_row;
+
+    logic                      drm_mitigation_req;
+    logic [BG_WIDTH-1:0]       drm_mitigation_bg;
+    logic [BANK_WIDTH-1:0]     drm_mitigation_bank;
+    logic [ROW_WIDTH-1:0]      drm_mitigation_row;
+    logic                      drm_mitigation_grant;
+    logic [15:0]               drm_ref_count;
+
+    logic                      scrub_req;
+    logic [BG_WIDTH-1:0]       scrub_bg;
+    logic [BANK_WIDTH-1:0]     scrub_bank;
+    logic [ROW_WIDTH-1:0]      scrub_row;
+    logic                      scrub_grant;
+
     sdc_resilient_filter #(
         .AXI_ID_WIDTH   (AXI_ID_WIDTH),
         .AXI_QOS_WIDTH  (AXI_QOS_WIDTH),
@@ -497,7 +525,7 @@ module axi_ddr5_mc_top #(
         .rst_n               (rst_n_axi),
 
         .cfg_hash_mode       (cfg_dual_hash_en),
-        .cfg_sdc_thresh      (cfg_rh_threshold),
+        .cfg_sdc_thresh      (ate_dynamic_thresh),
         .cfg_window_size     (cfg_window_size),
 
         .i_cmd_valid         (mapped_cmd_valid),
@@ -523,16 +551,74 @@ module axi_ddr5_mc_top #(
         .o_cmd_qos           (sdc_cmd_qos),
         .o_cmd_throttled     (sdc_throttled),
 
-        .o_mitigation_req    (),
-        .o_mitigation_bg     (),
-        .o_mitigation_bank   (),
-        .o_mitigation_row    (),
-        .o_sdc_alert         (),
-        .o_telemetry_accesses(),
+        .o_mitigation_req    (sdc_mitigation_req),
+        .o_mitigation_bg     (sdc_mitigation_bg),
+        .o_mitigation_bank   (sdc_mitigation_bank),
+        .o_mitigation_row    (sdc_mitigation_row),
+        .o_sdc_alert         (sdc_alert),
+        .o_telemetry_accesses(telemetry_accesses),
         .o_telemetry_throttles(telemetry_throttles)
     );
 
     assign o_throttled_events = telemetry_throttles[15:0];
+
+    // Adaptive Threshold Engine (ATE) Instance
+    adaptive_threshold_engine #(
+        .COUNT_WIDTH    (16),
+        .ALPHA_SHIFT_DEF(4),
+        .WINDOW_CYCLES  (1024)
+    ) u_ate (
+        .clk                  (clk_axi),
+        .rst_n                (rst_n_axi),
+        .cfg_ate_en           (1'b1),
+        .cfg_alpha_shift      (4'd4),
+        .cfg_base_thresh      (cfg_rh_threshold),
+        .cfg_max_thresh       (16'd8192),
+        .i_telemetry_accesses (telemetry_accesses),
+        .i_telemetry_throttles(telemetry_throttles),
+        .o_dynamic_thresh     (ate_dynamic_thresh),
+        .o_sample_epochs      ()
+    );
+
+    //=========================================================================
+    // 5b. Directed Refresh Manager (DRM)
+    //=========================================================================
+    directed_refresh_manager #(
+        .BG_WIDTH    (BG_WIDTH),
+        .BANK_WIDTH  (BANK_WIDTH),
+        .ROW_WIDTH   (ROW_WIDTH),
+        .QUEUE_DEPTH (8)
+    ) u_drm (
+        .clk                 (clk_axi),
+        .rst_n               (rst_n_axi),
+
+        .cfg_drm_en          (1'b1),
+        .cfg_victim2_en      (1'b0),
+
+        .i_sdc_req           (sdc_mitigation_req),
+        .i_sdc_bg            (sdc_mitigation_bg),
+        .i_sdc_bank          (sdc_mitigation_bank),
+        .i_sdc_row           (sdc_mitigation_row),
+
+        .i_rp_req            (ddr_rowpress_alert),
+        .i_rp_bg             (ddr_rowpress_bg),
+        .i_rp_bank           (ddr_rowpress_bank),
+        .i_rp_row            (ddr_rowpress_row),
+
+        .i_scrub_req         (scrub_req),
+        .i_scrub_bg          (scrub_bg),
+        .i_scrub_bank        (scrub_bank),
+        .i_scrub_row         (scrub_row),
+        .o_scrub_grant       (scrub_grant),
+
+        .o_mitigation_req    (drm_mitigation_req),
+        .o_mitigation_bg     (drm_mitigation_bg),
+        .o_mitigation_bank   (drm_mitigation_bank),
+        .o_mitigation_row    (drm_mitigation_row),
+        .i_mitigation_grant  (drm_mitigation_grant),
+
+        .o_drm_ref_count     (drm_ref_count)
+    );
 
     //=========================================================================
     // 6. QoS Scheduler Queue (8 Bank Groups x 8 Entries)
@@ -612,12 +698,6 @@ module axi_ddr5_mc_top #(
     logic [AXI_LEN_WIDTH-1:0] arb_cmd_len;
     logic                arb_cmd_is_mitigation;
 
-    logic                scrub_req;
-    logic [BG_WIDTH-1:0] scrub_bg;
-    logic [BANK_WIDTH-1:0]scrub_bank;
-    logic [ROW_WIDTH-1:0]scrub_row;
-    logic                scrub_grant;
-
     slack_aware_arbiter #(
         .BG_COUNT        (BG_COUNT),
         .BANK_WIDTH      (BANK_WIDTH),
@@ -646,11 +726,11 @@ module axi_ddr5_mc_top #(
         .i_engine_ready      (ddr_engine_ready),
         .i_slack_cycle       (ddr_slack_cycle),
 
-        .i_mitigation_req    (scrub_req),
-        .i_mitigation_bg     (scrub_bg),
-        .i_mitigation_bank   (scrub_bank),
-        .i_mitigation_row    (scrub_row),
-        .o_mitigation_grant  (scrub_grant),
+        .i_mitigation_req    (drm_mitigation_req),
+        .i_mitigation_bg     (drm_mitigation_bg),
+        .i_mitigation_bank   (drm_mitigation_bank),
+        .i_mitigation_row    (drm_mitigation_row),
+        .o_mitigation_grant  (drm_mitigation_grant),
 
         .o_issue_grant_valid (arb_grant_valid),
         .o_issue_grant_bg    (arb_grant_bg),
@@ -664,12 +744,10 @@ module axi_ddr5_mc_top #(
         .o_cmd_row           (arb_cmd_row),
         .o_cmd_col           (arb_cmd_col),
         .o_cmd_len           (arb_cmd_len),
-        .o_cmd_is_mitigation (arb_cmd_is_mitigation)
+        .o_cmd_is_mitigation (arb_cmd_is_mitigation),
+        .o_drain_mode        ()
     );
 
-    //=========================================================================
-    // 8. DDR5 Command Engine
-    //=========================================================================
     ddr5_cmd_engine #(
         .BG_COUNT        (BG_COUNT),
         .BANK_COUNT      (BANK_COUNT),
@@ -693,6 +771,13 @@ module axi_ddr5_mc_top #(
         .i_cmd_len           (arb_cmd_len),
         .i_cmd_tag           (arb_cmd_id[ROB_PTR_WIDTH-1:0]),
         .i_cmd_is_mitigation (arb_cmd_is_mitigation),
+
+        .cfg_rowpress_thresh (16'd5000),
+        .o_rowpress_alert    (ddr_rowpress_alert),
+        .o_rowpress_bg       (ddr_rowpress_bg),
+        .o_rowpress_bank     (ddr_rowpress_bank),
+        .o_rowpress_row      (ddr_rowpress_row),
+        .o_rowpress_alert_cnt(ddr_rowpress_alert_cnt),
 
         .o_bg_ready          (ddr_bg_ready),
         .o_engine_ready      (ddr_engine_ready),

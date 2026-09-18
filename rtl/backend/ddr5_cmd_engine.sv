@@ -30,7 +30,8 @@ module ddr5_cmd_engine #(
     parameter int T_RAS           = 14, // Row active time (ACT to PRE)
     parameter int T_CCD_L         = 4,  // Same BG column delay
     parameter int T_CCD_S         = 2,  // Diff BG column delay
-    parameter int T_CL            = 8   // CAS Read Latency
+    parameter int T_CL            = 8,  // CAS Read Latency
+    parameter int ROWPRESS_THRESH_DEFAULT = 5000
 )(
     input  logic                                         clk,
     input  logic                                         rst_n,
@@ -48,6 +49,16 @@ module ddr5_cmd_engine #(
     input  logic [AXI_LEN_WIDTH-1:0]                     i_cmd_len,
     input  logic [ROB_PTR_WIDTH-1:0]                     i_cmd_tag,
     input  logic                                         i_cmd_is_mitigation,
+
+    //-------------------------------------------------------------------------
+    // RowPress Attack Monitoring & Telemetry Interface
+    //-------------------------------------------------------------------------
+    input  logic [15:0]                                  cfg_rowpress_thresh,
+    output logic                                         o_rowpress_alert,
+    output logic [BG_WIDTH-1:0]                          o_rowpress_bg,
+    output logic [BANK_WIDTH-1:0]                        o_rowpress_bank,
+    output logic [ROW_WIDTH-1:0]                         o_rowpress_row,
+    output logic [15:0]                                  o_rowpress_alert_cnt,
 
     //-------------------------------------------------------------------------
     // Readiness & Slack Telemetry to Arbiter
@@ -91,6 +102,8 @@ module ddr5_cmd_engine #(
     logic [4:0]           rcd_timer  [BG_COUNT][BANK_COUNT];
     logic [4:0]           rp_timer   [BG_COUNT][BANK_COUNT];
     logic [4:0]           ras_timer  [BG_COUNT][BANK_COUNT];
+    logic [15:0]          act_duration [BG_COUNT][BANK_COUNT];
+    wire  [15:0]          effective_rp_thresh = (cfg_rowpress_thresh != 16'd0) ? cfg_rowpress_thresh : 16'(ROWPRESS_THRESH_DEFAULT);
 
     // Bank-Group level timing
     logic [3:0]           ccd_timer  [BG_COUNT];
@@ -192,6 +205,17 @@ module ddr5_cmd_engine #(
             burst_len         <= '0;
             burst_cnt         <= '0;
             burst_base_data   <= '0;
+
+            o_rowpress_alert     <= 1'b0;
+            o_rowpress_bg        <= '0;
+            o_rowpress_bank      <= '0;
+            o_rowpress_row       <= '0;
+            o_rowpress_alert_cnt <= 16'd0;
+            for (int bg = 0; bg < BG_COUNT; bg++) begin
+                for (int bk = 0; bk < BANK_COUNT; bk++) begin
+                    act_duration[bg][bk] <= 16'd0;
+                end
+            end
         end else begin
             // 1. Decrement timers
             if (ccd_s_timer > '0) ccd_s_timer <= ccd_s_timer - 1'b1;
@@ -201,6 +225,27 @@ module ddr5_cmd_engine #(
                     if (rcd_timer[bg][bk] > '0) rcd_timer[bg][bk] <= rcd_timer[bg][bk] - 1'b1;
                     if (rp_timer[bg][bk]  > '0) rp_timer[bg][bk]  <= rp_timer[bg][bk] - 1'b1;
                     if (ras_timer[bg][bk] > '0) ras_timer[bg][bk] <= ras_timer[bg][bk] - 1'b1;
+                end
+            end
+
+            // RowPress Attack Monitoring: track cumulative duration of open banks
+            o_rowpress_alert <= 1'b0;
+            for (int bg = 0; bg < BG_COUNT; bg++) begin
+                for (int bk = 0; bk < BANK_COUNT; bk++) begin
+                    if (bank_open[bg][bk]) begin
+                        if (act_duration[bg][bk] < 16'hFFFF) begin
+                            act_duration[bg][bk] <= act_duration[bg][bk] + 1'b1;
+                        end
+                        if (act_duration[bg][bk] == effective_rp_thresh) begin
+                            o_rowpress_alert     <= 1'b1;
+                            o_rowpress_bg        <= bg[BG_WIDTH-1:0];
+                            o_rowpress_bank      <= bk[BANK_WIDTH-1:0];
+                            o_rowpress_row       <= open_row[bg][bk];
+                            o_rowpress_alert_cnt <= o_rowpress_alert_cnt + 1'b1;
+                        end
+                    end else begin
+                        act_duration[bg][bk] <= 16'd0;
+                    end
                 end
             end
 
