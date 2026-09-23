@@ -238,8 +238,12 @@ module tb_sec_ddr5_controller_top;
         s_axi_wdata        = '0;
         s_axi_wstrb        = '1;
         s_axi_wlast        = 1'b0;
-        s_axi_wvalid       = 1'b0;
         s_axi_bready       = 1'b1;
+        s_axi_arid         = '0;
+        s_axi_araddr       = '0;
+        s_axi_arlen        = 8'h0;
+        s_axi_arsize       = 3'b100; // 16 bytes
+        s_axi_arburst      = 2'b01;  // INCR
         s_axi_arvalid      = 1'b0;
         s_axi_rready       = 1'b1;
 

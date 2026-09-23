@@ -1,0 +1,23 @@
+% Table III: Literature-Reported Metrics with Citations & Methodology Notes
+\begin{table*}[t]
+\centering
+\small
+\caption{Historical Performance and Area Metrics Reported in Primary Publications (With Methodological Disclaimers)}
+\label{tab:literature_reported}
+\begin{tabular}{lp{2.2cm}llp{4.2cm}p{4.5cm}}
+\toprule
+\textbf{Scheme} & \textbf{Reference} & \textbf{Benign} & \textbf{Reported} & \textbf{Simulation Platform} & \textbf{Methodological Notes} \\
+ & & \textbf{Overhead} & \textbf{Area / Complexity} & \textbf{\& Synthesis Target} & \textbf{\& Limitations} \\
+\midrule
+BlockHammer & \cite{segal2021blockhammer} (HPCA 2021) & 0.7\% & 144,700 GE & Ramulator 1.0 + Synopsys 45nm & Hard-blocking command queues; up to 29.5x slowdown reported on adversarial workloads. \\
+Graphene & \cite{park2020graphene} (MICRO 2020) & 3.8\% & 148,100 GE & USIMM + CACTI 6.5 & Misra-Gries algorithm; area scales with number of tracked activation entries. \\
+AQUA & \cite{park2022aqua} (MICRO 2022) & 4.6\% & 160,800 GE (41KB SRAM) & Ramulator 1.0 + CACTI & Quarantine migration requires on-chip SRAM buffer, incurring 12.4% area overhead. \\
+Rubix & \cite{saxena2024rubix} (ASPLOS 2024) & 1.9\% & 146,000 GE & Ramulator 2.0 + Design Compiler & Bank bandwidth balancing; targets low-cost activation tracking without DRAM die change. \\
+PRAC & \cite{yaglikci2024prac} (ISCA 2024) & 1.5\% & 4.5\% DRAM Die Area & Ramulator 2.0 (DDR5 In-DRAM) & Exact per-row tracking inside DRAM die; requires Alert Back-Off (ABO) handshake. \\
+DREAM & \cite{dream2025} (ISCA 2025) & 0.9\% & 147,050 GE & Ramulator 2.0 (Host Controller) & Ganged Directed Refresh; balances per-bank DRFM command intervals. \\
+QPRAC & \cite{woo2025qprac} (HPCA 2025) & 1.8\% & 4.2\% DRAM Die Area & Ramulator 2.0 (HBM / DDR5) & Queue-aware in-DRAM counting targeting high-bandwidth memory architectures. \\
+PrISM & \cite{prism2026} (ISCA 2026) & 1.2\% & 2.1\% DRAM Die Area & Gem5 + Ramulator 2.0 & Probabilistic sampled history queue; reduces DRAM die area overhead to 2.1%. \\
+\textbf{Q-Shield (Ours)} & \textbf{This Work} (TCAD / TVLSI'26) & \textbf{0.0\%} & \textbf{148,434 GE} ($0.118\,\text{mm}^2$) & \textbf{Ramulator 2.0 + Yosys 45nm} & \textbf{Pure controller; 0\% DRAM die change; zero-bubble pipelining; SEC-DED SDC protection.} \\
+\bottomrule
+\end{tabular}
+\end{table*}

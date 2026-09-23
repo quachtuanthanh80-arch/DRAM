@@ -1,0 +1,24 @@
+% Table I: Qualitative Architectural & Security Taxonomy
+\begin{table*}[t]
+\centering
+\small
+\caption{Qualitative Architectural and Security Taxonomy: Memory Controller vs. In-DRAM RowHammer Defenses}
+\label{tab:architectural_taxonomy}
+\begin{tabular}{lllp{3.2cm}lp{3.5cm}l}
+\toprule
+\textbf{Scheme} & \textbf{Reference} & \textbf{Deployment} & \textbf{DRAM Silicon} & \textbf{Rate Limiting} & \textbf{SDC / ECC} & \textbf{Rollback} \\
+ & & \textbf{Level} & \textbf{Modification} & \textbf{Mechanism} & \textbf{Protection} & \textbf{Latency} \\
+\midrule
+Baseline (FR-FCFS) & JEDEC Standard & Memory Controller & None (0.0\%) & None & None (Vulnerable) & 0 cycles \\
+BlockHammer & \cite{segal2021blockhammer} (HPCA'21) & Memory Controller & None (0.0\%) & Hard-Blocking Queue Stall & None & Up to 1.72M cycles \\
+Graphene & \cite{park2020graphene} (MICRO'20) & Memory Controller & None (0.0\%) & Stall on Counter Saturation & None & 128 cycles \\
+AQUA & \cite{park2022aqua} (MICRO'22) & Memory Controller & None (0.0\%) & Migration Flushing & None & 32 cycles \\
+Rubix & \cite{saxena2024rubix} (ASPLOS'24) & Memory Controller & None (0.0\%) & Bank Quota Limiting & None & 16 cycles \\
+PRAC & \cite{yaglikci2024prac} (ISCA'24) & In-DRAM Die + Controller & Yes (4.5\% Die Area) & Alert Back-Off (ABO) & Link ECC (PHY only) & 64 cycles ($t_{DRFM}$) \\
+DREAM & \cite{dream2025} (ISCA'25) & Memory Controller & None (0.0\%) & Periodic DRFM Scheduling & None & 48 cycles \\
+QPRAC & \cite{woo2025qprac} (HPCA'25) & In-DRAM Die + Controller & Yes (4.2\% Die Area) & Priority Back-Off & Link ECC (PHY only) & 40 cycles \\
+PrISM & \cite{prism2026} (ISCA'26) & In-DRAM Die + Controller & Yes (2.1\% Die Area) & Sampling Back-Off & Probabilistic (Risk) & 32 cycles \\
+\textbf{Q-Shield (Ours)} & \textbf{This Work} & \textbf{Pure Controller (Synthesizable)} & \textbf{None (0.0\%)} & \textbf{Smooth Rate Pacing} & \textbf{Autonomous SEC-DED (72, 64)} & \textbf{0 cycles (Zero-Bubble)} \\
+\bottomrule
+\end{tabular}
+\end{table*}

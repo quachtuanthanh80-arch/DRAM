@@ -1,0 +1,83 @@
+[
+  {
+    "scheme": "BlockHammer",
+    "citation": "\\cite{segal2021blockhammer}",
+    "venue": "HPCA 2021",
+    "reported_benign_overhead": "0.7\\%",
+    "reported_area_ge": "144,700 GE",
+    "reported_platform": "Ramulator 1.0 + Synopsys 45nm",
+    "notes": "Hard-blocking command queues; up to 29.5x slowdown reported on adversarial workloads."
+  },
+  {
+    "scheme": "Graphene",
+    "citation": "\\cite{park2020graphene}",
+    "venue": "MICRO 2020",
+    "reported_benign_overhead": "3.8\\%",
+    "reported_area_ge": "148,100 GE",
+    "reported_platform": "USIMM + CACTI 6.5",
+    "notes": "Misra-Gries algorithm; area scales with number of tracked activation entries."
+  },
+  {
+    "scheme": "AQUA",
+    "citation": "\\cite{park2022aqua}",
+    "venue": "MICRO 2022",
+    "reported_benign_overhead": "4.6\\%",
+    "reported_area_ge": "160,800 GE (41KB SRAM)",
+    "reported_platform": "Ramulator 1.0 + CACTI",
+    "notes": "Quarantine migration requires on-chip SRAM buffer, incurring 12.4% area overhead."
+  },
+  {
+    "scheme": "Rubix",
+    "citation": "\\cite{saxena2024rubix}",
+    "venue": "ASPLOS 2024",
+    "reported_benign_overhead": "1.9\\%",
+    "reported_area_ge": "146,000 GE",
+    "reported_platform": "Ramulator 2.0 + Design Compiler",
+    "notes": "Bank bandwidth balancing; targets low-cost activation tracking without DRAM die change."
+  },
+  {
+    "scheme": "PRAC",
+    "citation": "\\cite{yaglikci2024prac}",
+    "venue": "ISCA 2024",
+    "reported_benign_overhead": "1.5\\%",
+    "reported_area_ge": "4.5\\% DRAM Die Area",
+    "reported_platform": "Ramulator 2.0 (DDR5 In-DRAM)",
+    "notes": "Exact per-row tracking inside DRAM die; requires Alert Back-Off (ABO) handshake."
+  },
+  {
+    "scheme": "DREAM",
+    "citation": "\\cite{dream2025}",
+    "venue": "ISCA 2025",
+    "reported_benign_overhead": "0.9\\%",
+    "reported_area_ge": "147,050 GE",
+    "reported_platform": "Ramulator 2.0 (Host Controller)",
+    "notes": "Ganged Directed Refresh; balances per-bank DRFM command intervals."
+  },
+  {
+    "scheme": "QPRAC",
+    "citation": "\\cite{woo2025qprac}",
+    "venue": "HPCA 2025",
+    "reported_benign_overhead": "1.8\\%",
+    "reported_area_ge": "4.2\\% DRAM Die Area",
+    "reported_platform": "Ramulator 2.0 (HBM / DDR5)",
+    "notes": "Queue-aware in-DRAM counting targeting high-bandwidth memory architectures."
+  },
+  {
+    "scheme": "PrISM",
+    "citation": "\\cite{prism2026}",
+    "venue": "ISCA 2026",
+    "reported_benign_overhead": "1.2\\%",
+    "reported_area_ge": "2.1\\% DRAM Die Area",
+    "reported_platform": "Gem5 + Ramulator 2.0",
+    "notes": "Probabilistic sampled history queue; reduces DRAM die area overhead to 2.1%."
+  },
+  {
+    "scheme": "\\textbf{Q-Shield (Ours)}",
+    "citation": "\\textbf{This Work}",
+    "venue": "TCAD / TVLSI'26",
+    "reported_benign_overhead": "\\textbf{0.0\\%}",
+    "reported_area_ge": "\\textbf{148,434 GE} ($0.118\\,\\text{mm}^2$)",
+    "reported_platform": "\\textbf{Ramulator 2.0 + Yosys 45nm}",
+    "notes": "\\textbf{Pure controller; 0\\% DRAM die change; zero-bubble pipelining; SEC-DED SDC protection.}"
+  }
+]

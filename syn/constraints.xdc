@@ -14,14 +14,14 @@ create_clock -period 2.500 -name clk_ddr [get_ports clk_ddr]
 set_clock_groups -asynchronous -group [get_clocks clk_axi] -group [get_clocks clk_ddr]
 
 # Input / Output delay modeling for out-of-context synthesis
-set_input_delay -clock clk_axi -max 0.800 [get_ports {s_axi_* s_apb_*}]
-set_input_delay -clock clk_axi -min 0.200 [get_ports {s_axi_* s_apb_*}]
+set_input_delay -clock clk_axi -max 0.800 [get_ports -filter {DIRECTION == IN} {s_axi_* paddr psel penable pwrite pwdata pstrb pprot}]
+set_input_delay -clock clk_axi -min 0.200 [get_ports -filter {DIRECTION == IN} {s_axi_* paddr psel penable pwrite pwdata pstrb pprot}]
 
-set_output_delay -clock clk_axi -max 0.800 [get_ports {s_axi_* s_apb_*}]
-set_output_delay -clock clk_axi -min 0.200 [get_ports {s_axi_* s_apb_*}]
+set_output_delay -clock clk_axi -max 0.800 [get_ports -filter {DIRECTION == OUT} {s_axi_* pready prdata pslverr controller_idle security_locked}]
+set_output_delay -clock clk_axi -min 0.200 [get_ports -filter {DIRECTION == OUT} {s_axi_* pready prdata pslverr controller_idle security_locked}]
 
-set_input_delay -clock clk_ddr -max 0.500 [get_ports {dfi_*_rddata* dfi_*_rddata_valid}]
-set_input_delay -clock clk_ddr -min 0.100 [get_ports {dfi_*_rddata* dfi_*_rddata_valid}]
+set_input_delay -clock clk_ddr -max 0.500 [get_ports -filter {DIRECTION == IN} {dfi_*_rddata* dfi_*_rddata_valid}]
+set_input_delay -clock clk_ddr -min 0.100 [get_ports -filter {DIRECTION == IN} {dfi_*_rddata* dfi_*_rddata_valid}]
 
-set_output_delay -clock clk_ddr -max 0.500 [get_ports {dfi_*_address* dfi_*_bank* dfi_*_cmd* dfi_*_wrdata* dfi_*_wrdata_en}]
-set_output_delay -clock clk_ddr -min 0.100 [get_ports {dfi_*_address* dfi_*_bank* dfi_*_cmd* dfi_*_wrdata* dfi_*_wrdata_en}]
+set_output_delay -clock clk_ddr -max 0.500 [get_ports -filter {DIRECTION == OUT} {dfi_*_address* dfi_*_bank* dfi_*_cmd* dfi_*_wrdata* dfi_*_wrdata_en}]
+set_output_delay -clock clk_ddr -min 0.100 [get_ports -filter {DIRECTION == OUT} {dfi_*_address* dfi_*_bank* dfi_*_cmd* dfi_*_wrdata* dfi_*_wrdata_en}]

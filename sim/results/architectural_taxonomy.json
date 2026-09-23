@@ -1,0 +1,112 @@
+[
+  {
+    "scheme": "Baseline (FR-FCFS)",
+    "citation": "JEDEC Standard",
+    "deployment": "Memory Controller",
+    "dram_die_mod": "None (0.0\\%)",
+    "defense_strategy": "None (Unmitigated)",
+    "rate_limiting": "None",
+    "ecc_sdc_protection": "None (Vulnerable)",
+    "multitenant_qos": "HoL Starvation",
+    "rollback_cycles": "0 cycles"
+  },
+  {
+    "scheme": "BlockHammer",
+    "citation": "\\cite{segal2021blockhammer} (HPCA'21)",
+    "deployment": "Memory Controller",
+    "dram_die_mod": "None (0.0\\%)",
+    "defense_strategy": "Counting Bloom Filter",
+    "rate_limiting": "Hard-Blocking Queue Stall",
+    "ecc_sdc_protection": "None",
+    "multitenant_qos": "Severe Collapse (HoL Stall)",
+    "rollback_cycles": "Up to 1.72M cycles"
+  },
+  {
+    "scheme": "Graphene",
+    "citation": "\\cite{park2020graphene} (MICRO'20)",
+    "deployment": "Memory Controller",
+    "dram_die_mod": "None (0.0\\%)",
+    "defense_strategy": "Misra-Gries Frequent Item",
+    "rate_limiting": "Stall on Counter Saturation",
+    "ecc_sdc_protection": "None",
+    "multitenant_qos": "Moderate Degradation",
+    "rollback_cycles": "128 cycles"
+  },
+  {
+    "scheme": "AQUA",
+    "citation": "\\cite{park2022aqua} (MICRO'22)",
+    "deployment": "Memory Controller",
+    "dram_die_mod": "None (0.0\\%)",
+    "defense_strategy": "Quarantine Migration Buffer",
+    "rate_limiting": "Migration Flushing",
+    "ecc_sdc_protection": "None",
+    "multitenant_qos": "Quarantine Backpressure",
+    "rollback_cycles": "32 cycles"
+  },
+  {
+    "scheme": "Rubix",
+    "citation": "\\cite{saxena2024rubix} (ASPLOS'24)",
+    "deployment": "Memory Controller",
+    "dram_die_mod": "None (0.0\\%)",
+    "defense_strategy": "Bank Bandwidth Rebalancing",
+    "rate_limiting": "Bank Quota Limiting",
+    "ecc_sdc_protection": "None",
+    "multitenant_qos": "Fair Bank Sharing",
+    "rollback_cycles": "16 cycles"
+  },
+  {
+    "scheme": "PRAC",
+    "citation": "\\cite{yaglikci2024prac} (ISCA'24)",
+    "deployment": "In-DRAM Die + Controller",
+    "dram_die_mod": "Yes (4.5\\% Die Area)",
+    "defense_strategy": "Per-Row Activation Counting",
+    "rate_limiting": "Alert Back-Off (ABO)",
+    "ecc_sdc_protection": "Link ECC (PHY only)",
+    "multitenant_qos": "ABO Command Stalls",
+    "rollback_cycles": "64 cycles ($t_{DRFM}$)"
+  },
+  {
+    "scheme": "DREAM",
+    "citation": "\\cite{dream2025} (ISCA'25)",
+    "deployment": "Memory Controller",
+    "dram_die_mod": "None (0.0\\%)",
+    "defense_strategy": "Ganged DRFM Management",
+    "rate_limiting": "Periodic DRFM Scheduling",
+    "ecc_sdc_protection": "None",
+    "multitenant_qos": "DRFM Refresh Stalls",
+    "rollback_cycles": "48 cycles"
+  },
+  {
+    "scheme": "QPRAC",
+    "citation": "\\cite{woo2025qprac} (HPCA'25)",
+    "deployment": "In-DRAM Die + Controller",
+    "dram_die_mod": "Yes (4.2\\% Die Area)",
+    "defense_strategy": "Priority Queue In-DRAM PRAC",
+    "rate_limiting": "Priority Back-Off",
+    "ecc_sdc_protection": "Link ECC (PHY only)",
+    "multitenant_qos": "Prioritized Refresh",
+    "rollback_cycles": "40 cycles"
+  },
+  {
+    "scheme": "PrISM",
+    "citation": "\\cite{prism2026} (ISCA'26)",
+    "deployment": "In-DRAM Die + Controller",
+    "dram_die_mod": "Yes (2.1\\% Die Area)",
+    "defense_strategy": "Sampled History Queue (SHQ)",
+    "rate_limiting": "Sampling Back-Off",
+    "ecc_sdc_protection": "Probabilistic (Risk)",
+    "multitenant_qos": "Sampling Gaps",
+    "rollback_cycles": "32 cycles"
+  },
+  {
+    "scheme": "\\textbf{Q-Shield (Ours)}",
+    "citation": "\\textbf{This Work}",
+    "deployment": "\\textbf{Pure Controller (Synthesizable)}",
+    "dram_die_mod": "\\textbf{None (0.0\\%)}",
+    "defense_strategy": "\\textbf{Dual-Hash Filter + Slack QoS}",
+    "rate_limiting": "\\textbf{Smooth Rate Pacing}",
+    "ecc_sdc_protection": "\\textbf{Autonomous SEC-DED (72, 64)}",
+    "multitenant_qos": "\\textbf{Opportunistic BG Bypassing}",
+    "rollback_cycles": "\\textbf{0 cycles (Zero-Bubble)}"
+  }
+]

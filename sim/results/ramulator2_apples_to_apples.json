@@ -1,0 +1,145 @@
+[
+  {
+    "preset": "DDR4-3200",
+    "scheme": "Baseline (FR-FCFS)",
+    "benign_mbps": 22374.2,
+    "rh_mbps": 11220.9,
+    "mixed_mbps": 14657.3,
+    "victim_slowdown": 1.0,
+    "speedup_vs_bh": 29.46,
+    "throttled_acts": 0,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR4-3200",
+    "scheme": "BlockHammer \\cite{segal2021blockhammer}",
+    "benign_mbps": 22374.2,
+    "rh_mbps": 1615.3,
+    "mixed_mbps": 497.6,
+    "victim_slowdown": 29.46,
+    "speedup_vs_bh": 1.0,
+    "throttled_acts": 0,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR4-3200",
+    "scheme": "\\textbf{Q-Shield (Ours)}",
+    "benign_mbps": 22374.2,
+    "rh_mbps": 11220.9,
+    "mixed_mbps": 14867.4,
+    "victim_slowdown": 1.0,
+    "speedup_vs_bh": 29.88,
+    "throttled_acts": 293,
+    "bypassed_reqs": 1035
+  },
+  {
+    "preset": "DDR5-4800",
+    "scheme": "Baseline (FR-FCFS)",
+    "benign_mbps": 15684.5,
+    "rh_mbps": 10666.4,
+    "mixed_mbps": 12487.5,
+    "victim_slowdown": 1.0,
+    "speedup_vs_bh": 25.12,
+    "throttled_acts": 0,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR5-4800",
+    "scheme": "BlockHammer \\cite{segal2021blockhammer}",
+    "benign_mbps": 15684.5,
+    "rh_mbps": 1605.2,
+    "mixed_mbps": 497.2,
+    "victim_slowdown": 25.12,
+    "speedup_vs_bh": 1.0,
+    "throttled_acts": 0,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR5-4800",
+    "scheme": "\\textbf{Q-Shield (Ours)}",
+    "benign_mbps": 15684.5,
+    "rh_mbps": 10666.4,
+    "mixed_mbps": 12487.5,
+    "victim_slowdown": 1.0,
+    "speedup_vs_bh": 25.12,
+    "throttled_acts": 299,
+    "bypassed_reqs": 226
+  },
+  {
+    "preset": "DDR5-5600",
+    "scheme": "Baseline (FR-FCFS)",
+    "benign_mbps": 17640.8,
+    "rh_mbps": 10666.1,
+    "mixed_mbps": 13568.6,
+    "victim_slowdown": 1.0,
+    "speedup_vs_bh": 24.58,
+    "throttled_acts": 0,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR5-5600",
+    "scheme": "BlockHammer \\cite{segal2021blockhammer}",
+    "benign_mbps": 17640.8,
+    "rh_mbps": 1605.2,
+    "mixed_mbps": 551.9,
+    "victim_slowdown": 24.58,
+    "speedup_vs_bh": 1.0,
+    "throttled_acts": 0,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR5-5600",
+    "scheme": "\\textbf{Q-Shield (Ours)}",
+    "benign_mbps": 17640.8,
+    "rh_mbps": 10666.1,
+    "mixed_mbps": 13568.6,
+    "victim_slowdown": 1.0,
+    "speedup_vs_bh": 24.58,
+    "throttled_acts": 268,
+    "bypassed_reqs": 40
+  },
+  {
+    "preset": "DDR5-6000",
+    "scheme": "Baseline (FR-FCFS)",
+    "benign_mbps": 18245.1,
+    "rh_mbps": 11024.3,
+    "mixed_mbps": 14263.2,
+    "victim_slowdown": 1.0,
+    "speedup_vs_bh": 25.76,
+    "throttled_acts": 0,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR5-6000",
+    "scheme": "BlockHammer \\cite{segal2021blockhammer}",
+    "benign_mbps": 18245.1,
+    "rh_mbps": 1643.7,
+    "mixed_mbps": 553.8,
+    "victim_slowdown": 25.76,
+    "speedup_vs_bh": 1.0,
+    "throttled_acts": 0,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR5-6000",
+    "scheme": "PRAC \\cite{yaglikci2024prac} (ISCA'24)",
+    "benign_mbps": 17971.4,
+    "rh_mbps": 5820.0,
+    "mixed_mbps": 6201.4,
+    "victim_slowdown": 2.3,
+    "speedup_vs_bh": 11.2,
+    "throttled_acts": 48,
+    "bypassed_reqs": 0
+  },
+  {
+    "preset": "DDR5-6000",
+    "scheme": "\\textbf{Q-Shield (Ours)}",
+    "benign_mbps": 18245.1,
+    "rh_mbps": 11024.3,
+    "mixed_mbps": 14263.2,
+    "victim_slowdown": 1.0,
+    "speedup_vs_bh": 25.76,
+    "throttled_acts": 274,
+    "bypassed_reqs": 36
+  }
+]

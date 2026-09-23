@@ -1,0 +1,30 @@
+% Table II: Cycle-Accurate Apples-to-Apples Ramulator2 Evaluation
+\begin{table*}[t]
+\centering
+\small
+\caption{Cycle-Accurate Performance Comparison Executed Under Identical Ramulator 2.0 Simulation Environment}
+\label{tab:ramulator2_apples_to_apples}
+\begin{tabular}{llrrrrr}
+\toprule
+\textbf{DRAM Preset} & \textbf{Controller Scheme} & \textbf{Benign BW} & \textbf{Attack BW} & \textbf{Mixed BW} & \textbf{Victim} & \textbf{Speedup} \\
+ & & \textbf{(MB/s)} & \textbf{(MB/s)} & \textbf{(MB/s)} & \textbf{Slowdown} & \textbf{vs BH} \\
+\midrule
+\multirow{3}{*}{DDR4-3200} & Baseline (FR-FCFS) & 22,374.2 & 11,220.9 & 14,657.3 & 1.00$\times$ & 29.46$\times$ \\
+ & BlockHammer \cite{segal2021blockhammer} & 22,374.2 & 1,615.3 & 497.6 & 29.46$\times$ & $1.00\times$ \\
+ & \textbf{Q-Shield (Ours)} & 22,374.2 & 11,220.9 & 14,867.4 & 1.00$\times$ & 29.88$\times$ \\
+\cmidrule{1-7}
+\multirow{3}{*}{DDR5-4800} & Baseline (FR-FCFS) & 15,684.5 & 10,666.4 & 12,487.5 & 1.00$\times$ & 25.12$\times$ \\
+ & BlockHammer \cite{segal2021blockhammer} & 15,684.5 & 1,605.2 & 497.2 & 25.12$\times$ & $1.00\times$ \\
+ & \textbf{Q-Shield (Ours)} & 15,684.5 & 10,666.4 & 12,487.5 & 1.00$\times$ & 25.12$\times$ \\
+\cmidrule{1-7}
+\multirow{3}{*}{DDR5-5600} & Baseline (FR-FCFS) & 17,640.8 & 10,666.1 & 13,568.6 & 1.00$\times$ & 24.58$\times$ \\
+ & BlockHammer \cite{segal2021blockhammer} & 17,640.8 & 1,605.2 & 551.9 & 24.58$\times$ & $1.00\times$ \\
+ & \textbf{Q-Shield (Ours)} & 17,640.8 & 10,666.1 & 13,568.6 & 1.00$\times$ & 24.58$\times$ \\
+\cmidrule{1-7}
+\multirow{4}{*}{DDR5-6000} & Baseline (FR-FCFS) & 18,245.1 & 11,024.3 & 14,263.2 & 1.00$\times$ & 25.76$\times$ \\
+ & BlockHammer \cite{segal2021blockhammer} & 18,245.1 & 1,643.7 & 553.8 & 25.76$\times$ & $1.00\times$ \\
+ & PRAC \cite{yaglikci2024prac} (ISCA'24) & 17,971.4 & 5,820.0 & 6,201.4 & 2.30$\times$ & 11.20$\times$ \\
+ & \textbf{Q-Shield (Ours)} & 18,245.1 & 11,024.3 & 14,263.2 & 1.00$\times$ & 25.76$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table*}

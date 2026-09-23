@@ -1,13 +1,13 @@
 [options]
-mode bmc
-depth 10
+mode prove
+depth 30
 
 [engines]
 smtbmc z3
 
 [script]
 read -formal -sv sdc_resilient_filter.sv
-chparam -set TABLE_ENTRIES 8 sdc_resilient_filter
+chparam -set TABLE_ENTRIES 16 sdc_resilient_filter
 prep -top sdc_resilient_filter
 
 [files]

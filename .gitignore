@@ -34,6 +34,8 @@ synth/
 *.str
 .Xil/
 _xmsgs/
+syn/vivado_project/
+*.xpr
 
 # Operating System & Editor Artifacts
 .DS_Store
