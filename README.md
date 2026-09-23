@@ -81,14 +81,13 @@ flowchart TD
     MAPPER --> ROB
     WBUF --> ARB
 
-    SDC -.->|Điều tiết nhịp| QOS
-    SDC -->|Thống kê lưu lượng| ATE
-    ATE -->|Ngưỡng động| SDC
-    SDC -.->|Cảnh báo RowHammer| DRM
-    ENGINE -.->|Cảnh báo RowPress| DRM
-    ECC -.->|Yêu cầu tuần tra ECC| DRM
+    SDC -.-> QOS
+    SDC <--> ATE
+    SDC -.-> DRM
+    ENGINE -.-> DRM
+    ECC -.-> DRM
 
-    DRM -->|Ưu tiên làm tươi và sửa lỗi| ARB
+    DRM --> ARB
     QOS --> ARB
     ARB --> ENGINE
     ENGINE --> SCHED
@@ -105,25 +104,28 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    IDLE([S_IDLE: Chờ Lệnh])
+    IDLE([S_IDLE: Chờ Lệnh DRAM])
+    PRE[S_PRE: Phát lệnh PRECHARGE - Chờ tRP]
+    ACT[S_ACT: Phát lệnh ACTIVATE - Chờ tRCD]
+    RD[S_RD: Phát lệnh READ - Chờ tCL]
+    WR[S_WR: Phát lệnh WRITE - Chờ tCWL]
+    DATA_RD[S_DATA_RD: Truyền dữ liệu Đọc - Chờ tCCD]
+    DATA_WR[S_DATA_WR: Chốt dữ liệu Ghi - Chờ tWR]
 
-    IDLE -->|Xung đột hàng| PRE[S_PRE: Phát lệnh PRECHARGE]
-    IDLE -->|Trang đóng| ACT[S_ACT: Phát lệnh ACTIVATE]
-    IDLE -->|Trúng trang mở - Đọc| RD[S_RD: Phát lệnh READ]
-    IDLE -->|Trúng trang mở - Ghi| WR[S_WR: Phát lệnh WRITE]
+    IDLE --> PRE
+    IDLE --> ACT
+    IDLE --> RD
+    IDLE --> WR
 
-    PRE -->|Đạt định thời tRP| ACT
-    
-    ACT -->|Đạt định thời tRCD| WAIT_RCD{Loại Lệnh}
-    WAIT_RCD -->|Đọc| RD
-    WAIT_RCD -->|Ghi| WR
+    PRE --> ACT
+    ACT --> RD
+    ACT --> WR
 
-    RD -->|Đạt định thời tCL| DATA_XFER[S_DATA_XFER: Truyền Dữ Liệu Đọc]
-    DATA_XFER -->|Đạt định thời tCCD| IDLE
+    RD --> DATA_RD
+    DATA_RD --> IDLE
 
-    WR -->|Đạt định thời tCWL| WRITE_DATA[S_WRITE_DATA: Ghi Dữ Liệu Bus]
-    WRITE_DATA -->|Đạt định thời tWR| WAIT_WR[S_WAIT_WR: Chốt Dữ Liệu]
-    WAIT_WR -->|Hoàn tất Ghi| IDLE
+    WR --> DATA_WR
+    DATA_WR --> IDLE
 ```
 
 ---
