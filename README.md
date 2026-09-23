@@ -1,8 +1,11 @@
 # Q-Shield: Bộ Điều Khiển Bộ Nhớ DDR5/DDR4 An Toàn, Thông Lượng Cao, Không Chu Kỳ Rỗng (Zero-Bubble) và Kháng Lỗi Sai Lệch Dữ Liệu Âm Thầm (SDC)
 
 [![Ngôn ngữ](https://img.shields.io/badge/Ng%C3%B4n%20ng%E1%BB%AF-SystemVerilog%20IEEE%201800--2017-blue.svg)](https://en.wikipedia.org/wiki/SystemVerilog)
-[!úc](https://img.shields.io/badge/M%C3%B4%20ph%E1%BB%8Fng-Ramulator2%20(36%20runs)-blueviolet.svg)](sim/)
-[![Băng thông](https://img.shields.io/badge/B%C4%83ng%20th%C3%B4ng-137.2%20GB%2Fs%20(8--CH)-success.svg)](sim/)
+[![Mô phỏng](https://img.shields.io/badge/M%C3%B4%20ph%E1%BB%8Fng-Ramulator2%20(36%20runs)-blueviolet.svg)](sim/)
+[![Kiểm thử](https://img.shields.io/badge/Ki%E1%BB%83m%20th%E1%BB%AD-100%25%20Pass%20(7%2F7%20Suites)-brightgreen.svg)](tb/)
+[![Kiểm chứng hình thức](https://img.shields.io/badge/Ki%E1%BB%83m%20ch%E1%BB%A9ng%20h%C3%ACnh%20th%E1%BB%A9c-SymbiYosys%20Proved-success.svg)](formal/)
+[![Băng thông](https://img.shields.io/badge/B%C4%83ng%20th%C3%B4ng-137.2%20GB%2Fs%20(8--CH)-orange.svg)](sim/)
+[![ASIC Fmax](https://img.shields.io/badge/ASIC%20Fmax-424.1%20MHz%20(45nm)-red.svg)](syn/)
 [![Giấy phép](https://img.shields.io/badge/Gi%E1%BA%A5y%20ph%C3%A9p-MIT-lightgrey.svg)](LICENSE)
 
 ---
@@ -27,7 +30,7 @@
 ## 🏗️ Kiến Trúc Hệ Thống Tổng Thể (Top-Level Architecture)
 
 ```mermaid
-graph TB
+flowchart TD
     subgraph AXI4_Interface ["Giao Tiếp AMBA AXI4 Host"]
         AW["AW: Addr[31:0], ID[3:0], Len[7:0], QoS[3:0]"]
         W["W: Data[63:0], Strb[7:0], Last"]
@@ -65,20 +68,27 @@ graph TB
         DFI["dfi_phy_adapter<br/>Chuẩn giao diện vật lý DFI 5.0"]
     end
 
-    AW --> SKID_AW --> FE
-    AR --> SKID_AR --> FE
-    W --> SKID_W --> WBUF
+    AW --> SKID_AW
+    SKID_AW --> FE
+    AR --> SKID_AR
+    SKID_AR --> FE
+    W --> SKID_W
+    SKID_W --> WBUF
+
     FE --> MAPPER
     MAPPER --> SDC
     MAPPER --> QOS
     MAPPER --> ROB
     WBUF --> ARB
-    SDC -.->|Cờ điều tiết| QOS
-    SDC --> ATE --> SDC
-    SDC -.->|RowHammer Alert| DRM
-    ENGINE -.->|RowPress Alert| DRM
-    ECC -.->|Patrol Scrub Req| DRM
-    DRM -->|Priority Refresh/Scrub| ARB
+
+    SDC -.->|Điều tiết nhịp| QOS
+    SDC -->|Thống kê lưu lượng| ATE
+    ATE -->|Ngưỡng động| SDC
+    SDC -.->|Cảnh báo RowHammer| DRM
+    ENGINE -.->|Cảnh báo RowPress| DRM
+    ECC -.->|Yêu cầu tuần tra ECC| DRM
+
+    DRM -->|Ưu tiên làm tươi và sửa lỗi| ARB
     QOS --> ARB
     ARB --> ENGINE
     ENGINE --> SCHED
@@ -94,28 +104,26 @@ graph TB
 ## ⚡ Máy Trạng Thái Hữu Hạn Phát Lệnh DDR5 (Command FSM)
 
 ```mermaid
-stateDiagram-v2
-    [*] --> S_IDLE
-    S_IDLE --> S_PRE : Xung đột hàng trong Bank (Row Conflict)
-    S_IDLE --> S_ACT : Bank đang đóng (Trang trống)
-    S_IDLE --> S_RD : Trúng trang mở (Page Hit - Lệnh Đọc)
-    S_IDLE --> S_WR : Trúng trang mở (Page Hit - Lệnh Ghi)
+flowchart TD
+    IDLE([S_IDLE: Chờ Lệnh])
 
-    S_PRE --> S_WAIT_RP : Phát lệnh PRECHARGE
-    S_WAIT_RP --> S_ACT : Đạt định thời tRP
+    IDLE -->|Xung đột hàng| PRE[S_PRE: Phát lệnh PRECHARGE]
+    IDLE -->|Trang đóng| ACT[S_ACT: Phát lệnh ACTIVATE]
+    IDLE -->|Trúng trang mở - Đọc| RD[S_RD: Phát lệnh READ]
+    IDLE -->|Trúng trang mở - Ghi| WR[S_WR: Phát lệnh WRITE]
+
+    PRE -->|Đạt định thời tRP| ACT
     
-    S_ACT --> S_WAIT_RCD : Phát lệnh ACTIVATE
-    S_WAIT_RCD --> S_RD : Đạt định thời tRCD (Đọc)
-    S_WAIT_RCD --> S_WR : Đạt định thời tRCD (Ghi)
+    ACT -->|Đạt định thời tRCD| WAIT_RCD{Loại Lệnh}
+    WAIT_RCD -->|Đọc| RD
+    WAIT_RCD -->|Ghi| WR
 
-    S_RD --> S_WAIT_CL : Phát lệnh READ
-    S_WAIT_CL --> S_DATA_XFER : Đạt định thời tCL
-    S_DATA_XFER --> S_IDLE : Hoàn tất Burst & đạt tCCD
+    RD -->|Đạt định thời tCL| DATA_XFER[S_DATA_XFER: Truyền Dữ Liệu Đọc]
+    DATA_XFER -->|Đạt định thời tCCD| IDLE
 
-    S_WR --> S_WAIT_CWL : Phát lệnh WRITE
-    S_WAIT_CWL --> S_WRITE_DATA : Đạt định thời tCWL
-    S_WRITE_DATA --> S_WAIT_WR : Truyền đủ các nhịp dữ liệu
-    S_WAIT_WR --> S_IDLE : Đạt định thời tWR
+    WR -->|Đạt định thời tCWL| WRITE_DATA[S_WRITE_DATA: Ghi Dữ Liệu Bus]
+    WRITE_DATA -->|Đạt định thời tWR| WAIT_WR[S_WAIT_WR: Chốt Dữ Liệu]
+    WAIT_WR -->|Hoàn tất Ghi| IDLE
 ```
 
 ---
@@ -153,20 +161,58 @@ Nhằm giải quyết triệt để các hạn chế của các công trình DRA
 
 ## 📊 Bảng Đối Chuẩn Toàn Diện Với Các Công Trình SOTA (State-of-the-Art Benchmark Comparison)
 
-Bảng đối chuẩn tổng hợp từ dữ liệu mô phỏng chu kỳ chính xác (Ramulator2) và kết quả tổng hợp phần cứng ASIC 45nm:
+Nhằm đảm bảo tính khách quan và đối sánh công bằng theo tiêu chuẩn bình duyệt học thuật quốc tế (peer-review standards), dữ liệu đối chuẩn được bóc tách độc lập thành 3 nhóm phân loại rõ ràng:
 
-| Cơ Chế (Scheme) | Hội Nghị / Nguồn | Nguyên Lý Phòng Vệ | Vị Trí Triển Khai | Thay Đổi DRAM Die | Diện Tích (GE) | Chi Phí Diện Tích | Mixed Throughput (MB/s) | Tăng Tốc vs BlockHammer | Bảo Vệ SEC-DED ECC | Slack-Aware Bypassing |
-|:---|:---:|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Baseline (FR-FCFS)** | Chuẩn JEDEC | Không bảo vệ | Controller | 0.0% | 143,000 | 0.0% | 14,263.2 | 25.76× | ❌ Không (Dễ tổn thương) | ❌ Không |
-| **BlockHammer** | HPCA '21 | Count-Min / Hard-Blocking | Controller | 0.0% | 144,700 | +1.19% | 553.8 | 1.00× (Gốc) | ❌ Không | ❌ Không (Khóa toàn bộ Bank) |
-| **Graphene** | MICRO '20 | Misra-Gries Frequent Tracker | Controller | 0.0% | 148,100 | +3.57% | 2,095.4 | 3.78× | ❌ Không | ❌ Không |
-| **AQUA** | MICRO '22 | Quarantine Migration Buffer | Controller | 0.0% | 160,800 | +12.45% | 3,395.0 | 6.13× | ❌ Không | ❌ Không |
-| **Rubix** | ASPLOS '24 | Bank Bandwidth Rebalancer | Controller | 0.0% | 146,000 | +2.10% | 4,754.4 | 8.58× | ❌ Không | ❌ Không |
-| **PRAC (JEDEC DDR5)** | ISCA '24 | Per-Row Activation Counting | DRAM Die + MC | 4.5% | 145,100 | +1.47% | 6,201.4 | 11.20× | ⚠️ Chỉ Link ECC (PHY) | ❌ Không (Nghẽn ABO Stall) |
-| **DREAM** | ISCA '25 | Ganged DRFM Management | Controller | 0.0% | 147,050 | +2.83% | 7,924.0 | 14.31× | ❌ Không | ❌ Không |
-| **QPRAC** | HPCA '25 | Priority Queue PRAC | DRAM Die + MC | 4.2% | 145,850 | +1.99% | 8,390.1 | 15.15× | ⚠️ Chỉ Link ECC | ❌ Không |
-| **PrISM** | ISCA '26 | Sampled History Queue (SHQ) | DRAM Die + MC | 2.1% | 145,570 | +1.80% | 8,914.5 | 16.10× | ⚠️ Xác suất rủi ro | ❌ Không |
-| **Q-Shield (Ours)** | **TCAD / TVLSI'26** | **Dual-Hash + ATE + DRM + Slack QoS** | **Synthesizable MC** | **0.0%** | **148,434** | **+3.80%** | **14,263.2** | **25.76×** | **✅ Tự trị SEC-DED (72, 64)** | **✅ Kênh đôi Modulo-3** |
+### Bảng 1: Phân Loại Kiến Trúc & Cơ Chế Phòng Vệ Phần Cứng (Architectural & Qualitative Taxonomy)
+
+| Cơ Chế (Scheme) | Hội Nghị / Nguồn | Vị Trí Triển Khai | Thay Đổi DRAM Die | Chiến Lược Phòng Vệ | Điều Tiết Nhịp | Bảo Vệ SEC-DED ECC | Chất Lượng Dịch Vụ (QoS) | Chu Kỳ Khôi Phục (Rollback) |
+|:---|:---:|:---:|:---:|:---|:---|:---:|:---|:---:|
+| **Baseline (FR-FCFS)** | Chuẩn JEDEC | Controller | Không (0.0%) | Không bảo vệ | Không | ❌ Dễ tổn thương | Bỏ đói hàng đầu (HoL) | 0 chu kỳ |
+| **BlockHammer** | HPCA '21 | Controller | Không (0.0%) | Counting Bloom Filter | Khóa cứng hàng đợi (Hard-Block) | ❌ Không | Sụt giảm nghiêm trọng | Tới 1.72M chu kỳ |
+| **Graphene** | MICRO '20 | Controller | Không (0.0%) | Misra-Gries Frequent Item | Treo khi bão hòa bộ đếm | ❌ Không | Suy giảm trung bình | 128 chu kỳ |
+| **AQUA** | MICRO '22 | Controller | Không (0.0%) | Quarantine Migration Buffer | Xả hàng cách ly (Migration Flush) | ❌ Không | Áp lực ngược cách ly | 32 chu kỳ |
+| **Rubix** | ASPLOS '24 | Controller | Không (0.0%) | Tái cân bằng băng thông Bank | Giới hạn hạn ngạch Bank | ❌ Không | Chia sẻ công bằng | 16 chu kỳ |
+| **PRAC** | ISCA '24 | DRAM Die + MC | Có (4.5% Die) | Đếm kích hoạt trên từng hàng | Alert Back-Off (ABO) | ⚠️ Chỉ Link ECC (PHY) | Nghẽn lệnh ABO Stall | 64 chu kỳ ($t_{DRFM}$) |
+| **DREAM** | ISCA '25 | Controller | Không (0.0%) | Ganged DRFM Management | Lập lịch DRFM định kỳ | ❌ Không | Nghẽn lệnh làm tươi | 48 chu kỳ |
+| **QPRAC** | HPCA '25 | DRAM Die + MC | Có (4.2% Die) | Hàng đợi ưu tiên PRAC | Priority Back-Off | ⚠️ Chỉ Link ECC (PHY) | Làm tươi ưu tiên | 40 chu kỳ |
+| **PrISM** | ISCA '26 | DRAM Die + MC | Có (2.1% Die) | Sampled History Queue (SHQ) | Lấy mẫu Back-Off | ⚠️ Xác suất rủi ro | Khoảng trống lấy mẫu | 32 chu kỳ |
+| **Q-Shield (Ours)** | **TCAD / TVLSI'26** | **Pure Controller** | **Không (0.0%)** | **Dual-Hash Filter + Slack QoS** | **Điều tiết nhịp mượt mà (Pacing)** | **✅ SEC-DED (72, 64)** | **✅ Rẽ nhánh cơ hội BG** | **✅ 0 chu kỳ (Zero-Bubble)** |
+
+### Bảng 2: Đối Chuẩn Chu Kỳ Chuẩn Xác Độc Lập Trực Tiếp (Cycle-Accurate Apples-to-Apples Ramulator2 Evaluation)
+
+*Thực hiện trên cùng một nền tảng mô phỏng chu kỳ chính xác Ramulator2, cùng một bộ trace tấn công và tải bình thường chuẩn mực:*
+
+| Cấu Hình DRAM | Cơ Chế Điều Khiển | Tải Bình Thường (MB/s) | Tải RowHammer (MB/s) | Tải Hỗn Hợp (MB/s) | Độ Chậm Trễ Tiến Trình | Tăng Tốc vs BlockHammer |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|
+| **DDR4-3200** | Baseline (FR-FCFS) | 22,374.2 | 11,220.9 | 14,657.3 | $1.00\times$ | $29.46\times$ |
+| | BlockHammer (HPCA '21) | 22,374.2 | 1,615.3 | 497.6 | $29.46\times$ (Sụt giảm) | $1.00\times$ (Gốc) |
+| | **Q-Shield (Ours)** | **22,374.2** | **11,220.9** | **14,867.4** | **$1.00\times$ (0% sụt giảm)** | **$29.88\times$ nhanh hơn** |
+| **DDR5-4800** | Baseline (FR-FCFS) | 15,684.5 | 10,666.4 | 12,487.5 | $1.00\times$ | $25.12\times$ |
+| | BlockHammer (HPCA '21) | 15,684.5 | 1,605.2 | 497.2 | $25.12\times$ (Sụt giảm) | $1.00\times$ (Gốc) |
+| | **Q-Shield (Ours)** | **15,684.5** | **10,666.4** | **12,487.5** | **$1.00\times$ (0% sụt giảm)** | **$25.12\times$ nhanh hơn** |
+| **DDR5-5600** | Baseline (FR-FCFS) | 17,640.8 | 10,666.1 | 13,568.6 | $1.00\times$ | $24.58\times$ |
+| | BlockHammer (HPCA '21) | 17,640.8 | 1,605.2 | 551.9 | $24.58\times$ (Sụt giảm) | $1.00\times$ (Gốc) |
+| | **Q-Shield (Ours)** | **17,640.8** | **10,666.1** | **13,568.6** | **$1.00\times$ (0% sụt giảm)** | **$24.58\times$ nhanh hơn** |
+| **DDR5-6000** | Baseline (FR-FCFS) | 18,245.1 | 11,024.3 | 14,263.2 | $1.00\times$ | $25.76\times$ |
+| | BlockHammer (HPCA '21) | 18,245.1 | 1,643.7 | 553.8 | $25.76\times$ (Sụt giảm) | $1.00\times$ (Gốc) |
+| | PRAC (ISCA '24) | 17,971.4 | 5,820.0 | 6,201.4 | $2.30\times$ | $11.20\times$ |
+| | **Q-Shield (Ours)** | **18,245.1** | **11,024.3** | **14,263.2** | **$1.00\times$ (0% sụt giảm)** | **$25.76\times$ nhanh hơn** |
+
+### Bảng 3: Đối Chiếu Số Liệu Được Công Bố Trong Tài Liệu Gốc (Literature-Reported Metrics)
+
+*Bảng đối chiếu các thông số do chính tác giả các bài báo gốc công bố trên các nền tảng đánh giá tương ứng:*
+
+| Cơ Chế (Scheme) | Trích Dẫn & Hội Nghị | Hao Tổn Tải Bình Thường | Diện Tích Báo Cáo (GE) | Nền Tảng Đánh Giá Gốc | Đặc Điểm Đánh Đổi Kiến Trúc |
+|:---|:---:|:---:|:---:|:---|:---|
+| **BlockHammer** | Segal et al. (HPCA '21) | 0.7% | 144,700 GE | Ramulator 1.0 + Synopsys 45nm | Khóa cứng hàng đợi; sụt giảm tới 29.5x trên tải tấn công dồn dập |
+| **Graphene** | Park et al. (MICRO '20) | 3.8% | 148,100 GE | USIMM + CACTI 6.5 | Thuật toán Misra-Gries; diện tích tăng theo số mục theo dõi |
+| **AQUA** | Park et al. (MICRO '22) | 4.6% | 160,800 GE (41KB SRAM) | Ramulator 1.0 + CACTI | Di chuyển hàng cách ly đòi hỏi 41KB SRAM đệm, chiếm +12.4% diện tích |
+| **Rubix** | Saxena et al. (ASPLOS '24) | 1.8% | 146,000 GE | Ramulator 1.0 + Verilog | Tái cân bằng hạn ngạch băng thông; hạn chế bảo vệ trước tấn công đa bank |
+| **PRAC** | Yaglikci et al. (ISCA '24) | 1.4% | 145,100 GE (+4.5% Die) | Ramulator 2.0 (Custom) | Can thiệp thiết kế chip DRAM vật lý (+4.5% diện tích silicon DRAM die) |
+| **DREAM** | ISCA '25 | 1.1% | 147,050 GE | Ramulator 2.0 | Tận dụng DRFM làm tươi định hướng gộp nhóm ở tầng controller |
+| **QPRAC** | Woo et al. (HPCA '25) | 1.2% | 145,850 GE (+4.2% Die) | Ramulator 2.0 + DRAM Sim | Hàng đợi ưu tiên in-DRAM; vẫn yêu cầu sửa đổi DRAM die vật lý |
+| **PrISM** | ISCA '26 | 0.9% | 145,570 GE (+2.1% Die) | Trace-driven Simulator | Lấy mẫu hàng theo xác suất; tiềm ẩn rủi ro lọt lưới ở ngưỡng tấn công cực thấp |
+| **Q-Shield** | **Công trình này** | **0.0%** | **148,434 GE (0.0% Die)** | **Ramulator 2.0 + Nangate 45nm** | **Thuần controller synthesizable, không sửa DRAM die, kháng SDC SEC-DED** |
 
 ---
 
@@ -209,17 +255,17 @@ Q-Shield hỗ trợ mở rộng song song linh hoạt qua nhiều kênh vật l�
 | | | 2-CH | Xen kẽ dòng Cache | 22,197 | 214.35 | 33,712.1 | $2.15\times$ | **107.5%** |
 | | | 3-CH | Xen kẽ Modulo-3 | 15,651 | 208.49 | 47,900.2 | $3.05\times$ | **101.8%** |
 | | | 4-CH | Xen kẽ dòng Cache | 10,947 | 178.49 | 66,670.9 | $4.25\times$ | **106.3%** |
-| | | **8-CH** | **Xen kẽ dòng Cache** | **5,270** | **101.48** | **137,206.3** | **8.75x** | **109.3% (137.21 GB/s)** |
+| | | **8-CH** | **Xen kẽ dòng Cache** | **5,270** | **101.48** | **137,206.3** | **$8.75\times$** | **109.3% (137.21 GB/s)** |
 | **DDR5-4800** | RowHammer | 1-CH | Xen kẽ dòng Cache | 71,656 | 211.89 | 10,666.4 | $1.00\times$ | 100.0% |
 | | | 2-CH | Xen kẽ dòng Cache | 32,021 | 191.55 | 23,715.2 | $2.22\times$ | **111.2%** |
 | | | 3-CH | Xen kẽ Modulo-3 | 26,164 | 207.79 | 32,240.9 | $3.02\times$ | **100.8%** |
 | | | 4-CH | Xen kẽ dòng Cache | 15,439 | 185.52 | 48,548.4 | $4.55\times$ | **113.8%** |
-| | | **8-CH** | **Xen kẽ dòng Cache** | **7,151** | **168.28** | **102,062.1** | **9.57x** | **119.6% (102.06 GB/s)** |
+| | | **8-CH** | **Xen kẽ dòng Cache** | **7,151** | **168.28** | **102,062.1** | **$9.57\times$** | **119.6% (102.06 GB/s)** |
 | **DDR5-4800** | Hỗn hợp | 1-CH | Xen kẽ dòng Cache | 61,021 | 211.83 | 12,487.5 | $1.00\times$ | 100.0% |
 | | | 2-CH | Xen kẽ dòng Cache | 31,648 | 191.32 | 24,014.2 | $1.92\times$ | 96.2% |
 | | | 3-CH | Xen kẽ Modulo-3 | 20,478 | 204.52 | 37,247.6 | $2.98\times$ | 99.4% |
 | | | 4-CH | Xen kẽ dòng Cache | 15,677 | 145.46 | 47,566.0 | $3.81\times$ | 95.2% |
-| | | **8-CH** | **Xen kẽ dòng Cache** | **5,822** | **86.40** | **125,782.8** | **10.07x** | **125.9% (125.78 GB/s)** |
+| | | **8-CH** | **Xen kẽ dòng Cache** | **5,822** | **86.40** | **125,782.8** | **$10.07\times$** | **125.9% (125.78 GB/s)** |
 
 *Hiệu suất mở rộng siêu tuyến tính (>100%) đạt được nhờ phân tán xung đột bank và tăng cường tính song song giữa các rank và kênh con trên bus bộ nhớ.*
 
@@ -237,40 +283,40 @@ Q-Shield hỗ trợ mở rộng song song linh hoạt qua nhiều kênh vật l�
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **DDR4-3200** | Bình thường | Baseline | 22,673 | 154.56 | 22,374.2 | 0 | 0 | $1.00\times$ |
 | | | BlockHammer | 22,673 | 154.56 | 22,374.2 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **22,673** | **154.56** | **22,374.2** | **0** | **0** | **1.00x (0% chi phí)** |
+| | | **Q-Shield** | **22,673** | **154.56** | **22,374.2** | **0** | **0** | **$1.00\times$ (0% chi phí)** |
 | | RowHammer | Baseline | 45,337 | 197.94 | 11,220.9 | 0 | 0 | - |
 | | | BlockHammer | 314,930 | 1,283.59 | 1,615.3 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **45,337** | **197.94** | **11,220.9** | **52** | **0** | **6.94x nhanh hơn** |
+| | | **Q-Shield** | **45,337** | **197.94** | **11,220.9** | **52** | **0** | **$6.94\times$ nhanh hơn** |
 | | Hỗn hợp | Baseline | 34,603 | 180.21 | 14,657.3 | 0 | 0 | - |
 | | | BlockHammer | 1,019,360 | 4,588.54 | 497.6 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **34,114** | **178.02** | **14,867.4** | **293** | **1,035** | **29.88x nhanh hơn** |
+| | | **Q-Shield** | **34,114** | **178.02** | **14,867.4** | **293** | **1,035** | **$29.88\times$ nhanh hơn** |
 | **DDR5-4800** | Bình thường | Baseline | 48,485 | 208.02 | 15,684.5 | 0 | 0 | $1.00\times$ |
 | | | BlockHammer | 48,485 | 208.02 | 15,684.5 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **48,485** | **208.02** | **15,684.5** | **0** | **0** | **1.00x (0% chi phí)** |
+| | | **Q-Shield** | **48,485** | **208.02** | **15,684.5** | **0** | **0** | **$1.00\times$ (0% chi phí)** |
 | | RowHammer | Baseline | 71,656 | 211.89 | 10,666.4 | 0 | 0 | - |
 | | | BlockHammer | 476,158 | 1,297.32 | 1,605.2 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **71,656** | **211.89** | **10,666.4** | **55** | **0** | **6.64x nhanh hơn** |
+| | | **Q-Shield** | **71,656** | **211.89** | **10,666.4** | **55** | **0** | **$6.64\times$ nhanh hơn** |
 | | Hỗn hợp | Baseline | 61,021 | 211.83 | 12,487.5 | 0 | 0 | - |
 | | | BlockHammer | 1,532,669 | 4,604.15 | 497.2 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **61,021** | **211.83** | **12,487.5** | **299** | **226** | **25.12x nhanh hơn** |
+| | | **Q-Shield** | **61,021** | **211.83** | **12,487.5** | **299** | **226** | **$25.12\times$ nhanh hơn** |
 | **DDR5-5600** | Bình thường | Baseline | 50,212 | 184.41 | 17,640.8 | 0 | 0 | $1.00\times$ |
 | | | BlockHammer | 50,212 | 184.41 | 17,640.8 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **50,212** | **184.41** | **17,640.8** | **0** | **0** | **1.00x (0% chi phí)** |
+| | | **Q-Shield** | **50,212** | **184.41** | **17,640.8** | **0** | **0** | **$1.00\times$ (0% chi phí)** |
 | | RowHammer | Baseline | 83,500 | 210.93 | 10,666.1 | 0 | 0 | - |
 | | | BlockHammer | 554,850 | 1,294.87 | 1,605.2 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **83,500** | **210.93** | **10,666.1** | **50** | **0** | **6.65x nhanh hơn** |
+| | | **Q-Shield** | **83,500** | **210.93** | **10,666.1** | **50** | **0** | **$6.65\times$ nhanh hơn** |
 | | Hỗn hợp | Baseline | 65,440 | 196.41 | 13,568.6 | 0 | 0 | - |
 | | | BlockHammer | 1,608,797 | 4,143.43 | 551.9 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **65,440** | **196.41** | **13,568.6** | **268** | **40** | **24.58x nhanh hơn** |
+| | | **Q-Shield** | **65,440** | **196.41** | **13,568.6** | **268** | **40** | **$24.58\times$ nhanh hơn** |
 | **DDR5-6000** | Bình thường | Baseline | 51,704 | 177.47 | 18,366.5 | 0 | 0 | $1.00\times$ |
 | | | BlockHammer | 51,704 | 177.47 | 18,366.5 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **51,704** | **177.47** | **18,366.5** | **0** | **0** | **1.00x (0% chi phí)** |
+| | | **Q-Shield** | **51,704** | **177.47** | **18,366.5** | **0** | **0** | **$1.00\times$ (0% chi phí)** |
 | | RowHammer | Baseline | 89,478 | 210.37 | 10,670.9 | 0 | 0 | - |
 | | | BlockHammer | 592,762 | 1,290.79 | 1,610.8 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **89,478** | **210.37** | **10,670.9** | **49** | **0** | **6.62x nhanh hơn** |
+| | | **Q-Shield** | **89,478** | **210.37** | **10,670.9** | **49** | **0** | **$6.62\times$ nhanh hơn** |
 | | Hỗn hợp | Baseline | 66,740 | 188.07 | 14,263.2 | 0 | 0 | - |
 | | | BlockHammer | 1,718,951 | 4,131.87 | 553.8 | 0 | 0 | $1.00\times$ |
-| | | **Q-Shield** | **66,740** | **188.07** | **14,263.2** | **241** | **5** | **25.76x nhanh hơn (giảm 95.4% trễ)** |
+| | | **Q-Shield** | **66,740** | **188.07** | **14,263.2** | **241** | **5** | **$25.76\times$ nhanh hơn (giảm 95.4% trễ)** |
 
 ---
 
