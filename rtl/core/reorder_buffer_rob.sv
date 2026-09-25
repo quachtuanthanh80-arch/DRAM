@@ -1,16 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
 // File:        reorder_buffer_rob.sv
-// Description: Out-of-Order Tracking & In-Order Retirement Reorder Buffer (ROB)
-//              with integrated Read-After-Write (RAW) Hazard Detection.
-//              - Allocates tags for in-flight DRAM Read requests.
-//              - Detects RAW collisions against active write transactions.
-//              - Receives out-of-order DRAM data writebacks via allocated tags.
-//              - Guarantees strict AXI in-order data return per ID / FIFO.
-//              - Zero-bubble output skid buffer for full 1-beat/cycle burst throughput.
-// Standards:   AXI4 Protocol (ARM IHI 0022E), IEEE 1800-2017 SystemVerilog.
+// Chức năng:   Hàng đợi vòng ROB theo dõi giao dịch phi tuần tự, khóa nguy cơ RAW và hoàn tất in-order.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module reorder_buffer_rob #(

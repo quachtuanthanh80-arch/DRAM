@@ -1,21 +1,7 @@
 //=============================================================================
-// Module Name: sec_ddr5_controller_top
-// Description: Top-Level Architecture for High-Throughput, Zero-Bubble Secure
-//              AXI4-to-DFI DDR5 Memory Controller with Subchannel-Aware
-//              Dual-Lane AES-256-XTS In-Line Cryptographic Pipelining.
-//
-// Subsystems:
-// 1. AMBA AXI4 Slave Adapter with Zero-Bubble Skid Buffers & Subchannel Splitter
-// 2. APB4 CSR Control Subsystem with Hardware Key Lockdown & Telemetry Counters
-// 3. 14-Stage Dual-Lane Pipelined AES-256-XTS Cryptographic Core (2x 128-bit)
-// 4. Dual-Clock Asynchronous FIFO CDC Bridges (250 MHz AXI <-> 400 MHz DDR5)
-// 5. Dual FR-FCFS DDR5 Subchannel Schedulers with Bank State Tracking
-// 6. Dual DFI 5.0 Physical Interface Adapters
-//
-// Target Publication: IEEE Transactions / Q2+ Journal Submission
-// Standard: AMBA AXI4 / AMBA APB4 / DFI 5.0 / JEDEC DDR5 (JESD79-5)
+// File:        sec_ddr5_controller_top.sv
+// Chức năng:   Khối đỉnh toàn diện tích hợp bộ điều khiển Q-Shield kèm đường ống mật mã AES-XTS và miền CDC.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module sec_ddr5_controller_top #(

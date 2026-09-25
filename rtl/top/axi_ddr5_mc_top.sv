@@ -1,21 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
 // File:        axi_ddr5_mc_top.sv
-// Description: Top-Level Synthesizable DDR5/DDR4 Memory Controller Core.
-//              Integrates all architectural pillars:
-//              1. axi_slave_frontend (5-channel AXI4 + 4KB split)
-//              2. wdata_buffer (Decoupled write address & data staging)
-//              3. addr_mapper_ddr5 (XOR Bank-Group Interleaving)
-//              4. sdc_resilient_filter (Dual-Hash RowHammer + Epoch Reset)
-//              5. qos_scheduler_queue (8x8 BG Queues + 3-Tier Priority)
-//              6. reorder_buffer_rob (32-entry OoO Reassembly + RAW Hazard Detect)
-//              7. slack_aware_arbiter (4-Tier Timing Slack Arbiter)
-//              8. ddr5_cmd_engine (JEDEC DDR5/DDR4 FSM + DFI 5.0)
-//              9. ecc_scrubber (Background Patrol Scrubber + Hamming SEC-DED)
-//              10. rst_sync (Dual-Clock Domain Reset Synchronizers)
-// Standards:   AMBA AXI4 (IHI 0022E), JEDEC DDR5 (JESD79-5), IEEE 1800-2017.
+// Chức năng:   Khối đỉnh tích hợp bộ điều khiển bộ nhớ DDR5/DDR4 không chu kỳ rỗng (Zero-Bubble MC Top).
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 /* verilator lint_off PINCONNECTEMPTY */

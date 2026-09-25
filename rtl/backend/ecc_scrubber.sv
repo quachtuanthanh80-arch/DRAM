@@ -1,15 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
 // File:        ecc_scrubber.sv
-// Description: Background Patrol Memory Scrubber with Hamming SEC-DED.
-//              - Periodically requests memory scrubbing cycles during slack time.
-//              - Implements 64-bit data + 8-bit ECC Hamming SEC-DED codeword.
-//              - Single-bit error correction in real-time.
-//              - Double-bit Silent Data Corruption (SDC) detection & reporting.
-//              - Maintains diagnostic error counters and telemetry registers.
-// Standards:   IEEE Transactions on VLSI / Reliability Standards.
+// Chức năng:   Quét tuần tra bộ nhớ nền và tự động sửa lỗi ngầm 1-bit bằng mã Hamming SEC-DED (72, 64).
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module ecc_scrubber #(

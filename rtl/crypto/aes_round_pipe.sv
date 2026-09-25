@@ -1,11 +1,7 @@
 //=============================================================================
-// Module: aes_round_pipe
-// Description: Fully Pipelined AES Round Slice (Single Stage Register Slice).
-//              Integrates SubBytes (16x S-Boxes in parallel), ShiftRows,
-//              MixColumns, and AddRoundKey into a single clock cycle pipeline.
-// Standard:    SystemVerilog (IEEE 1800-2017)
+// File:        aes_round_pipe.sv
+// Chức năng:   Tầng đường ống thực thi một vòng biến đổi AES (SubBytes, ShiftRows, MixColumns, AddRoundKey).
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module aes_round_pipe

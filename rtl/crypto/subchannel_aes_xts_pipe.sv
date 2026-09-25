@@ -1,13 +1,7 @@
 //=============================================================================
-// Module:      subchannel_aes_xts_pipe
-// Description: Dual-Lane, 14-Stage Fully Pipelined AES-XTS (IEEE Std 1619)
-//              Cryptographic Engine for DDR5 Subchannel A and Subchannel B.
-//              Provides 1 block/cycle line-rate throughput per lane with zero
-//              bubbles, synchronized Tweak pre/post-whitening, and metadata
-//              propagation.
-// Standard:    SystemVerilog (IEEE 1800-2017)
+// File:        subchannel_aes_xts_pipe.sv
+// Chức năng:   Đường ống tăng tốc mật mã AES-256-XTS 14 tầng bảo vệ dữ liệu hai kênh con DDR5.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module subchannel_aes_xts_pipe

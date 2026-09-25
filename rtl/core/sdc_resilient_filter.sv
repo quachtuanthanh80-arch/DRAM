@@ -1,18 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
-// Module Name: sdc_resilient_filter
-// Description: Configurable Dual-Hash SDC/RowHammer/RowPress Resilient Filter.
-//              Features:
-//              1. Dual-Mode Runtime Switching: Single-Hash (XOR-fold) vs
-//                 Dual-Hash (XOR-fold + CRC-8) cutting FPR by 45.9%.
-//              2. O(1) Instantaneous Window Reset via Dual-Epoch Tagging
-//                 (eliminates 256-cycle table flush stalls).
-//              3. Throttle-based Graceful Degradation: asserts 'throttled'
-//                 flag instead of hard-dropping transactions.
-//              4. Targeted Defense Mitigation trigger for slack arbitration.
-// Standard:    Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        sdc_resilient_filter.sv
+// Chức năng:   Bộ lọc băm đôi O(1) theo dõi kích hoạt hàng, điều tiết nhịp mềm và reset epoch trong 1 chu kỳ.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module sdc_resilient_filter #(

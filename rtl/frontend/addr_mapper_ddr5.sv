@@ -1,15 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
-// Module Name: addr_mapper_ddr5
-// Description: XOR-based Bank-Group Interleaved Address Mapper.
-//              Maps byte-level linear addresses to DRAM physical geometry
-//              (Bank Group, Bank, Row, Column) with support for both DDR4
-//              (4 BG x 4 Banks) and DDR5 (8 BG x 4 Banks) configurations.
-//              Features XOR-fold hash to scatter consecutive accesses across
-//              distinct Bank Groups, mitigating tCCD_L timing penalties.
-// Standard:    AMBA AXI4 / Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        addr_mapper_ddr5.sv
+// Chức năng:   Ánh xạ địa chỉ tuyến tính AXI4 sang Rank/BG/Bank/Row/Col với kỹ thuật băm xen kẽ Modulo-3.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module addr_mapper_ddr5 #(

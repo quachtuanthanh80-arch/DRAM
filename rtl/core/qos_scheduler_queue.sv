@@ -1,11 +1,7 @@
 //=============================================================================
-// File Name   : qos_scheduler_queue.sv
-// Project     : Q-Shield DDR5 Memory Controller
-// Description : Per-Bank-Group QoS Command Queues with Starvation Prevention
-//               and Slack-Aware Priority Scheduling.
-// Standard    : IEEE 1800-2017 SystemVerilog (Synthesizable & Formal Clean)
+// File:        qos_scheduler_queue.sv
+// Chức năng:   Hàng đợi lệnh phân bổ theo QoS cho từng Bank Group có bộ đếm tăng tuổi chống bỏ đói luồng.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 /* verilator lint_off UNUSEDPARAM */

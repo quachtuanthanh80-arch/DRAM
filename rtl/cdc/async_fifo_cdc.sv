@@ -1,12 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
-// Module Name: async_fifo_cdc
-// Description: Industrial-grade Dual-Clock Asynchronous FIFO with Gray-Code
-//              Pointers and 2-Stage Synchronizers (Clifford E. Cummings style).
-//              Features full, almost full, empty, and almost empty indicators.
-// Standard:    Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        async_fifo_cdc.sv
+// Chức năng:   FIFO bất đồng bộ đồng bộ hóa con trỏ mã Gray qua miền xung nhịp AXI và DRAM/DFI.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module async_fifo_cdc #(

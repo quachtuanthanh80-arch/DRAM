@@ -1,15 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
-// Module Name: adaptive_threshold_engine
-// Description: Adaptive Threshold Engine (ATE) using EWMA.
-//              - Inspired by SOTA PrISM (ISCA'26) self-adapting thresholding.
-//              - Dynamically monitors access rate and throttle frequency.
-//              - Relaxes threshold under benign heavy burst conditions to cut
-//                False Positive Rate (FPR) from 0.39% down to ~0.05%.
-//              - Tightens threshold back to baseline during normal or attack periods.
-// Standard:    Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        adaptive_threshold_engine.sv
+// Chức năng:   Động cơ lọc số EWMA tự thích ứng điều chỉnh ngưỡng kích hoạt động ATE theo tải thực tế.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module adaptive_threshold_engine #(

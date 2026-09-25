@@ -1,11 +1,7 @@
 //=============================================================================
-// Module Name: axi4_skid_buffer
-// Description: Zero-Bubble Forward-Registered Skid Buffer (Register Slice).
-//              Decouples AXI4 ready/valid handshakes to break long combinational
-//              timing paths without introducing pipeline dead cycles (bubbles).
-// Standard:    AMBA AXI4 / Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        axi4_skid_buffer.sv
+// Chức năng:   Đệm trượt Forward/Reverse 2 tầng hấp thụ áp lực bắt tay AXI4 đạt thông lượng Zero-Bubble.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module axi4_skid_buffer #(

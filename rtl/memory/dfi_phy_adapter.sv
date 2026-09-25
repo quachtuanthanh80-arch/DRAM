@@ -1,21 +1,7 @@
 //=============================================================================
-// Module Name: dfi_phy_adapter
-// Description: Industrial-Grade DFI 5.0 (DRAM Future Interface) Protocol Adapter
-//              inspired by the enjoy-digital/litedram and Synopsys DFI 5.0 specs.
-//
-// Features:
-// 1. Bridges DDR5 Subchannel Memory Controller commands (ACT, PRE, RD, WR)
-//    to standard DFI 5.0 PHY command/address and write/read data buses.
-// 2. DFI 5.0 Initialization & Training FSM (Reset, Init Start, Complete handshake).
-// 3. DFI 5.0 ZQ Calibration & Update Protocols:
-//    - Controller Update Handshake (dfi_ctrlupd_req / dfi_ctrlupd_ack).
-//    - PHY Update Handshake (dfi_phyupd_req / dfi_phyupd_ack).
-// 4. DFI 5.0 Low-Power Control Handshake (dfi_lp_req / dfi_lp_ack).
-// 5. Configurable CAS Latency Tag shift-pipeline for read response integrity.
-//
-// Standard:    DFI 5.0 Specification / Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        dfi_phy_adapter.sv
+// Chức năng:   Bộ tiếp hợp giao thức tầng vật lý DFI 5.0 hỗ trợ tỷ lệ Clock Gearing 1:2 và 1:4.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module dfi_phy_adapter #(

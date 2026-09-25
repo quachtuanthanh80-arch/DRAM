@@ -1,12 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
-// Module Name: axi_slave_frontend
-// Description: Industrial-grade AMBA AXI4 Slave Frontend with Zero-Bubble Skid
-//              Buffers on all 5 channels, 4KB Boundary Crossing Detection,
-//              and embedded SystemVerilog Assertions (SVA) for formal proof.
-// Standard:    AMBA AXI4 (IHI0022E) / Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        axi_slave_frontend.sv
+// Chức năng:   Tiếp nhận bus AMBA AXI4, tách kênh dữ liệu ghi và kiểm tra an toàn giao thức.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module axi_slave_frontend #(

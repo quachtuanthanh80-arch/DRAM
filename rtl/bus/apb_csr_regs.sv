@@ -1,14 +1,7 @@
 //=============================================================================
-// Module:      apb_csr_regs
-// Description: APB4 Control and Status Registers (CSR) for Secure DDR5 Controller.
-//              Provides register-mapped access for:
-//              - AES-256 Keys (K1 cipher key, K2 tweak key)
-//              - Security Lockdown (DPA/tamper protection: zeroized key readback)
-//              - Encryption Enable / Bypass Control
-//              - Hardware Performance Telemetry Counters (Cycles, Blocks, Stalls)
-// Standard:    AMBA APB v2.0 (APB4) / SystemVerilog IEEE 1800-2017
+// File:        apb_csr_regs.sv
+// Chức năng:   Khối thanh ghi APB4 CSR điều khiển cấu hình an toàn, khóa bảo mật và thu thập số liệu đo xa.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module apb_csr_regs #(

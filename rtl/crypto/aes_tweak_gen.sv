@@ -1,12 +1,7 @@
 //=============================================================================
-// Module: aes_tweak_gen
-// Description: Speculative Early Tweak Generator for AES-XTS (IEEE Std 1619).
-//              Pre-computes Tweak vectors T_0, T_1, T_2, T_3 from the incoming
-//              AXI address channel to achieve zero-latency overhead when payload
-//              data arrives.
-// Standard:    SystemVerilog (IEEE 1800-2017)
+// File:        aes_tweak_gen.sv
+// Chức năng:   Bộ sinh sớm vector Tweak nhân modulo đa thức GF(2^128) cho chuẩn mã hóa AES-XTS.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module aes_tweak_gen

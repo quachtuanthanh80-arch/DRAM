@@ -1,10 +1,7 @@
 //=============================================================================
-// Module: aes_sbox
-// Description: Standard High-Performance NIST FIPS-197 Compliant AES S-Box.
-//              Optimized for direct synthesis into FPGA 6-input LUTs (LUT6).
-// Standard:    SystemVerilog (IEEE 1800-2017)
+// File:        aes_sbox.sv
+// Chức năng:   Hộp thế S-Box chuẩn NIST FIPS-197 tối ưu hóa cho bảng tra LUT6 trên FPGA.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module aes_sbox (

@@ -1,14 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
-// Module Name: wdata_buffer
-// Description: Decoupled Write Request Staging Buffer.
-//              Synchronizes and stages independent AMBA AXI4 AW (Address)
-//              and W (Data) channels. Decouples timing and guarantees that
-//              write commands dispatched downstream have corresponding data
-//              ready or staged, avoiding downstream DRAM bus stalls.
-// Standard:    AMBA AXI4 / Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        wdata_buffer.sv
+// Chức năng:   Hàng đợi lưu trữ dữ liệu ghi tách rời wdata_buffer nhằm che giấu độ trễ truyền dữ liệu.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module wdata_buffer #(

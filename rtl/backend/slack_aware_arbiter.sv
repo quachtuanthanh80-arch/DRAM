@@ -1,17 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
 // File:        slack_aware_arbiter.sv
-// Description: Multi-Bank Group Slack-Aware Arbiter.
-//              - Selects among 8 Bank Group candidates from qos_scheduler_queue.
-//              - Evaluates bank ready status (timing slack) to eliminate $t_{CCD_L}$ bubbles.
-//              - 4-Tier Hierarchical Arbitration:
-//                1. Anti-Starvation aged commands (Emergency priority)
-//                2. High-QoS unthrottled normal traffic with BG rotation
-//                3. Throttled RowHammer traffic (Graceful Degradation)
-//                4. Slack-time opportunistic Targeted Mitigation / Scrubbing injection
-// Standards:   JEDEC DDR5 (JESD79-5), DDR4 (JESD79-4), Synthesizable SystemVerilog.
+// Chức năng:   Trọng tài ma trận nhận thức khe hở định thời JEDEC và điều phối chuyển mạch Write-Drain / Read-Burst.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module slack_aware_arbiter #(

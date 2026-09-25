@@ -1,12 +1,7 @@
 //=============================================================================
-// Module: aes_sbox_composite
-// Description: Synthesizable, Low-Area, High-Speed AES S-Box implemented using
-//              Composite Field Arithmetic GF(((2^2)^2)^2).
-//              Free of ROM/BRAM lookups, purely standard cell logic gates.
-// Standard:    SystemVerilog (IEEE 1800-2017)
-// Reference:   Canright / Satoh Composite Field Inversion in GF(2^8)
+// File:        aes_sbox_composite.sv
+// Chức năng:   Hộp thế S-Box sử dụng đại số trường phức hợp GF(((2^2)^2)^2) diện tích nhỏ cho ASIC.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module aes_sbox_composite (

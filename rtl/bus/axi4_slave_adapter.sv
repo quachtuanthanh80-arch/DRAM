@@ -1,19 +1,7 @@
 //=============================================================================
-// Module Name: axi4_slave_adapter
-// Description: High-Throughput AMBA AXI4 Slave Adapter with Dual-Subchannel
-//              DDR5 Splitting & Zero-Bubble Skid Buffers.
-//              Features:
-//              1. Full AMBA AXI4 Slave interface (AW, W, B, AR, R).
-//              2. Integrated axi4_skid_buffer on every channel to decouple
-//                 timing and guarantee zero-bubble sustained throughput.
-//              3. Subchannel Splitting: Decomposes 64B AXI cacheline bursts
-//                 into 2x 32B streams for DDR5 Subchannel A (Lane A) and
-//                 Subchannel B (Lane B).
-//              4. Speculative early Tweak address generation.
-//              5. Transaction ID (AWID/ARID) tracking for in-order burst return.
-// Standard:    AMBA AXI4 / Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        axi4_slave_adapter.sv
+// Chức năng:   Tiếp nhận giao tiếp AXI4 Slave, kiểm tra vượt biên 4KB và phân chia lưu lượng hai kênh con DDR5.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module axi4_slave_adapter #(

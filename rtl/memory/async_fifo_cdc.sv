@@ -1,12 +1,7 @@
 //=============================================================================
-// Module Name: async_fifo_cdc
-// Description: Dual-Clock Asynchronous FIFO with Gray-Code Pointer Synchronization
-//              for Clock Domain Crossing (CDC) between AXI4 (250 MHz) and
-//              DDR5 Controller / PHY (400 MHz).
-// Standard:    Clifford Cummings Dual-Clock Asynchronous FIFO Architecture
-//              Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        async_fifo_cdc.sv
+// Chức năng:   FIFO bất đồng bộ mã Gray truyền dữ liệu và lệnh an toàn qua hai miền xung nhịp AXI và DFI.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module async_fifo_cdc #(

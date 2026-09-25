@@ -1,15 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
-// Module Name: directed_refresh_manager
-// Description: Proactive Directed Refresh Manager (DRM).
-//              - Inspired by SOTA DREAM (ISCA'25) architecture.
-//              - Protects adjacent victim rows (Row +/- 1, Row +/- 2) when an
-//                aggressor row threshold is tripped by SDC filter or RowPress.
-//              - Queues victim rows and arbitrates with ECC patrol scrubbing.
-//              - Injects targeted refreshes during opportunistic slack cycles.
-// Standard:    Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        directed_refresh_manager.sv
+// Chức năng:   Quản lý hàng đợi phát xung làm tươi định hướng (DRFM/PRAC) cho các dòng lân cận Row ±1, ±2.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module directed_refresh_manager #(

@@ -1,18 +1,7 @@
 //=============================================================================
-// Module Name: ddr5_subchannel_scheduler
-// Description: FR-FCFS (First-Ready First-Come First-Served) Memory Command
-//              Scheduler for DDR5 Subchannel with Bank-State Tracking and
-//              Timing Constraint Counters (tRCD, tRP, tCCD, tWTR).
-//              Features:
-//              1. Manages 8 Banks across 4 Bank Groups per DDR5 Subchannel.
-//              2. Bank State Machine: CLOSED, OPENING, ACTIVE, CLOSING.
-//              3. Page Hit / Row Hit detection (eliminates PRE/ACT penalties).
-//              4. FR-FCFS arbiter prioritizing open-page memory requests.
-//              5. Command Generator outputs DFI standard commands:
-//                 ACT, PRE, READ, WRITE, REFRESH.
-// Standard:    JEDEC DDR5 (JESD79-5) / Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        ddr5_subchannel_scheduler.sv
+// Chức năng:   Bộ lập lịch lệnh bộ nhớ FR-FCFS cho kênh con DDR5 và quản lý trạng thái các Bank.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module ddr5_subchannel_scheduler #(

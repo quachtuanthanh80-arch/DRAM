@@ -1,11 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
-// Module Name: rst_sync
-// Description: Multi-Stage Asynchronous Assert, Synchronous Deassert Reset Bridge.
-//              Prevents metastability during reset deassertion across domains.
-// Standard:    Synthesizable SystemVerilog (IEEE 1800-2017)
+// File:        rst_sync.sv
+// Chức năng:   Cầu đồng bộ reset xác lập bất đồng bộ và giải phóng đồng bộ (Asynch Assert, Synch Deassert).
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module rst_sync #(

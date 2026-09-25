@@ -1,15 +1,7 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
 // File:        ddr5_cmd_engine.sv
-// Description: JEDEC DDR5/DDR4 Timing Engine & DFI Command Sequencer.
-//              - Enforces bank timing parameters: tRCD, tRP, tRAS, tCCD_L, tCCD_S, tWTR, tRTW.
-//              - Maintains 32-bank status (Row-Hit, Row-Conflict, Row-Miss detection).
-//              - Generates JEDEC DFI commands: ACT, PRE, RD, WR, REF.
-//              - Simulates DRAM read return latency pipeline to feed ROB writeback.
-//              - Exports bg_ready and slack_cycle telemetry to slack_aware_arbiter.
-// Standards:   JEDEC DDR5 (JESD79-5), DDR4 (JESD79-4), DFI 5.0.
+// Chức năng:   Kiểm soát định thời JEDEC DDR5/DDR4, phát xung lệnh DFI và theo dõi trạng thái các Bank.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 module ddr5_cmd_engine #(

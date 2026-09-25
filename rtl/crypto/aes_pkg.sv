@@ -1,10 +1,7 @@
 //=============================================================================
-// Package: aes_pkg
-// Description: Common definitions, types, constants, and Galois Field operations
-//              for AES-XTS (IEEE Std 1619) hardware pipeline.
-// Standard:    SystemVerilog (IEEE 1800-2017)
+// File:        aes_pkg.sv
+// Chức năng:   Định nghĩa kiểu dữ liệu, hằng số và các phép toán trường Galois GF(2^8) cho đường ống AES-XTS.
 //=============================================================================
-
 `timescale 1ns / 1ps
 
 package aes_pkg;
