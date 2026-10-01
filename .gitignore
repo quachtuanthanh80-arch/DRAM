@@ -27,6 +27,7 @@ formal/formal_*/
 # Simulation traces & transient dump files
 sim/cmd_counter.txt
 sim/traces/*.ch*
+sim/traces/*_of_*.trace
 synth/
 
 # Vivado / Yosys temporary logs & runs

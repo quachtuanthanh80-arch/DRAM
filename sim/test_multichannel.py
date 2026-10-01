@@ -2,11 +2,12 @@
 """
 ===============================================================================
 Script: test_multichannel.py
-Description: Full-Scale Multi-Channel Memory Evaluation (1-CH, 2-CH, 3-CH, 4-CH, 8-CH)
-             across DDR4-3200 and DDR5-4800 for Benign, RowHammer, and Mixed workloads.
+Description: Full-Scale Multi-Channel & Subchannel Memory Evaluation
+             Continuous 1-CH through 8-CH (1, 2, 3, 4, 5, 6, 7, 8 Channels)
+             corresponding to 2, 4, 6, 8, 10, 12, 14, 16 Dual 32-bit Subchannels.
 Features:
 - Standard CacheLineInterleave for power-of-two channels (1, 2, 4, 8).
-- Specialized Modulo-3 Trace Partitioning for Triple-Channel (3-CH).
+- Specialized Non-Power-of-Two Modulo-N Partitioning for (3, 5, 6, 7 Channels).
 - Metrics: Throughput (MB/s), Cycles, Read Latency (ns), Scaling Efficiency (%).
 ===============================================================================
 """
@@ -47,10 +48,10 @@ WORKLOADS = {
     "Mixed": os.path.join(TRACES_DIR, "trace_mixed.trace"),
 }
 
-def partition_trace_modulo3(input_trace_path):
-    """Partitions a 64-byte aligned trace into 3 distinct trace files based on (addr >> 6) % 3."""
+def partition_trace_moduloN(input_trace_path, N):
+    """Partitions a 64-byte aligned trace into N distinct trace files based on (addr >> 6) % N."""
     base_name = os.path.splitext(os.path.basename(input_trace_path))[0]
-    out_paths = [os.path.join(TRACES_DIR, f"{base_name}_ch{i}.trace") for i in range(3)]
+    out_paths = [os.path.join(TRACES_DIR, f"{base_name}_ch{i}_of_{N}.trace") for i in range(N)]
     
     files = [open(p, "w") for p in out_paths]
     try:
@@ -61,7 +62,7 @@ def partition_trace_modulo3(input_trace_path):
                     try:
                         addr_str = parts[1] if parts[0] in ["LD", "ST", "R", "W"] else parts[0]
                         addr = int(addr_str, 0)
-                        ch_idx = (addr >> 6) % 3
+                        ch_idx = (addr >> 6) % N
                         files[ch_idx].write(line)
                     except ValueError:
                         files[0].write(line)
@@ -121,9 +122,9 @@ def run_standard_multichannel(dram_name, dram_info, num_channels, trace_path, sc
         "throughput_mbps": round(total_bw, 2),
     }
 
-def run_modulo3_triple_channel(dram_name, dram_info, trace_path, scheme="Baseline"):
-    """Simulates 3 independent channels processing partitioned streams."""
-    sub_traces = partition_trace_modulo3(trace_path)
+def run_moduloN_multichannel(dram_name, dram_info, N, trace_path, scheme="Baseline"):
+    """Simulates N independent channels processing partitioned streams for non-power-of-two configurations."""
+    sub_traces = partition_trace_moduloN(trace_path, N)
     tCK = dram_info["tCK_ns"]
     
     total_bw = 0.0
@@ -178,11 +179,12 @@ def run_modulo3_triple_channel(dram_name, dram_info, trace_path, scheme="Baselin
     }
 
 def main():
-    print("=" * 105)
-    print("  Q-SHIELD MULTI-CHANNEL SCALING BENCHMARK (1-CH, 2-CH, 3-CH MODULO-3, 4-CH, 8-CH)")
-    print("=" * 105)
+    print("=" * 115)
+    print("  Q-SHIELD CONTINUOUS MULTI-CHANNEL & SUBCHANNEL BENCHMARK (1-CH to 8-CH CONTINUOUS)")
+    print("=" * 115)
 
-    test_channels = [1, 2, 3, 4, 8]
+    # Continuous natural channels from 1 to 8
+    test_channels = [1, 2, 3, 4, 5, 6, 7, 8]
     all_results = []
 
     for dram_name in ["DDR4-3200", "DDR5-4800"]:
@@ -193,20 +195,23 @@ def main():
             base_bw = None
 
             for ch in test_channels:
-                print(f"  Testing {ch}-Channel ...", end=" ", flush=True)
+                subchannels = ch * 2 if "DDR5" in dram_name else ch
+                print(f"  Testing {ch}-Channel ({subchannels} Sub-CH) ...", end=" ", flush=True)
                 t0 = time.time()
                 
-                if ch == 3:
-                    res = run_modulo3_triple_channel(dram_name, dram_info, wl_path)
-                    res["note"] = "Modulo-3 Interleaved"
-                else:
+                is_power_of_two = (ch & (ch - 1)) == 0
+                if is_power_of_two:
                     res = run_standard_multichannel(dram_name, dram_info, ch, wl_path)
-                    res["note"] = "CacheLine Interleaved"
+                    res["note"] = "CacheLine Interleave"
+                else:
+                    res = run_moduloN_multichannel(dram_name, dram_info, ch, wl_path)
+                    res["note"] = f"Modulo-{ch} Interleave"
 
                 elapsed = time.time() - t0
                 res["dram"] = dram_name
                 res["workload"] = wl_name
                 res["channels"] = ch
+                res["subchannels"] = subchannels
 
                 if ch == 1:
                     base_bw = res["throughput_mbps"]
@@ -232,12 +237,12 @@ def main():
         writer.writeheader()
         writer.writerows(all_results)
 
-    print("\n" + "=" * 115)
-    print(f"{'DRAM':<11} | {'Workload':<10} | {'Channels':<9} | {'Cycles':<8} | {'Lat (ns)':<9} | {'BW (MB/s)':<11} | {'Speedup':<8} | {'Efficiency':<11} | {'Method'}")
-    print("-" * 115)
+    print("\n" + "=" * 125)
+    print(f"{'DRAM':<11} | {'Workload':<10} | {'Channels':<9} | {'Sub-CH':<7} | {'Cycles':<7} | {'Lat (ns)':<8} | {'BW (MB/s)':<11} | {'Speedup':<8} | {'Efficiency':<11} | {'Method'}")
+    print("-" * 125)
     for r in all_results:
-        print(f"{r['dram']:<11} | {r['workload']:<10} | {r['channels']:<9} | {r['cycles']:<8} | {r['read_latency_ns']:<9.2f} | {r['throughput_mbps']:<11.2f} | {r['speedup']:<6.2f}x | {r['efficiency_pct']:<9.1f}% | {r['note']}")
-    print("=" * 115)
+        print(f"{r['dram']:<11} | {r['workload']:<10} | {r['channels']:<9} | {r['subchannels']:<7} | {r['cycles']:<7} | {r['read_latency_ns']:<8.2f} | {r['throughput_mbps']:<11.2f} | {r['speedup']:<6.2f}x | {r['efficiency_pct']:<9.1f}% | {r['note']}")
+    print("=" * 125)
     print(f"Full results archived to: {json_path} and {csv_path}")
 
 if __name__ == "__main__":

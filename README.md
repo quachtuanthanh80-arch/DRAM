@@ -270,29 +270,71 @@ Q-Shield được tổng hợp ASIC chuẩn mực trên **4 thư viện công ng
 
 ---
 
-## 📈 Mở Rộng Băng Thông Đa Kênh & Kênh Con (1 đến 8 Kênh)
+## 📈 Mở Rộng Băng Thông Đa Kênh & Kênh Con (1 đến 8 Kênh Liên Tục)
 
-Q-Shield hỗ trợ mở rộng song song linh hoạt qua nhiều kênh vật lý và kênh con 32-bit độc lập nhờ cơ chế phân bổ xen kẽ **Modulo-3**:
+Q-Shield hỗ trợ mở rộng song song linh hoạt theo **dãy số tự nhiên liên tục từ 1 đến 8 kênh vật lý** (tương ứng **2 đến 16 kênh con độc lập 32-bit** trên chuẩn JEDEC DDR5):
+- **Kênh là lũy thừa của 2 ($N \in \{1, 2, 4, 8\}$):** Phân bổ xen kẽ địa chỉ theo mặt nạ dòng Cache (CacheLine Interleaving: $(\text{addr} \gg 6) \ \& \ (N-1)$).
+- **Kênh không phải lũy thừa của 2 ($N \in \{3, 5, 6, 7\}$):** Phân bổ xen kẽ theo số dư Modulo-$N$ (Modulo-$N$ Interleaving: $(\text{addr} \gg 6) \pmod N$), triệt tiêu điểm nghẽn tập trung và phân bố đều lưu lượng trên toàn bộ các kênh lẻ/chẵn.
+
+### Bảng Đo Lường Mở Rộng Liên Tục (DDR5-4800: 1–8 Kênh Vật Lý, 2–16 Kênh Con 32-bit)
+
+| Chuẩn DRAM | Tải Công Việc | Số Kênh (Kênh Con) | Cơ Chế Xen Kẽ | Chu Kỳ | Độ Trễ (ns) | Thông Lượng (MB/s) | Tăng Tốc vs 1-CH | Hiệu Suất Mở Rộng |
+| :--- | :--- | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
+| **DDR5-4800** | Bình thường | 1-CH (2 Sub-CH) | Xen kẽ dòng Cache | 48,485 | 208.02 | 15,684.5 | $1.00\times$ | 100.0% |
+| | | 2-CH (4 Sub-CH) | Xen kẽ dòng Cache | 22,197 | 214.35 | 33,712.1 | $2.15\times$ | **107.5%** |
+| | | 3-CH (6 Sub-CH) | Xen kẽ Modulo-3 | 15,651 | 208.49 | 47,900.2 | $3.05\times$ | **101.8%** |
+| | | 4-CH (8 Sub-CH) | Xen kẽ dòng Cache | 10,947 | 178.49 | 66,670.9 | $4.25\times$ | **106.3%** |
+| | | 5-CH (10 Sub-CH) | Xen kẽ Modulo-5 | 8,949 | 196.04 | 84,076.6 | $5.36\times$ | **107.2%** |
+| | | 6-CH (12 Sub-CH) | Xen kẽ Modulo-6 | 7,487 | 193.36 | 101,002.5 | $6.44\times$ | **107.3%** |
+| | | 7-CH (14 Sub-CH) | Xen kẽ Modulo-7 | 6,581 | 195.17 | 116,144.9 | $7.41\times$ | **105.8%** |
+| | | **8-CH (16 Sub-CH)** | **Xen kẽ dòng Cache** | **5,270** | **101.48** | **137,206.3** | **$8.75\times$** | **109.3% (137.21 GB/s)** |
+| **DDR5-4800** | RowHammer | 1-CH (2 Sub-CH) | Xen kẽ dòng Cache | 71,656 | 211.89 | 10,666.4 | $1.00\times$ | 100.0% |
+| | | 2-CH (4 Sub-CH) | Xen kẽ dòng Cache | 32,021 | 191.55 | 23,715.2 | $2.22\times$ | **111.2%** |
+| | | 3-CH (6 Sub-CH) | Xen kẽ Modulo-3 | 26,164 | 207.79 | 32,240.9 | $3.02\times$ | **100.8%** |
+| | | 4-CH (8 Sub-CH) | Xen kẽ dòng Cache | 15,439 | 185.52 | 48,548.4 | $4.55\times$ | **113.8%** |
+| | | 5-CH (10 Sub-CH) | Xen kẽ Modulo-5 | 17,032 | 200.48 | 56,102.1 | $5.26\times$ | **105.2%** |
+| | | 6-CH (12 Sub-CH) | Xen kẽ Modulo-6 | 11,692 | 184.99 | 73,224.2 | $6.86\times$ | **114.4%** |
+| | | 7-CH (14 Sub-CH) | Xen kẽ Modulo-7 | 12,784 | 195.59 | 79,545.3 | $7.46\times$ | **106.5%** |
+| | | **8-CH (16 Sub-CH)** | **Xen kẽ dòng Cache** | **7,151** | **168.28** | **102,062.1** | **$9.57\times$** | **119.6% (102.06 GB/s)** |
+| **DDR5-4800** | Hỗn hợp | 1-CH (2 Sub-CH) | Xen kẽ dòng Cache | 61,021 | 211.83 | 12,487.5 | $1.00\times$ | 100.0% |
+| | | 2-CH (4 Sub-CH) | Xen kẽ dòng Cache | 31,648 | 191.32 | 24,014.2 | $1.92\times$ | 96.2% |
+| | | 3-CH (6 Sub-CH) | Xen kẽ Modulo-3 | 20,478 | 204.52 | 37,247.6 | $2.98\times$ | 99.4% |
+| | | 4-CH (8 Sub-CH) | Xen kẽ dòng Cache | 15,677 | 145.46 | 47,566.0 | $3.81\times$ | 95.2% |
+| | | 5-CH (10 Sub-CH) | Xen kẽ Modulo-5 | 12,251 | 200.05 | 63,306.9 | $5.07\times$ | **101.4%** |
+| | | 6-CH (12 Sub-CH) | Xen kẽ Modulo-6 | 10,454 | 190.40 | 77,319.1 | $6.19\times$ | **103.2%** |
+| | | 7-CH (14 Sub-CH) | Xen kẽ Modulo-7 | 8,017 | 183.43 | 95,667.8 | $7.66\times$ | **109.4%** |
+| | | **8-CH (16 Sub-CH)** | **Xen kẽ dòng Cache** | **5,822** | **86.40** | **125,782.8** | **$10.07\times$** | **125.9% (125.78 GB/s)** |
+
+*Ghi chú: Hiệu suất mở rộng siêu tuyến tính (>100%) đạt được nhờ phân tán xung đột bank và tăng cường tính song song giữa các rank và kênh con trên bus bộ nhớ.*
+
+### Bảng Đo Lường Mở Rộng Liên Tục (DDR4-3200: 1–8 Kênh Vật Lý 64-bit)
 
 | Chuẩn DRAM | Tải Công Việc | Số Kênh | Cơ Chế Xen Kẽ | Chu Kỳ | Độ Trễ (ns) | Thông Lượng (MB/s) | Tăng Tốc vs 1-CH | Hiệu Suất Mở Rộng |
 | :--- | :--- | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| **DDR5-4800** | Bình thường | 1-CH | Xen kẽ dòng Cache | 48,485 | 208.02 | 15,684.5 | $1.00\times$ | 100.0% |
-| | | 2-CH | Xen kẽ dòng Cache | 22,197 | 214.35 | 33,712.1 | $2.15\times$ | **107.5%** |
-| | | 3-CH | Xen kẽ Modulo-3 | 15,651 | 208.49 | 47,900.2 | $3.05\times$ | **101.8%** |
-| | | 4-CH | Xen kẽ dòng Cache | 10,947 | 178.49 | 66,670.9 | $4.25\times$ | **106.3%** |
-| | | **8-CH** | **Xen kẽ dòng Cache** | **5,270** | **101.48** | **137,206.3** | **$8.75\times$** | **109.3% (137.21 GB/s)** |
-| **DDR5-4800** | RowHammer | 1-CH | Xen kẽ dòng Cache | 71,656 | 211.89 | 10,666.4 | $1.00\times$ | 100.0% |
-| | | 2-CH | Xen kẽ dòng Cache | 32,021 | 191.55 | 23,715.2 | $2.22\times$ | **111.2%** |
-| | | 3-CH | Xen kẽ Modulo-3 | 26,164 | 207.79 | 32,240.9 | $3.02\times$ | **100.8%** |
-| | | 4-CH | Xen kẽ dòng Cache | 15,439 | 185.52 | 48,548.4 | $4.55\times$ | **113.8%** |
-| | | **8-CH** | **Xen kẽ dòng Cache** | **7,151** | **168.28** | **102,062.1** | **$9.57\times$** | **119.6% (102.06 GB/s)** |
-| **DDR5-4800** | Hỗn hợp | 1-CH | Xen kẽ dòng Cache | 61,021 | 211.83 | 12,487.5 | $1.00\times$ | 100.0% |
-| | | 2-CH | Xen kẽ dòng Cache | 31,648 | 191.32 | 24,014.2 | $1.92\times$ | 96.2% |
-| | | 3-CH | Xen kẽ Modulo-3 | 20,478 | 204.52 | 37,247.6 | $2.98\times$ | 99.4% |
-| | | 4-CH | Xen kẽ dòng Cache | 15,677 | 145.46 | 47,566.0 | $3.81\times$ | 95.2% |
-| | | **8-CH** | **Xen kẽ dòng Cache** | **5,822** | **86.40** | **125,782.8** | **$10.07\times$** | **125.9% (125.78 GB/s)** |
-
-*Hiệu suất mở rộng siêu tuyến tính (>100%) đạt được nhờ phân tán xung đột bank và tăng cường tính song song giữa các rank và kênh con trên bus bộ nhớ.*
+| **DDR4-3200** | Bình thường | 1-CH | Xen kẽ dòng Cache | 22,673 | 154.56 | 22,374.2 | $1.00\times$ | 100.0% |
+| | | 2-CH | Xen kẽ dòng Cache | 11,011 | 130.52 | 45,392.3 | $2.03\times$ | **101.4%** |
+| | | 3-CH | Xen kẽ Modulo-3 | 7,474 | 150.79 | 66,979.6 | $2.99\times$ | 99.8% |
+| | | 4-CH | Xen kẽ dòng Cache | 5,703 | 94.34 | 86,742.8 | $3.88\times$ | 96.9% |
+| | | 5-CH | Xen kẽ Modulo-5 | 4,539 | 148.91 | 108,921.4 | $4.87\times$ | 97.4% |
+| | | 6-CH | Xen kẽ Modulo-6 | 3,854 | 147.58 | 131,614.3 | $5.88\times$ | 98.0% |
+| | | 7-CH | Xen kẽ Modulo-7 | 3,340 | 147.00 | 151,408.9 | $6.77\times$ | 96.7% |
+| | | **8-CH** | **Xen kẽ dòng Cache** | **4,999** | **47.03** | **99,511.7** | **$4.45\times$** | **55.6%** |
+| **DDR4-3200** | RowHammer | 1-CH | Xen kẽ dòng Cache | 45,337 | 197.94 | 11,220.9 | $1.00\times$ | 100.0% |
+| | | 2-CH | Xen kẽ dòng Cache | 20,368 | 179.72 | 24,815.7 | $2.21\times$ | **110.6%** |
+| | | 3-CH | Xen kẽ Modulo-3 | 16,769 | 196.16 | 33,623.2 | $3.00\times$ | 99.9% |
+| | | 4-CH | Xen kẽ dòng Cache | 9,762 | 172.20 | 51,105.6 | $4.55\times$ | **113.8%** |
+| | | 5-CH | Xen kẽ Modulo-5 | 10,671 | 187.09 | 58,459.7 | $5.21\times$ | **104.2%** |
+| | | 6-CH | Xen kẽ Modulo-6 | 7,263 | 172.25 | 76,613.5 | $6.83\times$ | **113.8%** |
+| | | 7-CH | Xen kẽ Modulo-7 | 7,839 | 182.79 | 82,157.9 | $7.32\times$ | **104.6%** |
+| | | **8-CH** | **Xen kẽ dòng Cache** | **4,999** | **30.47** | **101,949.4** | **$9.09\times$** | **113.6% (101.95 GB/s)** |
+| **DDR4-3200** | Hỗn hợp | 1-CH | Xen kẽ dòng Cache | 34,603 | 180.21 | 14,657.3 | $1.00\times$ | 100.0% |
+| | | 2-CH | Xen kẽ dòng Cache | 17,035 | 134.67 | 29,683.1 | $2.03\times$ | **101.3%** |
+| | | 3-CH | Xen kẽ Modulo-3 | 11,023 | 170.83 | 45,685.8 | $3.12\times$ | **103.9%** |
+| | | 4-CH | Xen kẽ dòng Cache | 8,734 | 124.29 | 56,569.7 | $3.86\times$ | 96.5% |
+| | | 5-CH | Xen kẽ Modulo-5 | 6,533 | 164.72 | 77,417.2 | $5.28\times$ | **105.6%** |
+| | | 6-CH | Xen kẽ Modulo-6 | 5,922 | 163.50 | 92,744.4 | $6.33\times$ | **105.5%** |
+| | | 7-CH | Xen kẽ Modulo-7 | 4,922 | 161.57 | 108,155.6 | $7.38\times$ | **105.4%** |
+| | | **8-CH** | **Xen kẽ dòng Cache** | **4,999** | **42.90** | **100,290.1** | **$6.84\times$** | **85.5% (100.29 GB/s)** |
 
 ---
 
