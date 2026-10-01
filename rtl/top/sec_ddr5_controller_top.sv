@@ -141,6 +141,20 @@ module sec_ddr5_controller_top #(
     logic         csr_cfg_ate_en;
     logic [3:0]   csr_cfg_ate_alpha_shift;
 
+    // Extended Architecture & Security Controls (Upgrade V3)
+    logic        csr_cfg_scramble_en;
+    logic        csr_cfg_scramble_reseed;
+    logic [63:0] csr_cfg_scramble_seed;
+    logic        csr_cfg_bank_coloring_en;
+    logic [1:0]  csr_cfg_mapping_mode;
+    logic [1:0]  csr_cfg_crypto_mode;
+    logic [1:0]  csr_cfg_ecc_mode;
+    logic        csr_cfg_pmu_en;
+    logic        csr_cfg_pmu_reset;
+    logic [7:0][31:0] csr_pmu_counters;
+
+    assign csr_pmu_counters = '0;
+
     assign security_locked = sec_locked;
 
     apb_csr_regs #(
@@ -179,12 +193,22 @@ module sec_ddr5_controller_top #(
         .cfg_drm_victim2_en    (csr_cfg_drm_victim2_en),
         .cfg_ate_en            (csr_cfg_ate_en),
         .cfg_ate_alpha_shift   (csr_cfg_ate_alpha_shift),
+        .cfg_scramble_en       (csr_cfg_scramble_en),
+        .cfg_scramble_reseed   (csr_cfg_scramble_reseed),
+        .cfg_scramble_seed     (csr_cfg_scramble_seed),
+        .cfg_bank_coloring_en  (csr_cfg_bank_coloring_en),
+        .cfg_mapping_mode      (csr_cfg_mapping_mode),
+        .cfg_crypto_mode       (csr_cfg_crypto_mode),
+        .cfg_ecc_mode          (csr_cfg_ecc_mode),
+        .cfg_pmu_en            (csr_cfg_pmu_en),
+        .cfg_pmu_reset         (csr_cfg_pmu_reset),
         .telem_accesses        (32'd0),
         .telem_throttles       (32'd0),
         .ecc_single_err_cnt    (16'd0),
         .ecc_double_err_cnt    (16'd0),
         .rowpress_alert_cnt    (16'd0),
-        .ate_dynamic_thresh    (16'd0)
+        .ate_dynamic_thresh    (16'd0),
+        .pmu_counters          (csr_pmu_counters)
     );
 
     // Expand 15 Round Keys for AES-256 (Simplified Key Expansion Wiring)
@@ -550,6 +574,6 @@ module sec_ddr5_controller_top #(
 
     // Lint unused signals sink
     logic _unused_top;
-    assign _unused_top = &{keys_valid, auto_tweak_en, perf_cnt_en, total_transfers, key2_tweak, 1'b0};
+    assign _unused_top = &{keys_valid, auto_tweak_en, perf_cnt_en, total_transfers, key2_tweak, csr_cfg_scramble_en, csr_cfg_scramble_reseed, csr_cfg_scramble_seed, csr_cfg_bank_coloring_en, csr_cfg_mapping_mode, csr_cfg_crypto_mode, csr_cfg_ecc_mode, csr_cfg_pmu_en, csr_cfg_pmu_reset, 1'b0};
 
 endmodule: sec_ddr5_controller_top

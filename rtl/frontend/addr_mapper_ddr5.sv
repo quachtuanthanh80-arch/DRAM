@@ -18,6 +18,8 @@ module addr_mapper_ddr5 #(
 
     // Runtime DRAM Mode: 1 = DDR5 (8 BG), 0 = DDR4 (4 BG)
     input  logic                      cfg_is_ddr5,
+    input  logic                      cfg_bank_coloring_en,
+    input  logic [1:0]                cfg_mapping_mode,
 
     // Request from Frontend / CDC
     input  logic                      i_req_valid,
@@ -63,16 +65,24 @@ module addr_mapper_ddr5 #(
     // Column address: Addr[15:6] (10 bits)
     wire [COL_WIDTH-1:0] dec_col = i_req_addr[COL_WIDTH+5:6];
 
-    // Bank within Bank Group: 2 bits
-    wire [BANK_WIDTH-1:0] dec_bank = i_req_addr[17:16];
+    // Bank & Bank Group Decoding qua Domain Bank Coloring Module
+    wire [BG_WIDTH-1:0]   dec_bg;
+    wire [BANK_WIDTH-1:0] dec_bank;
 
-    // Bank Group XOR-Interleaving:
-    // For DDR5: 8 Bank Groups (3 bits: [2:0]). XOR upper address bits to scatter sequential bursts
-    wire [2:0] bg_ddr5 = i_req_addr[8:6] ^ i_req_addr[20:18];
-    // For DDR4: 4 Bank Groups (2 bits: [1:0])
-    wire [2:0] bg_ddr4 = {1'b0, (i_req_addr[7:6] ^ i_req_addr[19:18])};
-
-    wire [BG_WIDTH-1:0] dec_bg = cfg_is_ddr5 ? bg_ddr5 : bg_ddr4;
+    domain_bank_coloring #(
+        .AXI_ID_WIDTH   (AXI_ID_WIDTH),
+        .AXI_ADDR_WIDTH (AXI_ADDR_WIDTH),
+        .BG_WIDTH       (BG_WIDTH),
+        .BANK_WIDTH     (BANK_WIDTH)
+    ) u_bank_coloring (
+        .cfg_bank_coloring_en (cfg_bank_coloring_en),
+        .cfg_mapping_mode     (cfg_mapping_mode),
+        .cfg_is_ddr5          (cfg_is_ddr5),
+        .i_req_id             (i_req_id),
+        .i_req_addr           (i_req_addr),
+        .o_bg                 (dec_bg),
+        .o_bank               (dec_bank)
+    );
 
     // Row Address: Upper address bits padded / truncated to ROW_WIDTH
     localparam int RAW_ROW_BITS = (AXI_ADDR_WIDTH > 18) ? (AXI_ADDR_WIDTH - 18) : 1;

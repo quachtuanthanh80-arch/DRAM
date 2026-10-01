@@ -1,0 +1,16 @@
+# Makefile for split_counter_table Cocotb verification
+TOPLEVEL_LANG ?= verilog
+SIM ?= verilator
+WAVES ?= 0
+SIM_BUILD ?= sim_build_split_counter
+
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+
+VERILOG_SOURCES ?= $(ROOT_DIR)/rtl/crypto/split_counter_table.sv
+TOPLEVEL ?= split_counter_table
+MODULE ?= test_split_counter
+
+EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL
+
+COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
+include $(COCOTB_SHARE_DIR)/Makefile.sim

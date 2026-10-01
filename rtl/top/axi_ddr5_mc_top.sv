@@ -92,7 +92,17 @@ module axi_ddr5_mc_top #(
     input  logic [15:0]                                  cfg_window_size,
     output logic [15:0]                                  o_throttled_events,
     output logic [15:0]                                  o_ecc_single_err_cnt,
-    output logic [15:0]                                  o_ecc_double_err_cnt
+    output logic [15:0]                                  o_ecc_double_err_cnt,
+
+    // Extended Architecture & Telemetry Ports (Upgrade V3)
+    input  logic                                         cfg_bank_coloring_en,
+    input  logic [1:0]                                   cfg_mapping_mode,
+    input  logic                                         cfg_scramble_en,
+    input  logic                                         cfg_scramble_reseed,
+    input  logic [63:0]                                  cfg_scramble_seed,
+    input  logic                                         cfg_pmu_en,
+    input  logic                                         cfg_pmu_reset,
+    output logic [7:0][31:0]                             o_pmu_counters
 );
 
     //=========================================================================
@@ -378,9 +388,11 @@ module axi_ddr5_mc_top #(
         .BG_WIDTH       (BG_WIDTH),
         .BANK_WIDTH     (BANK_WIDTH)
     ) u_addr_mapper (
-        .clk            (clk_axi),
-        .rst_n          (rst_n_axi),
-        .cfg_is_ddr5    (cfg_is_ddr5),
+        .clk                  (clk_axi),
+        .rst_n                (rst_n_axi),
+        .cfg_is_ddr5          (cfg_is_ddr5),
+        .cfg_bank_coloring_en (cfg_bank_coloring_en),
+        .cfg_mapping_mode     (cfg_mapping_mode),
 
         .i_req_valid    (req_to_map_valid),
         .o_req_ready    (req_to_map_ready),
@@ -773,7 +785,7 @@ module axi_ddr5_mc_top #(
         .o_dfi_cmd           (dfi_cmd),
         .o_dfi_bg            (dfi_bg),
         .o_dfi_bank          (dfi_bank),
-        .o_dfi_row           (dfi_row),
+        .o_dfi_row           (raw_dfi_row),
         .o_dfi_col           (dfi_col),
 
         .o_wb_valid          (dram_wb_valid),
@@ -786,6 +798,9 @@ module axi_ddr5_mc_top #(
     //=========================================================================
     // 9. ECC Background Patrol Scrubber
     //=========================================================================
+    logic ecc_single_err;
+    logic ecc_double_err;
+
     ecc_scrubber #(
         .DATA_WIDTH       (AXI_DATA_WIDTH),
         .ECC_WIDTH        (8),
@@ -816,14 +831,61 @@ module axi_ddr5_mc_top #(
 
         .o_corrected_valid   (),
         .o_corrected_data    (),
-        .o_single_err        (),
-        .o_double_err        (),
+        .o_single_err        (ecc_single_err),
+        .o_double_err        (ecc_double_err),
         .o_single_err_cnt    (o_ecc_single_err_cnt),
         .o_double_err_cnt    (o_ecc_double_err_cnt)
     );
 
+    //=========================================================================
+    // 10. DRAM Bus Scrambler (Galois LFSR Anti-Snooping)
+    //=========================================================================
+    logic [ROW_WIDTH-1:0] raw_dfi_row;
+
+    bus_scrambler #(
+        .DATA_WIDTH (AXI_DATA_WIDTH),
+        .ADDR_WIDTH (ROW_WIDTH),
+        .LFSR_WIDTH (64)
+    ) u_bus_scrambler (
+        .clk             (clk_axi),
+        .rst_n           (rst_n_axi),
+        .cfg_scramble_en (cfg_scramble_en),
+        .cfg_reseed      (cfg_scramble_reseed),
+        .cfg_seed        (cfg_scramble_seed),
+        .step_en         (dfi_cmd != 3'b000),
+        .i_data          (wbuf_data),
+        .o_data          (),
+        .i_addr          (raw_dfi_row),
+        .o_addr          (dfi_row),
+        .o_lfsr_state    ()
+    );
+
+    //=========================================================================
+    // 11. Performance Monitor Unit (PMU - Intel PCM Architecture Compatible)
+    //=========================================================================
+    perf_monitor_unit #(
+        .NUM_COUNTERS  (8),
+        .COUNTER_WIDTH (32)
+    ) u_pmu (
+        .clk               (clk_axi),
+        .rst_n             (rst_n_axi),
+        .cfg_perf_en       (cfg_pmu_en),
+        .cfg_counter_reset (cfg_pmu_reset),
+        .ev_act_cmd        (dfi_cmd == 3'b001),
+        .ev_rd_cmd         (dfi_cmd == 3'b011),
+        .ev_wr_cmd         (dfi_cmd == 3'b100),
+        .ev_bg_bypass      (ddr_slack_cycle && arb_grant_valid),
+        .ev_sdc_throttle   (sdc_cmd_valid && sdc_throttled),
+        .ev_rowpress_alert (ddr_rowpress_alert),
+        .ev_ecc_corrected  (ecc_single_err),
+        .ev_rob_stall      (fe_rd_req_valid && !rob_alloc_ready),
+        .i_pmu_reg_sel     (3'b0),
+        .o_pmu_reg_data    (),
+        .o_all_counters    (o_pmu_counters)
+    );
+
     // Unused signals sink
     logic _unused_top_sink;
-    assign _unused_top_sink = &{1'b0, rst_n_ddr, wbuf_data_valid, wbuf_data, wbuf_data_last, 1'b0};
+    assign _unused_top_sink = &{1'b0, rst_n_ddr, wbuf_data_valid, wbuf_data_last, ecc_double_err, 1'b0};
 
 endmodule

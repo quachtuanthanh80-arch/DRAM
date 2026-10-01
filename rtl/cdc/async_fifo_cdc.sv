@@ -6,43 +6,47 @@
 
 module async_fifo_cdc #(
     parameter int DATA_WIDTH = 64,
-    parameter int ADDR_WIDTH = 4   // Depth = 2^ADDR_WIDTH (default 16)
+    parameter int ADDR_WIDTH = 4,   // Depth = 2^ADDR_WIDTH (default 16)
+    parameter int DataWidth  = DATA_WIDTH,
+    parameter int Depth      = 1 << ADDR_WIDTH
 ) (
     // Write Domain (e.g. clk_axi = 250 MHz)
-    input  logic                  wclk,
-    input  logic                  wrst_n,
-    input  logic                  winc,
-    input  logic [DATA_WIDTH-1:0] wdata,
-    output logic                  wfull,
-    output logic                  walmost_full,
+    input  logic                     wclk,
+    input  logic                     wrst_n,
+    input  logic                     winc,
+    input  logic [((DataWidth != 64) ? DataWidth : DATA_WIDTH)-1:0] wdata,
+    output logic                     wfull,
+    output logic                     walmost_full,
 
     // Read Domain (e.g. clk_ddr = 400 MHz)
-    input  logic                  rclk,
-    input  logic                  rrst_n,
-    input  logic                  rinc,
-    output logic [DATA_WIDTH-1:0] rdata,
-    output logic                  rempty,
-    output logic                  ralmost_empty
+    input  logic                     rclk,
+    input  logic                     rrst_n,
+    input  logic                     rinc,
+    output logic [((DataWidth != 64) ? DataWidth : DATA_WIDTH)-1:0] rdata,
+    output logic                     rempty,
+    output logic                     ralmost_empty
 );
 
-    localparam int DEPTH = 1 << ADDR_WIDTH;
+    localparam int EFF_DATA_W = (DataWidth != 64) ? DataWidth : DATA_WIDTH;
+    localparam int EFF_DEPTH  = (Depth != 16) ? Depth : (1 << ADDR_WIDTH);
+    localparam int EFF_ADDR_W = $clog2(EFF_DEPTH);
 
     // Dual-port Memory Array
-    logic [DATA_WIDTH-1:0] mem [DEPTH-1:0];
+    logic [EFF_DATA_W-1:0] mem [EFF_DEPTH-1:0];
 
     // Pointers
-    logic [ADDR_WIDTH:0] wbin, rbin;
-    logic [ADDR_WIDTH:0] wgray, rgray;
-    logic [ADDR_WIDTH:0] wgray_next, rgray_next;
-    logic [ADDR_WIDTH:0] wbin_next, rbin_next;
+    logic [EFF_ADDR_W:0] wbin, rbin;
+    logic [EFF_ADDR_W:0] wgray, rgray;
+    logic [EFF_ADDR_W:0] wgray_next, rgray_next;
+    logic [EFF_ADDR_W:0] wbin_next, rbin_next;
 
     // Synchronizer Registers
-    (* ASYNC_REG = "TRUE" *) logic [ADDR_WIDTH:0] wq1_rgray, wq2_rgray;
-    (* ASYNC_REG = "TRUE" *) logic [ADDR_WIDTH:0] rq1_wgray, rq2_wgray;
+    (* ASYNC_REG = "TRUE" *) logic [EFF_ADDR_W:0] wq1_rgray, wq2_rgray;
+    (* ASYNC_REG = "TRUE" *) logic [EFF_ADDR_W:0] rq1_wgray, rq2_wgray;
 
     // Write pointer to memory write address
-    wire [ADDR_WIDTH-1:0] waddr = wbin[ADDR_WIDTH-1:0];
-    wire [ADDR_WIDTH-1:0] raddr = rbin[ADDR_WIDTH-1:0];
+    wire [EFF_ADDR_W-1:0] waddr = wbin[EFF_ADDR_W-1:0];
+    wire [EFF_ADDR_W-1:0] raddr = rbin[EFF_ADDR_W-1:0];
 
     // Memory Write
     always_ff @(posedge wclk) begin
@@ -102,23 +106,23 @@ module async_fifo_cdc #(
         end
     end
 
-    // Almost full: (wbin - synchronized rbin) >= DEPTH - 2
-    logic [ADDR_WIDTH:0] rbin_synced_in_wclk;
+    // Almost full: (wbin - synchronized rbin) >= EFF_DEPTH - 2
+    logic [EFF_ADDR_W:0] rbin_synced_in_wclk;
     // Gray to Binary for rgray
     always_comb begin
-        rbin_synced_in_wclk[ADDR_WIDTH] = wq2_rgray[ADDR_WIDTH];
-        for (int i = ADDR_WIDTH - 1; i >= 0; i--) begin
+        rbin_synced_in_wclk[EFF_ADDR_W] = wq2_rgray[EFF_ADDR_W];
+        for (int i = EFF_ADDR_W - 1; i >= 0; i--) begin
             rbin_synced_in_wclk[i] = rbin_synced_in_wclk[i+1] ^ wq2_rgray[i];
         end
     end
-    wire [ADDR_WIDTH:0] afull_threshold = (ADDR_WIDTH+1)'(DEPTH - 2);
+    wire [EFF_ADDR_W:0] afull_threshold = (EFF_ADDR_W+1)'(EFF_DEPTH - 2);
     assign walmost_full = ((wbin_next - rbin_synced_in_wclk) >= afull_threshold);
 
     //-------------------------------------------------------------------------
     // Read Domain Logic & Empty Generation
     //-------------------------------------------------------------------------
-    logic [ADDR_WIDTH:0] rinc_ext;
-    assign rinc_ext   = {{(ADDR_WIDTH){1'b0}}, (rinc & ~rempty)};
+    logic [EFF_ADDR_W:0] rinc_ext;
+    assign rinc_ext   = {{(EFF_ADDR_W){1'b0}}, (rinc & ~rempty)};
     assign rbin_next  = rbin + rinc_ext;
     assign rgray_next = (rbin_next >> 1) ^ rbin_next;
 
@@ -137,13 +141,13 @@ module async_fifo_cdc #(
     end
 
     // Almost empty: (synchronized wbin - rbin) <= 1
-    logic [ADDR_WIDTH:0] wbin_synced_in_rclk;
+    logic [EFF_ADDR_W:0] wbin_synced_in_rclk;
     always_comb begin
-        wbin_synced_in_rclk[ADDR_WIDTH] = rq2_wgray[ADDR_WIDTH];
-        for (int i = ADDR_WIDTH - 1; i >= 0; i--) begin
+        wbin_synced_in_rclk[EFF_ADDR_W] = rq2_wgray[EFF_ADDR_W];
+        for (int i = EFF_ADDR_W - 1; i >= 0; i--) begin
             wbin_synced_in_rclk[i] = wbin_synced_in_rclk[i+1] ^ rq2_wgray[i];
         end
     end
-    assign ralmost_empty = ((wbin_synced_in_rclk - rbin_next) <= (ADDR_WIDTH+1)'(1));
+    assign ralmost_empty = ((wbin_synced_in_rclk - rbin_next) <= (EFF_ADDR_W+1)'(1));
 
 endmodule

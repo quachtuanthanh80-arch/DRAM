@@ -49,13 +49,25 @@ module apb_csr_regs #(
     output logic                 cfg_ate_en,
     output logic [3:0]           cfg_ate_alpha_shift,
 
+    // Extended Architecture & Security Controls (Upgrade V3)
+    output logic                 cfg_scramble_en,
+    output logic                 cfg_scramble_reseed,
+    output logic [63:0]          cfg_scramble_seed,
+    output logic                 cfg_bank_coloring_en,
+    output logic [1:0]           cfg_mapping_mode,
+    output logic [1:0]           cfg_crypto_mode,
+    output logic [1:0]           cfg_ecc_mode,
+    output logic                 cfg_pmu_en,
+    output logic                 cfg_pmu_reset,
+
     // Hardware Telemetry Inputs
     input  logic [31:0]          telem_accesses,
     input  logic [31:0]          telem_throttles,
     input  logic [15:0]          ecc_single_err_cnt,
     input  logic [15:0]          ecc_double_err_cnt,
     input  logic [15:0]          rowpress_alert_cnt,
-    input  logic [15:0]          ate_dynamic_thresh
+    input  logic [15:0]          ate_dynamic_thresh,
+    input  logic [7:0][31:0]     pmu_counters
 );
 
     // Register Address Offsets
@@ -80,6 +92,11 @@ module apb_csr_regs #(
     localparam logic [AddrWidth-1:0] AddrRowPressAlert = 12'h0A0;
     localparam logic [AddrWidth-1:0] AddrAteDynThresh  = 12'h0A4;
     localparam logic [AddrWidth-1:0] AddrVersionId     = 12'h0FC;
+    localparam logic [AddrWidth-1:0] AddrExtConfig     = 12'h100;
+    localparam logic [AddrWidth-1:0] AddrScrambleSeedL = 12'h104;
+    localparam logic [AddrWidth-1:0] AddrScrambleSeedH = 12'h108;
+    localparam logic [AddrWidth-1:0] AddrPmuCtrl       = 12'h110;
+    localparam logic [AddrWidth-1:0] AddrPmuBase       = 12'h120; // 0x120 - 0x13C (8 PMU counters)
 
     // Security Lock Magic Value
     localparam logic [31:0] SecLockMagic = 32'hA55A_0001;
@@ -99,6 +116,12 @@ module apb_csr_regs #(
     logic [31:0] reg_rowpress_thresh;
     logic [31:0] reg_drm_config;
     logic [31:0] reg_ate_config;
+
+    // Extended Architecture & PMU Registers (Upgrade V3)
+    logic [31:0] reg_ext_config;
+    logic [31:0] reg_scramble_seed_l;
+    logic [31:0] reg_scramble_seed_h;
+    logic [31:0] reg_pmu_ctrl;
 
     // Performance Counters
     logic [31:0] perf_cycles;
@@ -130,6 +153,17 @@ module apb_csr_regs #(
     assign cfg_drm_victim2_en  = reg_drm_config[1];
     assign cfg_ate_en          = reg_ate_config[0];
     assign cfg_ate_alpha_shift = reg_ate_config[7:4];
+
+    // Extended Architecture & PMU Outputs
+    assign cfg_scramble_en      = reg_ext_config[0];
+    assign cfg_scramble_reseed  = reg_ext_config[1];
+    assign cfg_bank_coloring_en = reg_ext_config[4];
+    assign cfg_mapping_mode     = reg_ext_config[6:5];
+    assign cfg_crypto_mode      = reg_ext_config[9:8];
+    assign cfg_ecc_mode         = reg_ext_config[11:10];
+    assign cfg_scramble_seed    = {reg_scramble_seed_h, reg_scramble_seed_l};
+    assign cfg_pmu_en           = reg_pmu_ctrl[0];
+    assign cfg_pmu_reset        = reg_pmu_ctrl[1];
 
     assign keys_valid    = (&key1_loaded_mask) && (&key2_loaded_mask);
 
@@ -174,6 +208,10 @@ module apb_csr_regs #(
             reg_rowpress_thresh <= 32'd5000;
             reg_drm_config      <= 32'h0000_0003; // Default: drm_en=1, victim2_en=1
             reg_ate_config      <= 32'h0000_0041; // Default: ate_en=1, alpha_shift=4
+            reg_ext_config      <= 32'h0000_0000; // Default: bypass all extended security
+            reg_scramble_seed_l <= 32'hBABE_0001;
+            reg_scramble_seed_h <= 32'hACE1_CAFE;
+            reg_pmu_ctrl        <= 32'h0000_0001; // Default: PMU enabled
             for (int i = 0; i < 8; i++) begin
                 reg_key1[i] <= 32'h0;
                 reg_key2[i] <= 32'h0;
@@ -182,6 +220,13 @@ module apb_csr_regs #(
             // Soft reset auto-clearing
             if (reg_ctrl[1]) begin
                 reg_ctrl[1] <= 1'b0;
+            end
+            // Auto-clearing pulses for extended features
+            if (reg_ext_config[1]) begin
+                reg_ext_config[1] <= 1'b0; // cfg_scramble_reseed pulse
+            end
+            if (reg_pmu_ctrl[1]) begin
+                reg_pmu_ctrl[1] <= 1'b0;   // cfg_pmu_reset pulse
             end
 
             if (apb_write_req) begin
@@ -218,6 +263,22 @@ module apb_csr_regs #(
 
                     AddrAteConfig: begin
                         reg_ate_config <= apply_strb(reg_ate_config, pwdata, pstrb);
+                    end
+
+                    AddrExtConfig: begin
+                        reg_ext_config <= apply_strb(reg_ext_config, pwdata, pstrb);
+                    end
+
+                    AddrScrambleSeedL: begin
+                        reg_scramble_seed_l <= apply_strb(reg_scramble_seed_l, pwdata, pstrb);
+                    end
+
+                    AddrScrambleSeedH: begin
+                        reg_scramble_seed_h <= apply_strb(reg_scramble_seed_h, pwdata, pstrb);
+                    end
+
+                    AddrPmuCtrl: begin
+                        reg_pmu_ctrl <= apply_strb(reg_pmu_ctrl, pwdata, pstrb);
                     end
 
                     default: begin
@@ -328,6 +389,22 @@ module apb_csr_regs #(
                 prdata = 32'h5153_4844; // ASCII "QSHD"
             end
 
+            AddrExtConfig: begin
+                prdata = reg_ext_config;
+            end
+
+            AddrScrambleSeedL: begin
+                prdata = reg_scramble_seed_l;
+            end
+
+            AddrScrambleSeedH: begin
+                prdata = reg_scramble_seed_h;
+            end
+
+            AddrPmuCtrl: begin
+                prdata = reg_pmu_ctrl;
+            end
+
             default: begin
                 // Read Key 1: If locked, return 32'h0 for tamper/DPA defense!
                 if (paddr >= AddrKey1Base && paddr <= 12'h02C) begin
@@ -336,6 +413,10 @@ module apb_csr_regs #(
                 // Read Key 2: If locked, return 32'h0
                 else if (paddr >= AddrKey2Base && paddr <= 12'h04C) begin
                     prdata = reg_sec_locked ? 32'h0 : reg_key2[key2_idx];
+                end
+                // Read 8 PMU counters (0x120 - 0x13C)
+                else if (paddr >= AddrPmuBase && paddr <= 12'h13C) begin
+                    prdata = pmu_counters[(paddr - AddrPmuBase) >> 2];
                 end else begin
                     prdata = 32'hDEAD_BEEF; // Unmapped address
                 end

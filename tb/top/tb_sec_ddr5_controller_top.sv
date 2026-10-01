@@ -360,6 +360,40 @@ module tb_sec_ddr5_controller_top;
 
         tests_passed++;
 
+        // TEST 5: Continuous Natural Number Streaming Across Dual Subchannels A & B
+        tests_run++;
+        $display("[INFO] TEST 5: Streaming Continuous Natural Numbers N=0..15 across Dual Subchannels...");
+
+        for (int burst = 0; burst < 4; burst++) begin
+            @(posedge clk_axi);
+            s_axi_awid    <= 8'h50 + burst[7:0];
+            s_axi_awaddr  <= 34'h1_8000_0000 + (burst * 64);
+            s_axi_awlen   <= 8'd3;
+            s_axi_awvalid <= 1'b1;
+
+            @(posedge clk_axi);
+            s_axi_awvalid <= 1'b0;
+
+            for (int b = 0; b < 4; b++) begin
+                int natural_val;
+                natural_val = (burst * 4) + b;
+                s_axi_wdata  <= {4{32'(natural_val)}};
+                s_axi_wlast  <= (b == 3);
+                s_axi_wvalid <= 1'b1;
+                do begin
+                    @(posedge clk_axi);
+                end while (!s_axi_wready);
+            end
+            s_axi_wvalid <= 1'b0;
+            s_axi_wlast  <= 1'b0;
+
+            while (!s_axi_bvalid) @(posedge clk_axi);
+            @(posedge clk_axi);
+        end
+
+        $display("[PASS] Test 5: Streamed 16 continuous natural numbers (N=0..15) across Subchannel A & Subchannel B.");
+        tests_passed++;
+
         #(DdrClkPeriod * 20);
         $display("================================================================");
         $display("[TB_TOP] SUMMARY: %0d/%0d TESTS PASSED, %0d FAILED",

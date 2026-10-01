@@ -3,11 +3,18 @@
 ===============================================================================
 Script: run_all_tests.py
 Description: Master CI & Hardware Regression Test Runner for Q-Shield
-             Executes Cocotb 2.1 + Verilator test suites across all modules:
-             1. Frontend (AXI4 Slave, Skid Buffer, Address Mapper)
-             2. Core (SDC Resilient Filter, QoS Queue, 16-entry ROB)
-             3. Backend (Timing-Slack Matrix Arbiter, DDR5 Command Engine, ECC)
-             4. Top-Level E2E Full Subsystem Integration
+             Executes Cocotb 2.1 + Verilator test suites across all subsystems:
+             1. Frontend Stage (AXI4 Slave & Skid Buffer)
+             2. Frontend Multi-Arch Mapping & Bank Coloring (Intel / AMD Zen)
+             3. Core Security & QoS (SDC Filter, Queue & ROB)
+             4. Backend Timing Slack Arbiter
+             5. Backend RS(18,16) Chipkill ECC over GF(16)
+             6. Galois LFSR Bus Scrambler (128-bit/64-bit symmetric)
+             7. Performance Monitor Unit (PMU & CSR telemetry)
+             8. Cryptographic Suite (AES-CTR keystream, Split Counter, AES-CMAC)
+             9. Top-Level E2E Subsystem Integration
+             10. Industry Attack Vectors (ZenHammer, SledgeHammer, Blacksmith)
+             11. Semiconductor Lifecycle & Long-Term Stress Verification
 ===============================================================================
 """
 
@@ -30,10 +37,18 @@ def main():
         sys.exit(ret.returncode)
 
     suites = [
-        ("Frontend Stage (AXI4 Slave, Skid Buffer & Mapper)", os.path.join(root_dir, "tb", "frontend")),
-        ("Core Security & QoS (SDC Filter, Queue & ROB)", os.path.join(root_dir, "tb", "core")),
-        ("Backend & Timing Slack (Arbiter, FSM & ECC)", os.path.join(root_dir, "tb", "backend")),
-        ("Top-Level E2E Subsystem Integration", os.path.join(root_dir, "tb", "top")),
+        ("Frontend Stage (AXI4 Slave & Skid Buffer)", os.path.join(root_dir, "tb", "frontend"), "Makefile", {}),
+        ("Frontend Multi-Arch Mapping & Bank Coloring", os.path.join(root_dir, "tb", "frontend"), "Makefile.coloring", {}),
+        ("Core Security & QoS (SDC Filter, Queue & ROB)", os.path.join(root_dir, "tb", "core"), "Makefile", {}),
+        ("Backend Timing Slack Arbiter", os.path.join(root_dir, "tb", "backend"), "Makefile", {}),
+        ("Backend RS(18,16) Chipkill ECC", os.path.join(root_dir, "tb", "backend"), "Makefile.chipkill", {}),
+        ("Galois LFSR Bus Scrambler", os.path.join(root_dir, "tb", "memory"), "Makefile", {}),
+        ("Performance Monitor Unit (PMU & CSR)", os.path.join(root_dir, "tb", "bus"), "Makefile", {}),
+        ("Cryptographic Engine Suite (AES-CTR, Split-Counter, AES-CMAC)", os.path.join(root_dir, "tb", "crypto"), "Makefile", {}),
+        ("Top-Level E2E Subsystem Integration", os.path.join(root_dir, "tb", "top"), "Makefile", {"MODULE": "test_top_e2e", "SIM_BUILD": "sim_build_e2e"}),
+        ("Industry Attack Vectors (ZenHammer, SledgeHammer, Blacksmith)", os.path.join(root_dir, "tb", "top"), "Makefile", {"MODULE": "test_industry_attack_vectors", "SIM_BUILD": "sim_build_attacks"}),
+        ("AXI & Memory Channel Natural Sequence Verification", os.path.join(root_dir, "tb", "top"), "Makefile", {"MODULE": "test_channel_natural_sequence", "SIM_BUILD": "sim_build_channel_nat"}),
+        ("Semiconductor Lifecycle & Stress Verification", os.path.join(root_dir, "tb", "top"), "Makefile", {"MODULE": "test_semiconductor_lifecycle", "SIM_BUILD": "sim_build_lifecycle"}),
     ]
 
     print("=" * 80)
@@ -44,7 +59,6 @@ def main():
     total_failed = 0
     start_time = time.time()
 
-    # Resolve Cocotb share directory to guarantee robust make execution across environments
     env = os.environ.copy()
     cocotb_share = None
     try:
@@ -61,10 +75,14 @@ def main():
         env["COCOTB_SHARE_DIR"] = str(cocotb_share)
         print(f"[*] Configured COCOTB_SHARE_DIR = {cocotb_share}")
 
-    for name, path in suites:
+    for name, path, makefile, extra_vars in suites:
         print(f"\n[*] Executing: {name}...")
+        cmd = ["make", "-f", makefile, "sim"]
+        for k, v in extra_vars.items():
+            cmd.append(f"{k}={v}")
+
         t0 = time.time()
-        res = subprocess.run(["make", "sim"], cwd=path, env=env, capture_output=True, text=True)
+        res = subprocess.run(cmd, cwd=path, env=env, capture_output=True, text=True)
         elapsed = time.time() - t0
 
         if res.returncode == 0:

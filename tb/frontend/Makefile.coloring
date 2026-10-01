@@ -1,0 +1,16 @@
+# Makefile for domain_bank_coloring Cocotb verification
+TOPLEVEL_LANG ?= verilog
+SIM ?= verilator
+WAVES ?= 0
+SIM_BUILD ?= sim_build_coloring
+
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+
+VERILOG_SOURCES ?= $(ROOT_DIR)/rtl/frontend/domain_bank_coloring.sv
+TOPLEVEL ?= domain_bank_coloring
+MODULE ?= test_domain_bank_coloring
+
+EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL
+
+COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
+include $(COCOTB_SHARE_DIR)/Makefile.sim

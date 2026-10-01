@@ -13,7 +13,8 @@ __pycache__/
 *.py[cod]
 *.pytest_cache/
 sim_build/
-results.xml
+sim_build*/
+results*.xml
 *.vcd
 *.fst
 *.hier

@@ -1,0 +1,21 @@
+# Makefile for RS Chipkill testbench
+TOPLEVEL_LANG ?= verilog
+SIM ?= verilator
+WAVES ?= 0
+SIM_BUILD ?= sim_build_chipkill
+
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+
+VERILOG_SOURCES ?= \
+    $(ROOT_DIR)/rtl/backend/gf16_arith_pkg.sv \
+    $(ROOT_DIR)/rtl/backend/rs_chipkill_encoder.sv \
+    $(ROOT_DIR)/rtl/backend/rs_chipkill_decoder.sv \
+    $(ROOT_DIR)/tb/backend/tb_rs_chipkill.sv
+
+TOPLEVEL ?= tb_rs_chipkill
+MODULE ?= test_rs_chipkill
+
+EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL -Wno-WIDTHEXPAND
+
+COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
+include $(COCOTB_SHARE_DIR)/Makefile.sim

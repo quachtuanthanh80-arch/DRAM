@@ -1,0 +1,14 @@
+[options]
+mode prove
+depth 25
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv bus_scrambler.sv scrambler_formal.sv
+prep -top scrambler_formal
+
+[files]
+/mnt/d/RAM/rtl/memory/bus_scrambler.sv
+/mnt/d/RAM/formal/scrambler_formal.sv
