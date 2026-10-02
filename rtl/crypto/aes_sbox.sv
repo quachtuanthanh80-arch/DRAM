@@ -178,7 +178,7 @@ module aes_sbox (
             8'ha4: out_byte = 8'h49;
             8'ha5: out_byte = 8'h06;
             8'ha6: out_byte = 8'h24;
-            8'ha7: out_byte = 8'h5c;
+            8'ha7: out_byte = 8'h5e;
             8'ha8: out_byte = 8'hc2;
             8'ha9: out_byte = 8'hd3;
             8'haa: out_byte = 8'hac;

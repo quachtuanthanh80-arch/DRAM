@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 12
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv async_fifo_cdc.sv
+chparam -set ADDR_WIDTH 3 async_fifo_cdc
+prep -top async_fifo_cdc
+
+[files]
+/mnt/d/RAM/rtl/cdc/async_fifo_cdc.sv

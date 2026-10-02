@@ -1,0 +1,16 @@
+[options]
+mode bmc
+depth 20
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv qos_scheduler_queue.sv
+chparam -set NUM_BG 2 qos_scheduler_queue
+chparam -set QUEUE_DEPTH 2 qos_scheduler_queue
+chparam -set STARVATION_LIMIT 4 qos_scheduler_queue
+prep -top qos_scheduler_queue
+
+[files]
+/mnt/d/RAM/rtl/core/qos_scheduler_queue.sv

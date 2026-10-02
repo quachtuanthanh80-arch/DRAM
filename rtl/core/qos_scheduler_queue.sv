@@ -238,4 +238,83 @@ module qos_scheduler_queue #(
         end
     end
 
+`ifdef FORMAL
+    initial assume (!rst_n);
+
+    always_ff @(posedge clk) begin
+        if ($past(!rst_n)) assume (rst_n);
+        if ($past(rst_n))  assume (rst_n);
+    end
+
+    // 1. Trạng thái reset
+    always_comb begin
+        if (!rst_n) begin
+            assert (q_valid == '0);
+            assert (o_cand_valid == '0);
+            assert (o_cand_starved == '0);
+        end
+    end
+
+    // 2. Tính toàn vẹn ứng viên: Có entry hợp lệ trong Bank Group thì bắt buộc o_cand_valid[bg] phải assert
+    always_comb begin
+        if (rst_n) begin
+            for (int bg = 0; bg < NUM_BG; bg++) begin
+                logic has_entry;
+                has_entry = 1'b0;
+                for (int e = 0; e < QUEUE_DEPTH; e++) begin
+                    if (q_valid[bg * QUEUE_DEPTH + e]) has_entry = 1'b1;
+                end
+                if (has_entry) begin
+                    assert (o_cand_valid[bg]);
+                end else begin
+                    assert (!o_cand_valid[bg]);
+                end
+            end
+        end
+    end
+
+    // 3. Chứng minh toán học Anti-Starvation (Chống bỏ đói):
+    // Nếu trong hàng đợi có entry có tuổi >= STARVATION_LIMIT thì ứng viên được chọn bắt buộc phải là entry bị đói
+    always_comb begin
+        if (rst_n) begin
+            for (int bg = 0; bg < NUM_BG; bg++) begin
+                logic any_starved;
+                any_starved = 1'b0;
+                for (int e = 0; e < QUEUE_DEPTH; e++) begin
+                    if (q_valid[bg * QUEUE_DEPTH + e] && (q_age[bg * QUEUE_DEPTH + e] >= STARVATION_LIMIT[7:0])) begin
+                        any_starved = 1'b1;
+                    end
+                end
+                if (any_starved) begin
+                    assert (o_cand_starved[bg]);
+                end
+            end
+        end
+    end
+
+    // 4. Giải phóng hàng đợi: Khi grant được phát, slot tương ứng phải được dequeue (nếu không đồng thời nạp lệnh mới vào đúng slot đó)
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            for (int bg = 0; bg < NUM_BG; bg++) begin
+                for (int e = 0; e < QUEUE_DEPTH; e++) begin
+                    bit was_deq;
+                    bit was_enq;
+                    was_deq = $past(i_issue_grant_valid && (i_issue_grant_bg == BG_W'(bg)) && (i_issue_grant_idx == IDX_W'(e)));
+                    was_enq = $past(i_cmd_valid && o_cmd_ready && free_slot_found && (i_cmd_bg == BG_W'(bg)) && (free_slot_idx == IDX_W'(e)));
+                    if (was_deq && !was_enq) begin
+                        assert (!q_valid[bg * QUEUE_DEPTH + e]);
+                    end
+                end
+            end
+        end
+    end
+
+    // Cover properties
+    always_ff @(posedge clk) begin
+        cover (|o_cand_valid);
+        cover (|o_cand_starved);
+        cover (|bg_queue_full);
+    end
+`endif
+
 endmodule

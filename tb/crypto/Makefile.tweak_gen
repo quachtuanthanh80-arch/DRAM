@@ -1,0 +1,19 @@
+# Makefile for aes_tweak_gen Cocotb verification
+TOPLEVEL_LANG ?= verilog
+SIM ?= verilator
+WAVES ?= 0
+SIM_BUILD ?= sim_build_tweak_gen
+
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+
+VERILOG_SOURCES ?= \
+    $(ROOT_DIR)/rtl/crypto/aes_pkg.sv \
+    $(ROOT_DIR)/rtl/crypto/aes_tweak_gen.sv
+
+TOPLEVEL ?= aes_tweak_gen
+MODULE ?= test_aes_tweak_gen
+
+EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM
+
+COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
+include $(COCOTB_SHARE_DIR)/Makefile.sim

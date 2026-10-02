@@ -1,0 +1,16 @@
+# Makefile for Cocotb testing of rst_sync
+SIM ?= verilator
+TOPLEVEL_LANG ?= verilog
+
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+SIM_BUILD ?= sim_build_rst_sync
+
+VERILOG_SOURCES += $(ROOT_DIR)/rtl/cdc/rst_sync.sv
+
+TOPLEVEL = rst_sync
+MODULE = test_rst_sync
+
+EXTRA_ARGS += --trace -Wno-DECLFILENAME -Wno-MULTITOP
+
+COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
+include $(COCOTB_SHARE_DIR)/Makefile.sim

@@ -87,12 +87,12 @@ module async_fifo_cdc #(
     //-------------------------------------------------------------------------
     // Write Domain Logic & Full Generation
     //-------------------------------------------------------------------------
-    logic [ADDR_WIDTH:0] winc_ext;
-    assign winc_ext   = {{(ADDR_WIDTH){1'b0}}, (winc & ~wfull)};
+    logic [EFF_ADDR_W:0] winc_ext;
+    assign winc_ext   = {{(EFF_ADDR_W){1'b0}}, (winc & ~wfull)};
     assign wbin_next  = wbin + winc_ext;
     assign wgray_next = (wbin_next >> 1) ^ wbin_next;
 
-    wire wfull_val = (wgray_next == {~wq2_rgray[ADDR_WIDTH:ADDR_WIDTH-1], wq2_rgray[ADDR_WIDTH-2:0]});
+    wire wfull_val = (wgray_next == {~wq2_rgray[EFF_ADDR_W:EFF_ADDR_W-1], wq2_rgray[EFF_ADDR_W-2:0]});
 
     always_ff @(posedge wclk or negedge wrst_n) begin
         if (!wrst_n) begin
@@ -149,5 +149,82 @@ module async_fifo_cdc #(
         end
     end
     assign ralmost_empty = ((wbin_synced_in_rclk - rbin_next) <= (EFF_ADDR_W+1)'(1));
+
+`ifdef FORMAL
+    initial assume (!wrst_n && !rrst_n);
+
+    always_ff @(posedge wclk) begin
+        if ($past(!wrst_n)) assume (wrst_n);
+        if ($past(wrst_n))  assume (wrst_n);
+    end
+
+    always_ff @(posedge rclk) begin
+        if ($past(!rrst_n)) assume (rrst_n);
+        if ($past(rrst_n))  assume (rrst_n);
+    end
+
+    // 1. Trạng thái reset hợp lệ
+    always_comb begin
+        if (!wrst_n) begin
+            assert (!wfull);
+            assert (wbin == '0);
+            assert (wgray == '0);
+        end
+        if (!rrst_n) begin
+            assert (rempty);
+            assert (rbin == '0);
+            assert (rgray == '0);
+        end
+    end
+
+    // 2. Tính đơn điệu mã Gray: khoảng cách Hamming không vượt quá 1 bit mỗi chu kỳ xung nhịp
+    always_ff @(posedge wclk) begin
+        if (wrst_n && $past(wrst_n)) begin
+            assert ($countones(wgray ^ $past(wgray)) <= 1);
+        end
+    end
+
+    always_ff @(posedge rclk) begin
+        if (rrst_n && $past(rrst_n)) begin
+            assert ($countones(rgray ^ $past(rgray)) <= 1);
+        end
+    end
+
+    // 3. Chống tràn (No Overflow) và Chống cạn (No Underflow)
+    always_ff @(posedge wclk) begin
+        if (wrst_n && $past(wrst_n)) begin
+            if ($past(wfull) && $past(winc)) begin
+                assert (wbin == $past(wbin));
+            end
+        end
+    end
+
+    always_ff @(posedge rclk) begin
+        if (rrst_n && $past(rrst_n)) begin
+            if ($past(rempty) && $past(rinc)) begin
+                assert (rbin == $past(rbin));
+            end
+        end
+    end
+
+    // 4. Bất biến dung lượng: Số lượng phần tử quan sát được trong miền ghi không bao giờ vượt quá EFF_DEPTH
+    wire [EFF_ADDR_W:0] w_occupancy = wbin - rbin_synced_in_wclk;
+    always_comb begin
+        if (wrst_n) begin
+            assert (w_occupancy <= EFF_DEPTH[EFF_ADDR_W:0]);
+        end
+    end
+
+    // Cover properties đo khả năng đạt trạng thái biên
+    always_ff @(posedge wclk) begin
+        cover (wfull);
+        cover (walmost_full);
+    end
+
+    always_ff @(posedge rclk) begin
+        cover (rempty);
+        cover (ralmost_empty);
+    end
+`endif
 
 endmodule

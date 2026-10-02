@@ -1,0 +1,16 @@
+# Makefile for wdata_buffer Cocotb verification
+TOPLEVEL_LANG ?= verilog
+SIM ?= verilator
+WAVES ?= 0
+SIM_BUILD ?= sim_build_wdata_buffer
+
+ROOT_DIR ?= $(abspath $(CURDIR)/../..)
+
+VERILOG_SOURCES ?= $(ROOT_DIR)/rtl/frontend/wdata_buffer.sv
+TOPLEVEL ?= wdata_buffer
+MODULE ?= test_wdata_buffer
+
+EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL -Wno-WIDTHEXPAND
+
+COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
+include $(COCOTB_SHARE_DIR)/Makefile.sim

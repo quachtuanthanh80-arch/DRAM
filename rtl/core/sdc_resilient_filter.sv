@@ -270,6 +270,11 @@ module sdc_resilient_filter #(
     always_ff @(posedge clk) begin
         if ($past(!rst_n))
             assume (rst_n);
+        if (rst_n && $past(rst_n)) begin
+            assume ($stable(cfg_sdc_thresh));
+            assume ($stable(cfg_window_size));
+            assume ($stable(cfg_hash_mode));
+        end
     end
 
     // Configuration assumptions

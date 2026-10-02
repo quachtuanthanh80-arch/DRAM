@@ -387,4 +387,89 @@ module ddr5_cmd_engine #(
     logic _unused_sink;
     assign _unused_sink = &{1'b0, i_cmd_id, pipe_last[PIPE_DEPTH-1], lat_is_mitigation, 1'b0};
 
+`ifdef FORMAL
+    initial assume (!rst_n);
+
+    always_ff @(posedge clk) begin
+        if ($past(!rst_n)) assume (rst_n);
+        if ($past(rst_n))  assume (rst_n);
+    end
+
+    // 1. Trạng thái sau reset: Engine sẵn sàng, không phát xung lệnh DFI
+    always_comb begin
+        if (!rst_n) begin
+            assert (!busy);
+            assert (o_engine_ready);
+            assert (o_dfi_cmd == CMD_NOP);
+            assert (!o_rowpress_alert);
+        end
+    end
+
+    // 2. Tính toàn vẹn lệnh DFI: Khi phát lệnh RD/WR, Bank mục tiêu bắt buộc phải đang mở và đúng hàng
+    always_comb begin
+        if (rst_n) begin
+            if (o_dfi_cmd == CMD_RD || o_dfi_cmd == CMD_WR) begin
+                assert (bank_open[o_dfi_bg][o_dfi_bank]);
+                assert (open_row[o_dfi_bg][o_dfi_bank] == o_dfi_row);
+            end
+        end
+    end
+
+    // 3. Tuân thủ định thời JEDEC tRCD và tCCD: Khi phát lệnh RD/WR, bộ đếm tCCD_L và tCCD_S được nạp đúng thông số JEDEC
+    always_comb begin
+        if (rst_n) begin
+            if (o_dfi_cmd == CMD_RD || o_dfi_cmd == CMD_WR) begin
+                assert (ccd_timer[o_dfi_bg] == 4'(T_CCD_L));
+                assert (ccd_s_timer == 3'(T_CCD_S));
+            end
+        end
+    end
+
+    // 4. Tuân thủ định thời JEDEC tRP và tRCD: Khi ACT được nạp tRCD, khi PRE được nạp tRP
+    always_comb begin
+        if (rst_n) begin
+            if (o_dfi_cmd == CMD_ACT) begin
+                assert (rcd_timer[o_dfi_bg][o_dfi_bank] == 5'(T_RCD));
+            end
+            if (o_dfi_cmd == CMD_PRE) begin
+                assert (rp_timer[o_dfi_bg][o_dfi_bank] == 5'(T_RP));
+            end
+        end
+    end
+
+    // 5. Chuyển trạng thái Bank: Sau ACT bank mở, sau PRE bank đóng
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(o_dfi_cmd == CMD_ACT)) begin
+                assert (bank_open[$past(o_dfi_bg)][$past(o_dfi_bank)]);
+                assert (open_row[$past(o_dfi_bg)][$past(o_dfi_bank)] == $past(o_dfi_row));
+            end
+            if ($past(o_dfi_cmd == CMD_PRE)) begin
+                assert (!bank_open[$past(o_dfi_bg)][$past(o_dfi_bank)]);
+            end
+        end
+    end
+
+    // 6. Chống Deadlock FSM: step_state luôn nằm trong các trạng thái hợp lệ
+    always_comb begin
+        if (rst_n) begin
+            assert (step_state == 3'd0 || step_state == 3'd1 || step_state == 3'd3);
+            if (!busy) begin
+                assert (step_state == 3'd0);
+            end
+        end
+    end
+
+    // Cover properties đo lường khả năng kích hoạt toàn bộ tập lệnh DFI
+    always_ff @(posedge clk) begin
+        cover (o_dfi_cmd == CMD_ACT);
+        cover (o_dfi_cmd == CMD_PRE);
+        cover (o_dfi_cmd == CMD_RD);
+        cover (o_dfi_cmd == CMD_WR);
+        cover (o_dfi_cmd == CMD_REF);
+        cover (o_rowpress_alert);
+        cover (o_slack_cycle);
+    end
+`endif
+
 endmodule

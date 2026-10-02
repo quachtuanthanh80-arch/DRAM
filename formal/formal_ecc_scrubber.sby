@@ -1,0 +1,13 @@
+[options]
+mode bmc
+depth 5
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv ecc_scrubber.sv
+prep -top ecc_scrubber
+
+[files]
+/mnt/d/RAM/rtl/backend/ecc_scrubber.sv

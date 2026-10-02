@@ -111,7 +111,7 @@ module ecc_scrubber #(
 
     // Corrected data
     assign o_corrected_valid = i_data_valid;
-    assign o_corrected_data  = i_raw_data ^ bit_correction_mask;
+    assign o_corrected_data  = effective_data ^ bit_correction_mask;
     assign o_single_err      = i_data_valid && is_single_err;
     assign o_double_err      = i_data_valid && is_double_err;
 
@@ -188,5 +188,86 @@ module ecc_scrubber #(
             end
         end
     end
+
+`ifdef FORMAL
+    initial assume (!rst_n);
+
+    always_ff @(posedge clk) begin
+        if ($past(!rst_n)) assume (rst_n);
+        if ($past(rst_n))  assume (rst_n);
+    end
+
+    // Giả định codeword ECC hợp lệ trên bus đọc DRAM gốc
+    wire [ECC_WIDTH-1:0] expected_ecc;
+    assign expected_ecc[0] = ^(i_raw_data & 64'h5555_5555_5555_5555);
+    assign expected_ecc[1] = ^(i_raw_data & 64'h6666_6666_6666_6666);
+    assign expected_ecc[2] = ^(i_raw_data & 64'h7878_7878_7878_7878);
+    assign expected_ecc[3] = ^(i_raw_data & 64'h7F80_7F80_7F80_7F80);
+    assign expected_ecc[4] = ^(i_raw_data & 64'h7FFF_8000_7FFF_8000);
+    assign expected_ecc[5] = ^(i_raw_data & 64'h7FFF_FFFF_8000_0000);
+    assign expected_ecc[6] = ^(i_raw_data & 64'h8000_0000_0000_0000);
+    assign expected_ecc[7] = (^i_raw_data) ^ (^expected_ecc[6:0]);
+
+    always_comb begin
+        if (i_data_valid) begin
+            assume (i_raw_ecc == expected_ecc);
+        end
+    end
+
+    // 1. Trạng thái sau reset
+    always_comb begin
+        if (!rst_n) begin
+            assert (!o_scrub_req);
+            assert (single_err_counter == '0);
+            assert (double_err_counter == '0);
+        end
+    end
+
+    // 2. Dữ liệu sạch (Clean Codeword): Không báo lỗi sai, dữ liệu truyền suốt nguyên vẹn
+    always_comb begin
+        if (rst_n && i_data_valid && !i_fault_inject_en) begin
+            assert (!o_single_err);
+            assert (!o_double_err);
+            assert (o_corrected_data == i_raw_data);
+        end
+    end
+
+    // 3. Phân loại lỗi SEC / DED khi có sự cố
+    always_comb begin
+        if (rst_n && i_data_valid) begin
+            // Không bao giờ đồng thời vừa là lỗi 1-bit vừa là lỗi 2-bit
+            assert (!(o_single_err && o_double_err));
+        end
+    end
+
+    // 4. Tính đơn điệu của bộ đếm viễn trắc telemetry lỗi
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(cfg_enable && i_data_valid && is_single_err)) begin
+                assert (single_err_counter == $past(single_err_counter) + 16'd1);
+            end
+            if ($past(cfg_enable && i_data_valid && is_double_err)) begin
+                assert (double_err_counter == $past(double_err_counter) + 16'd1);
+            end
+        end
+    end
+
+    // 5. Tiến trình quét tuần tra bộ nhớ (Patrol Scanner): Khi được cấp phép, scrub_pending hạ xuống
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(cfg_enable && scrub_pending && i_scrub_grant)) begin
+                assert (!scrub_pending);
+            end
+        end
+    end
+
+    // Cover properties
+    always_ff @(posedge clk) begin
+        cover (o_single_err);
+        cover (o_double_err);
+        cover (o_scrub_req);
+        cover (patrol_row > '0);
+    end
+`endif
 
 endmodule

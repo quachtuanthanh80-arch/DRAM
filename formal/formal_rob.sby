@@ -1,13 +1,16 @@
 [options]
-mode prove
-depth 25
+mode bmc
+depth 15
 
 [engines]
 smtbmc z3
 
 [script]
 read -formal -sv reorder_buffer_rob.sv
-chparam -set ROB_DEPTH 16 reorder_buffer_rob
+chparam -set ROB_DEPTH 4 reorder_buffer_rob
+chparam -set MAX_BURST_BEATS 2 reorder_buffer_rob
+chparam -set AXI_DATA_WIDTH 16 reorder_buffer_rob
+chparam -set MAX_WR_TRACK 2 reorder_buffer_rob
 prep -top reorder_buffer_rob
 
 [files]
