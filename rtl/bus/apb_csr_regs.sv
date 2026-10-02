@@ -1,7 +1,5 @@
-//=============================================================================
-// File:        apb_csr_regs.sv
-// Chức năng:   Khối thanh ghi APB4 CSR điều khiển cấu hình an toàn, khóa bảo mật và thu thập số liệu đo xa.
-//=============================================================================
+// File: apb_csr_regs.sv
+// Chức năng: Khối thanh ghi APB4 CSR điều khiển cấu hình an toàn, khóa bảo mật và thu thập số liệu đo xa.
 `timescale 1ns / 1ps
 
 module apb_csr_regs #(
@@ -44,6 +42,7 @@ module apb_csr_regs #(
     output logic [15:0]          cfg_window_size,
     output logic [15:0]          cfg_scrub_interval,
     output logic [15:0]          cfg_rowpress_thresh,
+    output logic [1:0]           cfg_rowpress_curve,
     output logic                 cfg_drm_en,
     output logic                 cfg_drm_victim2_en,
     output logic                 cfg_ate_en,
@@ -67,7 +66,9 @@ module apb_csr_regs #(
     input  logic [15:0]          ecc_double_err_cnt,
     input  logic [15:0]          rowpress_alert_cnt,
     input  logic [15:0]          ate_dynamic_thresh,
-    input  logic [7:0][31:0]     pmu_counters
+    input  logic [7:0][31:0]     pmu_counters,
+    input  logic [15:0]          abo_alert_cnt = 16'd0,
+    input  logic [15:0]          ecc_miscorrect_cnt = 16'd0
 );
 
     // Register Address Offsets
@@ -85,12 +86,15 @@ module apb_csr_regs #(
     localparam logic [AddrWidth-1:0] AddrRowPressThresh= 12'h07C;
     localparam logic [AddrWidth-1:0] AddrDrmConfig     = 12'h080;
     localparam logic [AddrWidth-1:0] AddrAteConfig     = 12'h084;
+    localparam logic [AddrWidth-1:0] AddrRowPressCurve = 12'h088;
     localparam logic [AddrWidth-1:0] AddrTelemAccess   = 12'h090;
     localparam logic [AddrWidth-1:0] AddrTelemThrtl    = 12'h094;
     localparam logic [AddrWidth-1:0] AddrEccSingle     = 12'h098;
     localparam logic [AddrWidth-1:0] AddrEccDouble     = 12'h09C;
     localparam logic [AddrWidth-1:0] AddrRowPressAlert = 12'h0A0;
     localparam logic [AddrWidth-1:0] AddrAteDynThresh  = 12'h0A4;
+    localparam logic [AddrWidth-1:0] AddrAboAlert       = 12'h0A8;
+    localparam logic [AddrWidth-1:0] AddrEccMiscorrect  = 12'h0AC;
     localparam logic [AddrWidth-1:0] AddrVersionId     = 12'h0FC;
     localparam logic [AddrWidth-1:0] AddrExtConfig     = 12'h100;
     localparam logic [AddrWidth-1:0] AddrScrambleSeedL = 12'h104;
@@ -114,6 +118,7 @@ module apb_csr_regs #(
     logic [31:0] reg_window_size;
     logic [31:0] reg_scrub_interval;
     logic [31:0] reg_rowpress_thresh;
+    logic [31:0] reg_rowpress_curve;
     logic [31:0] reg_drm_config;
     logic [31:0] reg_ate_config;
 
@@ -149,6 +154,7 @@ module apb_csr_regs #(
     assign cfg_window_size     = reg_window_size[15:0];
     assign cfg_scrub_interval  = reg_scrub_interval[15:0];
     assign cfg_rowpress_thresh = reg_rowpress_thresh[15:0];
+    assign cfg_rowpress_curve  = reg_rowpress_curve[1:0];
     assign cfg_drm_en          = reg_drm_config[0];
     assign cfg_drm_victim2_en  = reg_drm_config[1];
     assign cfg_ate_en          = reg_ate_config[0];
@@ -206,6 +212,7 @@ module apb_csr_regs #(
             reg_window_size     <= 32'd3900;
             reg_scrub_interval  <= 32'd1000;
             reg_rowpress_thresh <= 32'd5000;
+            reg_rowpress_curve  <= 32'd0;
             reg_drm_config      <= 32'h0000_0003; // Default: drm_en=1, victim2_en=1
             reg_ate_config      <= 32'h0000_0041; // Default: ate_en=1, alpha_shift=4
             reg_ext_config      <= 32'h0000_0000; // Default: bypass all extended security
@@ -263,6 +270,10 @@ module apb_csr_regs #(
 
                     AddrAteConfig: begin
                         reg_ate_config <= apply_strb(reg_ate_config, pwdata, pstrb);
+                    end
+
+                    AddrRowPressCurve: begin
+                        reg_rowpress_curve <= apply_strb(reg_rowpress_curve, pwdata, pstrb);
                     end
 
                     AddrExtConfig: begin
@@ -361,6 +372,10 @@ module apb_csr_regs #(
                 prdata = reg_ate_config;
             end
 
+            AddrRowPressCurve: begin
+                prdata = reg_rowpress_curve;
+            end
+
             AddrTelemAccess: begin
                 prdata = telem_accesses;
             end
@@ -383,6 +398,14 @@ module apb_csr_regs #(
 
             AddrAteDynThresh: begin
                 prdata = {16'h0, ate_dynamic_thresh};
+            end
+
+            AddrAboAlert: begin
+                prdata = {16'h0, abo_alert_cnt};
+            end
+
+            AddrEccMiscorrect: begin
+                prdata = {16'h0, ecc_miscorrect_cnt};
             end
 
             AddrVersionId: begin

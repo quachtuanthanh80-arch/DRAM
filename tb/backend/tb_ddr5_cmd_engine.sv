@@ -41,11 +41,16 @@ module tb_ddr5_cmd_engine;
     logic                      i_cmd_is_mitigation;
 
     logic [15:0]               cfg_rowpress_thresh;
+    logic [1:0]                cfg_rowpress_curve;
     logic                      o_rowpress_alert;
     logic [BG_WIDTH-1:0]       o_rowpress_bg;
     logic [BANK_WIDTH-1:0]     o_rowpress_bank;
     logic [ROW_WIDTH-1:0]      o_rowpress_row;
     logic [15:0]               o_rowpress_alert_cnt;
+
+    logic                      i_dram_abo_alert;
+    logic                      o_abo_active;
+    logic [15:0]               o_abo_alert_cnt;
 
     logic [BG_COUNT-1:0]       o_bg_ready;
     logic                      o_engine_ready;
@@ -102,11 +107,15 @@ module tb_ddr5_cmd_engine;
         .i_cmd_tag           (i_cmd_tag),
         .i_cmd_is_mitigation (i_cmd_is_mitigation),
         .cfg_rowpress_thresh (cfg_rowpress_thresh),
+        .cfg_rowpress_curve  (cfg_rowpress_curve),
         .o_rowpress_alert    (o_rowpress_alert),
         .o_rowpress_bg       (o_rowpress_bg),
         .o_rowpress_bank     (o_rowpress_bank),
         .o_rowpress_row      (o_rowpress_row),
         .o_rowpress_alert_cnt(o_rowpress_alert_cnt),
+        .i_dram_abo_alert    (i_dram_abo_alert),
+        .o_abo_active        (o_abo_active),
+        .o_abo_alert_cnt     (o_abo_alert_cnt),
         .o_bg_ready          (o_bg_ready),
         .o_engine_ready      (o_engine_ready),
         .o_slack_cycle       (o_slack_cycle),
@@ -143,6 +152,8 @@ module tb_ddr5_cmd_engine;
         i_cmd_tag = 0;
         i_cmd_is_mitigation = 0;
         cfg_rowpress_thresh = 16'd20;
+        cfg_rowpress_curve  = 2'b00;
+        i_dram_abo_alert    = 1'b0;
 
         #(ClkPeriod * 2);
         rst_n = 1;

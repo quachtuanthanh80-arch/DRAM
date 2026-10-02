@@ -226,6 +226,11 @@ module tb_sec_ddr5_controller_top;
     endtask
 
     initial begin
+        #50us;
+        $fatal(1, "[TIMEOUT] Simulation hung in tb_sec_ddr5_controller_top");
+    end
+
+    initial begin
         // Reset initialization
         rst_axi_n          = 1'b0;
         rst_ddr_n          = 1'b0;
@@ -238,6 +243,7 @@ module tb_sec_ddr5_controller_top;
         s_axi_wdata        = '0;
         s_axi_wstrb        = '1;
         s_axi_wlast        = 1'b0;
+        s_axi_wvalid       = 1'b0;
         s_axi_bready       = 1'b1;
         s_axi_arid         = '0;
         s_axi_araddr       = '0;

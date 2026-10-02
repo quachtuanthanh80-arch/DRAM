@@ -102,7 +102,14 @@ module axi_ddr5_mc_top #(
     input  logic [63:0]                                  cfg_scramble_seed,
     input  logic                                         cfg_pmu_en,
     input  logic                                         cfg_pmu_reset,
-    output logic [7:0][31:0]                             o_pmu_counters
+    output logic [7:0][31:0]                             o_pmu_counters,
+
+    // Advanced Threat Defense & PRAC Alerts (Upgrade P0)
+    input  logic [1:0]                                   cfg_rowpress_curve = 2'b00,
+    input  logic                                         cfg_victim3_en     = 1'b0,
+    input  logic                                         i_dram_abo_alert   = 1'b0,
+    output logic [15:0]                                  o_abo_alert_cnt,
+    output logic [15:0]                                  o_ecc_miscorrect_cnt
 );
 
     //=========================================================================
@@ -581,6 +588,14 @@ module axi_ddr5_mc_top #(
     //=========================================================================
     // 5b. Directed Refresh Manager (DRM)
     //=========================================================================
+    logic                  abo_active;
+    logic [BG_WIDTH-1:0]   abo_bg;
+    logic [BANK_WIDTH-1:0] abo_bank;
+    logic [ROW_WIDTH-1:0]  abo_row;
+    logic                  ecc_miscorrect_alert;
+    logic                  ecc_chipkill_fallback_req;
+    logic [ROW_WIDTH-1:0]  raw_dfi_row;
+
     directed_refresh_manager #(
         .BG_WIDTH    (BG_WIDTH),
         .BANK_WIDTH  (BANK_WIDTH),
@@ -592,6 +607,12 @@ module axi_ddr5_mc_top #(
 
         .cfg_drm_en          (1'b1),
         .cfg_victim2_en      (1'b0),
+        .cfg_victim3_en      (cfg_victim3_en),
+
+        .i_abo_req           (abo_active),
+        .i_abo_bg            (abo_bg),
+        .i_abo_bank          (abo_bank),
+        .i_abo_row           (abo_row),
 
         .i_sdc_req           (sdc_mitigation_req),
         .i_sdc_bg            (sdc_mitigation_bg),
@@ -772,6 +793,14 @@ module axi_ddr5_mc_top #(
         .i_cmd_is_mitigation (arb_cmd_is_mitigation),
 
         .cfg_rowpress_thresh (16'd5000),
+        .cfg_rowpress_curve  (cfg_rowpress_curve),
+        .i_dram_abo_alert    (i_dram_abo_alert),
+        .o_abo_active        (abo_active),
+        .o_abo_alert_cnt     (o_abo_alert_cnt),
+        .o_abo_bg            (abo_bg),
+        .o_abo_bank          (abo_bank),
+        .o_abo_row           (abo_row),
+
         .o_rowpress_alert    (ddr_rowpress_alert),
         .o_rowpress_bg       (ddr_rowpress_bg),
         .o_rowpress_bank     (ddr_rowpress_bank),
@@ -834,13 +863,15 @@ module axi_ddr5_mc_top #(
         .o_single_err        (ecc_single_err),
         .o_double_err        (ecc_double_err),
         .o_single_err_cnt    (o_ecc_single_err_cnt),
-        .o_double_err_cnt    (o_ecc_double_err_cnt)
+        .o_double_err_cnt    (o_ecc_double_err_cnt),
+        .o_ecc_miscorrect_alert (ecc_miscorrect_alert),
+        .o_ecc_miscorrect_cnt   (o_ecc_miscorrect_cnt),
+        .o_chipkill_fallback_req(ecc_chipkill_fallback_req)
     );
 
     //=========================================================================
     // 10. DRAM Bus Scrambler (Galois LFSR Anti-Snooping)
     //=========================================================================
-    logic [ROW_WIDTH-1:0] raw_dfi_row;
 
     bus_scrambler #(
         .DATA_WIDTH (AXI_DATA_WIDTH),

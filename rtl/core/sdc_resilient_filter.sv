@@ -1,7 +1,5 @@
-//=============================================================================
-// File:        sdc_resilient_filter.sv
-// Chức năng:   Bộ lọc băm đôi O(1) theo dõi kích hoạt hàng, điều tiết nhịp mềm và reset epoch trong 1 chu kỳ.
-//=============================================================================
+// File: sdc_resilient_filter.sv
+// Chức năng: Bộ lọc băm đôi O(1) theo dõi kích hoạt hàng, điều tiết nhịp mềm và reset epoch trong 1 chu kỳ.
 `timescale 1ns / 1ps
 
 module sdc_resilient_filter #(
@@ -318,6 +316,16 @@ module sdc_resilient_filter #(
         if (rst_n && $past(rst_n)) begin
             if ($past(o_cmd_ready && i_cmd_valid && will_throttle)) begin
                 assert (o_telemetry_throttles == $past(o_telemetry_throttles) + 1'b1);
+            end
+        end
+    end
+
+    // Property 5: Blacksmith-Invariance Bound
+    // Invariance: Any command hitting an entry that reached threshold within the epoch must be throttled.
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(o_cmd_ready && i_cmd_valid && will_throttle)) begin
+                assert (o_cmd_throttled);
             end
         end
     end

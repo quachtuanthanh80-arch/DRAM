@@ -149,6 +149,7 @@ def main():
                 os.path.join(root, "rtl", "frontend", "axi4_skid_buffer.sv"),
                 os.path.join(root, "rtl", "frontend", "axi_slave_frontend.sv"),
                 os.path.join(root, "rtl", "frontend", "wdata_buffer.sv"),
+                os.path.join(root, "rtl", "frontend", "domain_bank_coloring.sv"),
                 os.path.join(root, "rtl", "frontend", "addr_mapper_ddr5.sv"),
                 os.path.join(root, "rtl", "core", "reorder_buffer_rob.sv"),
                 os.path.join(root, "rtl", "core", "sdc_resilient_filter.sv"),
@@ -158,6 +159,8 @@ def main():
                 os.path.join(root, "rtl", "backend", "slack_aware_arbiter.sv"),
                 os.path.join(root, "rtl", "backend", "ddr5_cmd_engine.sv"),
                 os.path.join(root, "rtl", "backend", "ecc_scrubber.sv"),
+                os.path.join(root, "rtl", "memory", "bus_scrambler.sv"),
+                os.path.join(root, "rtl", "bus", "perf_monitor_unit.sv"),
                 os.path.join(root, "rtl", "top", "axi_ddr5_mc_top.sv"),
                 os.path.join(root, "tb", "top", "tb_axi_ddr5_mc_top.sv"),
             ]

@@ -54,6 +54,7 @@ module tb_apb_csr_regs;
     logic [15:0]          cfg_window_size;
     logic [15:0]          cfg_scrub_interval;
     logic [15:0]          cfg_rowpress_thresh;
+    logic [1:0]           cfg_rowpress_curve;
     logic                 cfg_drm_en;
     logic                 cfg_drm_victim2_en;
     logic                 cfg_ate_en;
@@ -65,6 +66,8 @@ module tb_apb_csr_regs;
     logic [15:0]          ecc_double_err_cnt;
     logic [15:0]          rowpress_alert_cnt;
     logic [15:0]          ate_dynamic_thresh;
+    logic [15:0]          abo_alert_cnt;
+    logic [15:0]          ecc_miscorrect_cnt;
 
     // Instantiate DUT
     apb_csr_regs #(
@@ -99,6 +102,7 @@ module tb_apb_csr_regs;
         .cfg_window_size       (cfg_window_size),
         .cfg_scrub_interval    (cfg_scrub_interval),
         .cfg_rowpress_thresh   (cfg_rowpress_thresh),
+        .cfg_rowpress_curve    (cfg_rowpress_curve),
         .cfg_drm_en            (cfg_drm_en),
         .cfg_drm_victim2_en    (cfg_drm_victim2_en),
         .cfg_ate_en            (cfg_ate_en),
@@ -108,7 +112,9 @@ module tb_apb_csr_regs;
         .ecc_single_err_cnt    (ecc_single_err_cnt),
         .ecc_double_err_cnt    (ecc_double_err_cnt),
         .rowpress_alert_cnt    (rowpress_alert_cnt),
-        .ate_dynamic_thresh    (ate_dynamic_thresh)
+        .ate_dynamic_thresh    (ate_dynamic_thresh),
+        .abo_alert_cnt         (abo_alert_cnt),
+        .ecc_miscorrect_cnt    (ecc_miscorrect_cnt)
     );
 
     // Test tracking
@@ -345,6 +351,34 @@ module tb_apb_csr_regs;
             tests_passed++;
         end else begin
             $display("[FAIL] Test 10: Version ID mismatch. Got 0x%08X, Expected 0x51534844", rdata);
+            tests_failed++;
+        end
+
+        // TEST 11: Extended Threat Defense CSRs (RowPress Dynamic Curve, ABO, ECCfail)
+        tests_run++;
+        apb_write(12'h088, 32'd2); // RowPress curve: Quadratic (2)
+        abo_alert_cnt       <= 16'd12;
+        ecc_miscorrect_cnt  <= 16'd4;
+        @(posedge pclk);
+
+        apb_read(12'h088, rdata);
+        if (rdata == 32'd2 && cfg_rowpress_curve == 2'b10) begin
+            apb_read(12'h0A8, rdata);
+            if (rdata == 32'd12) begin
+                apb_read(12'h0AC, rdata);
+                if (rdata == 32'd4) begin
+                    $display("[PASS] Test 11: RowPress curve, ABO alert, and ECCfail miscorrect registers verified.");
+                    tests_passed++;
+                end else begin
+                    $display("[FAIL] Test 11: ECC miscorrect mismatch. Got %h", rdata);
+                    tests_failed++;
+                end
+            end else begin
+                $display("[FAIL] Test 11: ABO alert mismatch. Got %h", rdata);
+                tests_failed++;
+            end
+        end else begin
+            $display("[FAIL] Test 11: RowPress curve mismatch. Got %h", rdata);
             tests_failed++;
         end
 

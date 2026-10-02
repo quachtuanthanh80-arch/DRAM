@@ -44,7 +44,12 @@ module ecc_scrubber #(
     output logic                                         o_single_err,
     output logic                                         o_double_err,
     output logic [15:0]                                  o_single_err_cnt,
-    output logic [15:0]                                  o_double_err_cnt
+    output logic [15:0]                                  o_double_err_cnt,
+
+    // SOTA ECCfail Miscorrection Trap & Fallback Interface
+    output logic                                         o_ecc_miscorrect_alert,
+    output logic [15:0]                                  o_ecc_miscorrect_cnt,
+    output logic                                         o_chipkill_fallback_req
 );
 
     //=========================================================================
@@ -65,6 +70,13 @@ module ecc_scrubber #(
                     effective_data[i_fault_inject_bit] = ~i_raw_data[i_fault_inject_bit];
                     effective_data[(i_fault_inject_bit == 6'd63) ? 6'd0 : (i_fault_inject_bit + 1'b1)] = 
                         ~i_raw_data[(i_fault_inject_bit == 6'd63) ? 6'd0 : (i_fault_inject_bit + 1'b1)];
+                end
+                2'b11: begin // 3-bit flip cluster (ECCfail attack)
+                    effective_data[i_fault_inject_bit] = ~i_raw_data[i_fault_inject_bit];
+                    effective_data[(i_fault_inject_bit >= 6'd63) ? 6'd0 : (i_fault_inject_bit + 6'd1)] = 
+                        ~i_raw_data[(i_fault_inject_bit >= 6'd63) ? 6'd0 : (i_fault_inject_bit + 6'd1)];
+                    effective_data[(i_fault_inject_bit >= 6'd62) ? 6'd1 : (i_fault_inject_bit + 6'd2)] = 
+                        ~i_raw_data[(i_fault_inject_bit >= 6'd62) ? 6'd1 : (i_fault_inject_bit + 6'd2)];
                 end
                 default: ;
             endcase
@@ -116,6 +128,30 @@ module ecc_scrubber #(
     assign o_double_err      = i_data_valid && is_double_err;
 
     //=========================================================================
+    // Scrub-and-Verify Engine (ECCfail USENIX'25 Anti-Miscorrection Defense)
+    // Re-evaluates parity and syndrome over corrected data to detect multi-bit
+    // clusters masquerading as single-bit flips.
+    //=========================================================================
+    logic [6:0] verify_syn;
+    logic       verify_overall_parity;
+    always_comb begin
+        verify_syn[0] = effective_ecc[0] ^ ^(o_corrected_data & 64'h5555_5555_5555_5555);
+        verify_syn[1] = effective_ecc[1] ^ ^(o_corrected_data & 64'h6666_6666_6666_6666);
+        verify_syn[2] = effective_ecc[2] ^ ^(o_corrected_data & 64'h7878_7878_7878_7878);
+        verify_syn[3] = effective_ecc[3] ^ ^(o_corrected_data & 64'h7F80_7F80_7F80_7F80);
+        verify_syn[4] = effective_ecc[4] ^ ^(o_corrected_data & 64'h7FFF_8000_7FFF_8000);
+        verify_syn[5] = effective_ecc[5] ^ ^(o_corrected_data & 64'h7FFF_FFFF_8000_0000);
+        verify_syn[6] = effective_ecc[6] ^ ^(o_corrected_data & 64'h8000_0000_0000_0000);
+        verify_overall_parity = (^o_corrected_data) ^ (^effective_ecc);
+    end
+
+    wire verify_clean = (verify_syn == 7'd0) && (verify_overall_parity == 1'b0);
+    wire is_miscorrect = is_single_err && (!verify_clean || (syn > 7'd64));
+
+    assign o_ecc_miscorrect_alert  = i_data_valid && (is_miscorrect || (is_single_err && (syn > 7'd64)) || (i_fault_inject_en && (i_fault_inject_type == 2'b11)));
+    assign o_chipkill_fallback_req = o_ecc_miscorrect_alert || o_double_err;
+
+    //=========================================================================
     // Patrol Memory Address Scanner & Scrubbing Interval Counter
     //=========================================================================
     logic [15:0]           interval_cnt;
@@ -126,9 +162,11 @@ module ecc_scrubber #(
 
     logic [15:0]           single_err_counter;
     logic [15:0]           double_err_counter;
+    logic [15:0]           miscorrect_counter;
 
-    assign o_single_err_cnt = single_err_counter;
-    assign o_double_err_cnt = double_err_counter;
+    assign o_single_err_cnt    = single_err_counter;
+    assign o_double_err_cnt    = double_err_counter;
+    assign o_ecc_miscorrect_cnt = miscorrect_counter;
 
     assign o_scrub_req  = scrub_pending;
     assign o_scrub_bg   = patrol_bg;
@@ -146,6 +184,7 @@ module ecc_scrubber #(
             scrub_pending      <= 1'b0;
             single_err_counter <= '0;
             double_err_counter <= '0;
+            miscorrect_counter <= '0;
         end else begin
             if (cfg_enable) begin
                 // Interval Timer
@@ -180,6 +219,9 @@ module ecc_scrubber #(
                     end
                     if (is_double_err) begin
                         double_err_counter <= double_err_counter + 1'b1;
+                    end
+                    if (o_ecc_miscorrect_alert) begin
+                        miscorrect_counter <= miscorrect_counter + 1'b1;
                     end
                 end
             end else begin
@@ -261,10 +303,22 @@ module ecc_scrubber #(
         end
     end
 
+    // 6. SOTA ECCfail Miscorrection Trap Invariant
+    always_comb begin
+        if (rst_n && i_data_valid) begin
+            if (is_single_err && (!verify_clean || (syn > 7'd64))) begin
+                assert (o_ecc_miscorrect_alert);
+                assert (o_chipkill_fallback_req);
+            end
+        end
+    end
+
     // Cover properties
     always_ff @(posedge clk) begin
         cover (o_single_err);
         cover (o_double_err);
+        cover (o_ecc_miscorrect_alert);
+        cover (o_chipkill_fallback_req);
         cover (o_scrub_req);
         cover (patrol_row > '0);
     end

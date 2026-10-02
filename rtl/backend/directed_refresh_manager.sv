@@ -16,6 +16,13 @@ module directed_refresh_manager #(
     // Configuration
     input  logic                   cfg_drm_en,        // 1: Enable directed refresh
     input  logic                   cfg_victim2_en,    // 1: Refresh row +/- 2 in addition to +/- 1
+    input  logic                   cfg_victim3_en = 1'b0, // 1: Refresh row +/- 3 (RhoHammer defense)
+
+    // Aggressor Alert from JEDEC PRAC / QPRAC Alert-Back-Off (Highest Priority)
+    input  logic                   i_abo_req = 1'b0,
+    input  logic [BG_WIDTH-1:0]    i_abo_bg = '0,
+    input  logic [BANK_WIDTH-1:0]  i_abo_bank = '0,
+    input  logic [ROW_WIDTH-1:0]   i_abo_row = '0,
 
     // Aggressor Alert from SDC Resilient Filter
     input  logic                   i_sdc_req,
@@ -64,34 +71,40 @@ module directed_refresh_manager #(
     assign o_queue_full = queue_full;
 
     // Pulse edge detector for requests
-    logic sdc_req_d, rp_req_d;
+    logic abo_req_d, sdc_req_d, rp_req_d;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
+            abo_req_d <= 1'b0;
             sdc_req_d <= 1'b0;
             rp_req_d  <= 1'b0;
         end else begin
+            abo_req_d <= i_abo_req;
             sdc_req_d <= i_sdc_req;
             rp_req_d  <= i_rp_req;
         end
     end
+    wire abo_pulse = i_abo_req && !abo_req_d;
     wire sdc_pulse = i_sdc_req && !sdc_req_d;
     wire rp_pulse  = i_rp_req  && !rp_req_d;
 
-    // Active aggressor selection (SDC has priority over RowPress)
-    wire                   aggr_valid = (sdc_pulse || rp_pulse) && cfg_drm_en;
-    wire [BG_WIDTH-1:0]    aggr_bg    = sdc_pulse ? i_sdc_bg   : i_rp_bg;
-    wire [BANK_WIDTH-1:0]  aggr_bank  = sdc_pulse ? i_sdc_bank : i_rp_bank;
-    wire [ROW_WIDTH-1:0]   aggr_row   = sdc_pulse ? i_sdc_row  : i_rp_row;
+    // Active aggressor selection (ABO has absolute highest priority, then SDC, then RowPress)
+    wire                   aggr_valid = (abo_pulse || sdc_pulse || rp_pulse) && cfg_drm_en;
+    wire [BG_WIDTH-1:0]    aggr_bg    = abo_pulse ? i_abo_bg   : (sdc_pulse ? i_sdc_bg   : i_rp_bg);
+    wire [BANK_WIDTH-1:0]  aggr_bank  = abo_pulse ? i_abo_bank : (sdc_pulse ? i_sdc_bank : i_rp_bank);
+    wire [ROW_WIDTH-1:0]   aggr_row   = abo_pulse ? i_abo_row  : (sdc_pulse ? i_sdc_row  : i_rp_row);
 
-    // Multi-cycle injection generator for victim rows (+1, -1, +2, -2)
+    // Multi-cycle injection generator for victim rows (+1, -1, +2, -2, +3, -3)
     logic [2:0]            inj_state;
     logic [BG_WIDTH-1:0]   inj_bg;
     logic [BANK_WIDTH-1:0] inj_bank;
     logic [ROW_WIDTH-1:0]  inj_row;
     logic                  inj_victim2;
+    logic                  inj_victim3;
 
     wire [PTR_W-1:0] wr_idx = wr_ptr[PTR_W-1:0];
     wire [PTR_W-1:0] rd_idx = rd_ptr[PTR_W-1:0];
+
+    wire [PTR_W:0] max_victims = cfg_victim3_en ? (PTR_W+1)'(6) : (cfg_victim2_en ? (PTR_W+1)'(4) : (PTR_W+1)'(2));
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -102,6 +115,7 @@ module directed_refresh_manager #(
             inj_bank        <= '0;
             inj_row         <= '0;
             inj_victim2     <= 1'b0;
+            inj_victim3     <= 1'b0;
             o_drm_ref_count <= 16'd0;
             for (int i = 0; i < QUEUE_DEPTH; i++) begin
                 q_bg[i]   <= '0;
@@ -115,10 +129,10 @@ module directed_refresh_manager #(
                 o_drm_ref_count <= o_drm_ref_count + 1'b1;
             end
 
-            // 2. Multi-victim enqueue sequencer
+            // 2. Multi-victim enqueue sequencer (bounds-checked)
             case (inj_state)
                 3'd0: begin
-                    if (aggr_valid && (count < (QUEUE_DEPTH[PTR_W:0] - 4))) begin
+                    if (aggr_valid && ((count + max_victims) <= QUEUE_DEPTH[PTR_W:0])) begin
                         // Enqueue Victim 1: Row + 1
                         q_bg[wr_idx]   <= aggr_bg;
                         q_bank[wr_idx] <= aggr_bank;
@@ -129,17 +143,19 @@ module directed_refresh_manager #(
                         inj_bank    <= aggr_bank;
                         inj_row     <= aggr_row;
                         inj_victim2 <= cfg_victim2_en;
+                        inj_victim3 <= cfg_victim3_en;
                         inj_state   <= 3'd1;
                     end
                 end
 
                 3'd1: begin
                     // Enqueue Victim 2: Row - 1
-                    q_bg[wr_idx]   <= inj_bg;
-                    q_bank[wr_idx] <= inj_bank;
-                    q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-1){1'b0}}, 1'b1};
-                    wr_ptr         <= wr_ptr + 1'b1;
-
+                    if (!queue_full) begin
+                        q_bg[wr_idx]   <= inj_bg;
+                        q_bank[wr_idx] <= inj_bank;
+                        q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-1){1'b0}}, 1'b1};
+                        wr_ptr         <= wr_ptr + 1'b1;
+                    end
                     if (inj_victim2) begin
                         inj_state <= 3'd2;
                     end else begin
@@ -149,20 +165,50 @@ module directed_refresh_manager #(
 
                 3'd2: begin
                     // Enqueue Victim 3: Row + 2
-                    q_bg[wr_idx]   <= inj_bg;
-                    q_bank[wr_idx] <= inj_bank;
-                    q_row[wr_idx]  <= inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd2};
-                    wr_ptr         <= wr_ptr + 1'b1;
-                    inj_state      <= 3'd3;
+                    if (!queue_full) begin
+                        q_bg[wr_idx]   <= inj_bg;
+                        q_bank[wr_idx] <= inj_bank;
+                        q_row[wr_idx]  <= inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd2};
+                        wr_ptr         <= wr_ptr + 1'b1;
+                    end
+                    inj_state <= 3'd3;
                 end
 
                 3'd3: begin
                     // Enqueue Victim 4: Row - 2
-                    q_bg[wr_idx]   <= inj_bg;
-                    q_bank[wr_idx] <= inj_bank;
-                    q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd2};
-                    wr_ptr         <= wr_ptr + 1'b1;
-                    inj_state      <= 3'd0;
+                    if (!queue_full) begin
+                        q_bg[wr_idx]   <= inj_bg;
+                        q_bank[wr_idx] <= inj_bank;
+                        q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd2};
+                        wr_ptr         <= wr_ptr + 1'b1;
+                    end
+                    if (inj_victim3) begin
+                        inj_state <= 3'd4;
+                    end else begin
+                        inj_state <= 3'd0;
+                    end
+                end
+
+                3'd4: begin
+                    // Enqueue Victim 5: Row + 3 (RhoHammer)
+                    if (!queue_full) begin
+                        q_bg[wr_idx]   <= inj_bg;
+                        q_bank[wr_idx] <= inj_bank;
+                        q_row[wr_idx]  <= inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd3};
+                        wr_ptr         <= wr_ptr + 1'b1;
+                    end
+                    inj_state <= 3'd5;
+                end
+
+                3'd5: begin
+                    // Enqueue Victim 6: Row - 3 (RhoHammer)
+                    if (!queue_full) begin
+                        q_bg[wr_idx]   <= inj_bg;
+                        q_bank[wr_idx] <= inj_bank;
+                        q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd3};
+                        wr_ptr         <= wr_ptr + 1'b1;
+                    end
+                    inj_state <= 3'd0;
                 end
 
                 default: inj_state <= 3'd0;

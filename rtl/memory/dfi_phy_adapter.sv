@@ -1,7 +1,5 @@
-//=============================================================================
-// File:        dfi_phy_adapter.sv
-// Chức năng:   Bộ tiếp hợp giao thức tầng vật lý DFI 5.0 hỗ trợ tỷ lệ Clock Gearing 1:2 và 1:4.
-//=============================================================================
+// File: dfi_phy_adapter.sv
+// Chức năng: Bộ tiếp hợp giao thức tầng vật lý DFI 5.0 hỗ trợ tỷ lệ Clock Gearing 1:2 và 1:4.
 `timescale 1ns / 1ps
 
 module dfi_phy_adapter #(
@@ -67,7 +65,11 @@ module dfi_phy_adapter #(
     // Low-Power Control
     output logic                 dfi_lp_req,
     input  logic                 dfi_lp_ack,        // Optional: defaults to 0
-    output logic [3:0]           dfi_lp_wakeup
+    output logic [3:0]           dfi_lp_wakeup,
+
+    // PRAC / QPRAC Alert-Back-Off (ABO) Alert Pin from DRAM
+    input  logic                 dfi_alert_n = 1'b1, // Default pulled-up (inactive)
+    output logic                 o_abo_alert
 );
 
     // Command Decoding
@@ -241,5 +243,16 @@ module dfi_phy_adapter #(
     assign rd_resp_valid = dfi_rddata_valid;
     assign rd_resp_data  = dfi_rddata;
     assign rd_resp_tag   = tag_pipeline[CasLatency + 1];
+
+    // JEDEC ALERT_n Active-Low Synchronizer for Alert-Back-Off (ABO)
+    logic [1:0] alert_sync;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            alert_sync <= 2'b11;
+        end else begin
+            alert_sync <= {alert_sync[0], dfi_alert_n};
+        end
+    end
+    assign o_abo_alert = ~alert_sync[1];
 
 endmodule: dfi_phy_adapter

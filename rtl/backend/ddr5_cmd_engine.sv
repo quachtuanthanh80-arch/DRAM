@@ -46,11 +46,22 @@ module ddr5_cmd_engine #(
     // RowPress Attack Monitoring & Telemetry Interface
     //-------------------------------------------------------------------------
     input  logic [15:0]                                  cfg_rowpress_thresh,
+    input  logic [1:0]                                   cfg_rowpress_curve = 2'b00, // 0: Static, 1: Conservative, 2: Standard, 3: Aggressive
     output logic                                         o_rowpress_alert,
     output logic [BG_WIDTH-1:0]                          o_rowpress_bg,
     output logic [BANK_WIDTH-1:0]                        o_rowpress_bank,
     output logic [ROW_WIDTH-1:0]                         o_rowpress_row,
     output logic [15:0]                                  o_rowpress_alert_cnt,
+
+    //-------------------------------------------------------------------------
+    // JEDEC PRAC / QPRAC Alert-Back-Off (ABO) Physical Handshake Interface
+    //-------------------------------------------------------------------------
+    input  logic                                         i_dram_abo_alert = 1'b0,
+    output logic                                         o_abo_active,
+    output logic [15:0]                                  o_abo_alert_cnt,
+    output logic [BG_WIDTH-1:0]                          o_abo_bg,
+    output logic [BANK_WIDTH-1:0]                        o_abo_bank,
+    output logic [ROW_WIDTH-1:0]                         o_abo_row,
 
     //-------------------------------------------------------------------------
     // Readiness & Slack Telemetry to Arbiter
@@ -97,6 +108,48 @@ module ddr5_cmd_engine #(
     logic [15:0]          act_duration [BG_COUNT][BANK_COUNT];
     wire  [15:0]          effective_rp_thresh = (cfg_rowpress_thresh != 16'd0) ? cfg_rowpress_thresh : 16'(ROWPRESS_THRESH_DEFAULT);
 
+    // RowPress Non-Linear Dynamic Threshold Function (ISCA'23 & Chronus HPCA'25 model)
+    function automatic logic [15:0] calc_dyn_rowpress_thresh(
+        input logic [15:0] base_th,
+        input logic [1:0]  curve,
+        input logic [15:0] duration
+    );
+        logic [15:0] th;
+        case (curve)
+            2'b00: th = base_th; // 0: Static Baseline
+            2'b01: begin // 1: Conservative Decay (75% -> 50% -> 25%)
+                if (duration > 16'd4000)      th = (base_th >> 2);
+                else if (duration > 16'd2000) th = (base_th >> 1);
+                else if (duration > 16'd1000) th = base_th - (base_th >> 2);
+                else                          th = base_th;
+            end
+            2'b10: begin // 2: Standard Decay (Chronus HPCA'25 Industrial Model)
+                if (duration > 16'd3000)      th = (base_th >> 3);
+                else if (duration > 16'd1500) th = (base_th >> 2);
+                else if (duration > 16'd800)  th = (base_th >> 1);
+                else if (duration > 16'd400)  th = base_th - (base_th >> 2);
+                else                          th = base_th;
+            end
+            2'b11: begin // 3: Aggressive High-Duty Cycle (Sub-10nm DRAM Model)
+                if (duration > 16'd2000)      th = 16'd128;
+                else if (duration > 16'd1000) th = (base_th >> 3);
+                else if (duration > 16'd500)  th = (base_th >> 2);
+                else if (duration > 16'd200)  th = (base_th >> 1);
+                else                          th = base_th;
+            end
+            default: th = base_th;
+        endcase
+        if (base_th < 16'd64)
+            calc_dyn_rowpress_thresh = th;
+        else if (th < 16'd64)
+            calc_dyn_rowpress_thresh = 16'd64;
+        else
+            calc_dyn_rowpress_thresh = th;
+    endfunction
+
+    // PRAC / QPRAC Alert-Back-Off (ABO) Edge Detector & State
+    logic                 dram_abo_d;
+
     // Bank-Group level timing
     logic [3:0]           ccd_timer  [BG_COUNT];
     logic [2:0]           ccd_s_timer;
@@ -122,7 +175,7 @@ module ddr5_cmd_engine #(
         end
     end
 
-    assign o_engine_ready = !busy;
+    assign o_engine_ready = !busy && !o_abo_active && !i_dram_abo_alert;
     assign o_slack_cycle  = !busy && (o_dfi_cmd == CMD_NOP);
 
     //=========================================================================
@@ -203,6 +256,14 @@ module ddr5_cmd_engine #(
             o_rowpress_bank      <= '0;
             o_rowpress_row       <= '0;
             o_rowpress_alert_cnt <= 16'd0;
+
+            dram_abo_d           <= 1'b0;
+            o_abo_active         <= 1'b0;
+            o_abo_alert_cnt      <= 16'd0;
+            o_abo_bg             <= '0;
+            o_abo_bank           <= '0;
+            o_abo_row            <= '0;
+
             for (int bg = 0; bg < BG_COUNT; bg++) begin
                 for (int bk = 0; bk < BANK_COUNT; bk++) begin
                     act_duration[bg][bk] <= 16'd0;
@@ -220,15 +281,29 @@ module ddr5_cmd_engine #(
                 end
             end
 
-            // RowPress Attack Monitoring: track cumulative duration of open banks
+            // PRAC / QPRAC Alert-Back-Off (ABO) Handshake Processing
+            dram_abo_d <= i_dram_abo_alert;
+            if (i_dram_abo_alert && !dram_abo_d) begin
+                o_abo_active    <= 1'b1;
+                o_abo_alert_cnt <= o_abo_alert_cnt + 1'b1;
+                o_abo_bg        <= lat_bg;
+                o_abo_bank      <= lat_bank;
+                o_abo_row       <= (bank_open[lat_bg][lat_bank]) ? open_row[lat_bg][lat_bank] : lat_row;
+            end else if (!i_dram_abo_alert) begin
+                o_abo_active    <= 1'b0;
+            end
+
+            // RowPress Attack Monitoring: track cumulative duration of open banks with dynamic LUT
             o_rowpress_alert <= 1'b0;
             for (int bg = 0; bg < BG_COUNT; bg++) begin
                 for (int bk = 0; bk < BANK_COUNT; bk++) begin
                     if (bank_open[bg][bk]) begin
+                        logic [15:0] current_dyn_thresh;
+                        current_dyn_thresh = calc_dyn_rowpress_thresh(effective_rp_thresh, cfg_rowpress_curve, act_duration[bg][bk]);
                         if (act_duration[bg][bk] < 16'hFFFF) begin
                             act_duration[bg][bk] <= act_duration[bg][bk] + 1'b1;
                         end
-                        if (act_duration[bg][bk] == effective_rp_thresh) begin
+                        if (act_duration[bg][bk] == current_dyn_thresh) begin
                             o_rowpress_alert     <= 1'b1;
                             o_rowpress_bg        <= bg[BG_WIDTH-1:0];
                             o_rowpress_bank      <= bk[BANK_WIDTH-1:0];
@@ -255,7 +330,7 @@ module ddr5_cmd_engine #(
             pipe_valid[0] <= 1'b0;
 
             // 3. Command Sequencer FSM
-            if (!busy) begin
+            if (!busy && (!o_abo_active && !i_dram_abo_alert || i_cmd_is_mitigation)) begin
                 if (i_cmd_valid) begin
                     lat_is_write      <= i_cmd_is_write;
                     lat_bg            <= i_cmd_bg;
@@ -399,7 +474,7 @@ module ddr5_cmd_engine #(
     always_comb begin
         if (!rst_n) begin
             assert (!busy);
-            assert (o_engine_ready);
+            if (!i_dram_abo_alert) assert (o_engine_ready);
             assert (o_dfi_cmd == CMD_NOP);
             assert (!o_rowpress_alert);
         end
@@ -460,6 +535,24 @@ module ddr5_cmd_engine #(
         end
     end
 
+    // 7. PRAC / QPRAC Alert-Back-Off: Khi co tin hieu alert, o_abo_active duoc kich hoat tuc thoi
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(i_dram_abo_alert && !dram_abo_d)) begin
+                assert (o_abo_active);
+            end
+        end
+    end
+
+    // 8. RowPress Dynamic LUT Bounds: dynamic threshold luon >= 64 khi base >= 64
+    always_comb begin
+        if (rst_n) begin
+            if (effective_rp_thresh >= 16'd64) begin
+                assert (calc_dyn_rowpress_thresh(effective_rp_thresh, cfg_rowpress_curve, 16'd5000) >= 16'd64);
+            end
+        end
+    end
+
     // Cover properties đo lường khả năng kích hoạt toàn bộ tập lệnh DFI
     always_ff @(posedge clk) begin
         cover (o_dfi_cmd == CMD_ACT);
@@ -469,6 +562,7 @@ module ddr5_cmd_engine #(
         cover (o_dfi_cmd == CMD_REF);
         cover (o_rowpress_alert);
         cover (o_slack_cycle);
+        cover (o_abo_active);
     end
 `endif
 
