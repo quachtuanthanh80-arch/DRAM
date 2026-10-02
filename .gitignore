@@ -7,6 +7,8 @@
 *.exe
 *.vvp
 tools/verible/
+tools/AI-Scientist/
+tools/AI-Scientist-v2/
 
 # Python & Cocotb build caches
 __pycache__/
