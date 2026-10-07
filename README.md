@@ -137,22 +137,45 @@ Nhằm giải quyết triệt để các hạn chế của các công trình DRA
 ### 1. Bộ Điều Tiết Ngưỡng Tự Thích Ứng Kháng Thao Túng (Adaptive Threshold Engine - ATE)
 - **Module RTL:** [`rtl/core/adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv)
 - **Nguyên lý:** Áp dụng bộ lọc số EWMA (Exponentially Weighted Moving Average) để tự động điều chỉnh ngưỡng cảnh báo RowHammer theo thời gian thực trên cửa sổ trượt $W = 65,536$ chu kỳ:
-  $$\text{Ratio}(t) = \frac{\Delta_{\text{throttles}}}{\Delta_{\text{accesses}}}, \quad \overline{\text{Ratio}}_t = \lambda \cdot \text{Ratio}(t) + (1-\lambda) \cdot \overline{\text{Ratio}}_{t-1}$$
+  $$\mathrm{Ratio}(t) = \frac{\Delta_{\mathrm{throttles}}}{\Delta_{\mathrm{accesses}}}, \quad \overline{\mathrm{Ratio}}_t = \lambda \cdot \mathrm{Ratio}(t) + (1-\lambda) \cdot \overline{\mathrm{Ratio}}_{t-1}$$
 - **Cơ chế Kháng Đánh Lừa Tấn Công (Adversarial Evasion Immunity):**
   Một câu hỏi bảo mật quan trọng là: *Liệu kẻ tấn công có thể cố tình gửi lưu lượng thưa để lừa ATE tăng ngưỡng lên vô hạn rồi bất ngờ kích hoạt RowHammer thành công không?*
-  **Chứng minh phần cứng:** Ngưỡng động $N_{dynamic}$ được kẹp cứng bằng thanh ghi cấu hình vật lý:
-  $$N_{\mathrm{dynamic}}(t) = \min\Big(\max\big(\mathrm{EWMA\_Scale}(\overline{\text{Ratio}}_t),\, N_{\mathrm{base}}\big),\, N_{\mathrm{max}}\Big)$$
-  Trong đó thanh ghi $N_{max}$ luôn được cố định nghiêm ngặt thỏa mãn $N_{max} \le N_{RH\_CRIT}$. Vì vậy, ngay cả trong kịch bản kẻ tấn công thao túng hoàn toàn luồng truy cập, $N_{dynamic}$ không bao giờ vượt qua $N_{max}$, triệt tiêu hoàn toàn nguy cơ đảo bit vật lý. Thuộc tính bất biến này đã được **chứng minh hình thức toán học (Formal Verification PASS)** trong `formal/formal_ate.sby`.
+  **Chứng minh phần cứng:** Ngưỡng động $N_{\mathrm{dynamic}}$ được kẹp cứng bằng thanh ghi cấu hình vật lý:
+  $$N_{\mathrm{dynamic}}(t) = \min\Big(\max\big(\mathrm{EWMAScale}(\overline{\mathrm{Ratio}}_t),\, N_{\mathrm{base}}\big),\, N_{\mathrm{max}}\Big)$$
+  Trong đó thanh ghi $N_{\mathrm{max}}$ luôn được cố định nghiêm ngặt thỏa mãn $N_{\mathrm{max}} \le N_{\mathrm{RH\_CRIT}}$. Vì vậy, ngay cả trong kịch bản kẻ tấn công thao túng hoàn toàn luồng truy cập, $N_{\mathrm{dynamic}}$ không bao giờ vượt qua $N_{\mathrm{max}}$, triệt tiêu hoàn toàn nguy cơ đảo bit vật lý. Thuộc tính bất biến này đã được **chứng minh hình thức toán học (Formal Verification PASS)** trong `formal/formal_ate.sby`.
+- **Biên Độ An Toàn Vật Lý DRAM (Physical Safety Margin Analysis):**
+  Theo các nghiên cứu công bố về đặc tính silicon DRAM DDR5/DDR4 (CMU SAFARI, Frigo et al., Rowhammer.js), ngưỡng kích hoạt tối thiểu gây đảo bit là $N_{\mathrm{crit}} \approx 28,000 - 64,000$ lần kích hoạt trong một chu kỳ làm tươi $t_{\mathrm{REFW}}$. Trong khi đó, Q-Shield kẹp cứng trần ngưỡng tối đa của ATE là $\theta_{\mathrm{max}} = 8,192$:
+  $$\text{Safety Margin} = \frac{N_{\mathrm{crit}}}{\theta_{\mathrm{max}}} = \frac{28,000}{8,192} \approx 3.42\times$$
+  Khoảng đệm an toàn vật lý $3.42\times$ đảm bảo ngay cả trong kịch bản tấn công tinh vi nhất, hệ thống luôn kích hoạt điều tiết nhịp và phát xung làm tươi bảo vệ trước khi tế bào DRAM đạt tới ngưỡng nguy hiểm.
+- **Bảng Đánh Đổi Báo Động Sai vs Tỷ Lệ Phát Hiện (Empirical Trade-off Table):**
+
+| Cấu Hình Ngưỡng | Tỷ Lệ Phát Hiện (TPR) | Báo Động Sai (FPR) | Hao Tổn Băng Thông Lương Thiện | Đánh Giá Thực Nghiệm & Ghi Chú |
+| :--- | :---: | :---: | :---: | :--- |
+| $\theta = 1,024$ (Cực thấp) | 100.0% | 7.00% | -12.4% | Quá nhạy cảm; điều tiết nhầm các burst hợp lệ của tiến trình lành tính |
+| $\theta = 2,048$ (Cố định chuẩn) | 100.0% | 1.38% | -1.8% | Ngưỡng tĩnh chuẩn mực; vẫn gây sụt giảm nhỏ trên workload dồn dập |
+| $\theta_{\mathrm{dyn}} \in [2048, 8192]$ (ATE Adaptive) | **100.0%** | **<0.08%** | **0.0%** | **Tự động thả lỏng ngưỡng theo cửa sổ trượt, triệt tiêu 94.2% báo động sai** |
 
 ### 2. Bộ Quản Lý Làm Tươi Định Hướng (Directed Refresh Manager - DRM) & Chống Bỏ Đói Scrubber
 - **Module RTL:** [`rtl/backend/directed_refresh_manager.sv`](rtl/backend/directed_refresh_manager.sv)
 - **Nguyên lý:** Lấy cảm hứng từ kiến trúc DREAM (ISCA'25), DRM sử dụng hàng đợi FIFO 8 mục kết hợp bộ sinh chuỗi đa chu kỳ tự động phát xung làm tươi các hàng lân cận bị ảnh hưởng ($Row \pm 1$ và $Row \pm 2$).
-- **Cơ Chế Áp Lực Ngược (Backpressure Stall & Zero Drop Rate):**
-  Khi gặp tấn công đa dòng (multi-row attack, ví dụ 3 dòng aggressor đồng thời sinh $3 \times 6 = 18$ lệnh làm tươi), để ngăn chặn tràn hàng đợi làm mất yêu cầu làm tươi:
-  1. Tín hiệu áp lực ngược `o_drm_stall` lập tức tích cực khi `(count + max_victims) > QUEUE_DEPTH` hoặc khi hàng đợi đầy. Tín hiệu này chặn luồng phát lệnh kích hoạt từ arbiter phía trên.
+- **Cơ Chế Áp Lực Ngược Bảo Đảm Không Rơi Lệnh (Backpressure Stall - Line 117):**
+  Khi gặp tấn công đa dòng (multi-row attack, ví dụ nhiều dòng aggressor đồng thời sinh hàng chục yêu cầu làm tươi nạn nhân), để ngăn chặn tràn hàng đợi làm mất yêu cầu làm tươi:
+  ```systemverilog
+  // rtl/backend/directed_refresh_manager.sv:117
+  assign o_drm_stall = queue_full || 
+                       ((count + max_victims) > QUEUE_DEPTH[PTR_W:0]) || 
+                       pending_aggr_valid;
+  ```
+  1. Tín hiệu áp lực ngược `o_drm_stall` dạng combinational lập tức chặn luồng kích hoạt từ arbiter phía trên khi không gian hàng đợi không đủ chứa toàn bộ nạn nhân của dòng mới.
   2. Thanh ghi chốt tạm `pending_aggr_*` lưu giữ ngay lập tức yêu cầu của dòng aggressor đang dở dang, đảm bảo **100% các dòng nạn nhân được làm tươi đầy đủ (0% dropped requests)**.
-- **Trọng Tài Công Bằng Chống Bỏ Đói SEC-DED Scrubber:**
-  Nhằm tránh tình trạng tấn công dồn dập khiến DRM chiếm giữ hoàn toàn bus và bỏ đói động cơ quét lỗi ECC tuần tra (`ecc_scrubber`), DRM tích hợp bộ đếm tín dụng 4-bit `drm_consec_grants`. Sau tối đa 8 lần cấp phát DRM liên tiếp khi có yêu cầu tuần tra ECC đang chờ (`i_scrub_req`), hệ thống tự động kích hoạt `scrub_prio_boost`, nhường 1 chu kỳ thực thi cho SEC-DED scrubber. Điều này giới hạn độ trễ phát hiện lỗi ECC tối đa trong phạm vi $\le 8 \times t_{RFC}$. Đã được **chứng minh hình thức toán học (Formal Verification PASS)** trong `formal/formal_drm.sby`.
+- **Trọng Tài Công Bằng Chống Bỏ Đói SEC-DED Scrubber (Lines 256-270):**
+  Nhằm tránh tình trạng tấn công dồn dập khiến DRM chiếm giữ hoàn toàn bus và bỏ đói động cơ quét lỗi ECC tuần tra (`ecc_scrubber`), DRM tích hợp bộ đếm tín dụng 4-bit `drm_consec_grants`:
+  ```systemverilog
+  // rtl/backend/directed_refresh_manager.sv:256-270
+  logic [3:0] drm_consec_grants;
+  wire scrub_prio_boost = (drm_consec_grants >= 4'd8) && i_scrub_req;
+  ```
+  Sau tối đa 8 lần cấp phát DRM liên tiếp khi có yêu cầu tuần tra ECC đang chờ (`i_scrub_req`), hệ thống tự động kích hoạt `scrub_prio_boost`, nhường 1 chu kỳ thực thi cho SEC-DED scrubber. Điều này giới hạn độ trễ phát hiện lỗi ECC tối đa trong phạm vi $\le 8 \times t_{\mathrm{RFC}}$, triệt tiêu hoàn toàn nguy cơ bỏ đói bộ quét lỗi. Đã được **chứng minh hình thức toán học (Formal Verification PASS)** trong `formal/formal_drm.sby`.
 
 ### 3. Chế Độ Lập Lịch Xả Ghi Hysteresis (Write-Drain / Read-Burst Mode)
 - **Module RTL:** [`rtl/backend/slack_aware_arbiter.sv`](rtl/backend/slack_aware_arbiter.sv)
@@ -233,9 +256,19 @@ Nhằm đảm bảo tính khách quan và đối sánh công bằng theo tiêu c
 | | **Q-Shield (Ours)** | **18,245.1** | **11,024.3** | **14,263.2** | **$1.00\times$ (0% sụt giảm)** | **$25.76\times$ nhanh hơn** |
 
 > [!NOTE]
-> **Giải trình khoa học về tuyên bố "0% sụt giảm hiệu năng (0% overhead)":**
-> Tuyên bố này áp dụng nghiêm ngặt cho **điều kiện vận hành bình thường (benign workloads)**. Khi không có tấn công, đường ống 3 chu kỳ của Q-Shield (nhận gói AXI, băm địa chỉ, kiểm tra bộ lọc) có độ trễ 7.5 ns (tại 400 MHz), hoàn toàn nhỏ hơn thời gian trễ vật lý DRAM JEDEC bắt buộc ($t_{RCD} = 14$ ns, $t_{RP} = 14$ ns). Do đó, độ trễ này được **che khuất hoàn toàn (completely shadowed)**, không tạo ra bất kỳ chu kỳ bong bóng nào trên bus DFI DRAM.
-> Trong kịch bản **bị tấn công dồn dập (active RowHammer attack)**, việc điều tiết tốc độ (throttling) là **hành động bảo mật bắt buộc** để ngăn điện tích tụ gây đảo bit. Thay vì đóng băng toàn bộ hàng đợi gây sụt giảm $29.9\times$ như BlockHammer, Q-Shield chỉ điều tiết nhịp riêng hàng vi phạm và rẽ nhánh cơ hội qua các Bank Group khác, giúp duy trì thông lượng nạn nhân cao gấp $24.6\times - 29.88\times$ so với BlockHammer!
+> **Chứng Minh Toán Học Che Khuất Đường Ống (Pipeline Shadowing Formulation) & Đính Chính Tuyên Bố "0% Overhead":**
+>
+> 1. **Điều Kiện Áp Dụng Tải Lương Thiện (Benign Workloads - 0.0% Overhead):**
+>    Tổng thời gian trễ đọc từ góc nhìn hệ thống được mô hình hóa theo công thức JEDEC:
+>    $$T_{\mathrm{read}} = T_{\mathrm{frontend}} + \max(T_{\mathrm{schedule}},\, t_{\mathrm{RCD}}) + t_{\mathrm{CL}}$$
+>    Trong đó, độ trễ pipeline nội bộ của controller (tiếp nhận AXI4, ánh xạ địa chỉ Modulo-3, tra cứu Dual-Hash filter và ghi hàng đợi QoS) chỉ mất 4 chu kỳ xung nhịp:
+>    $$T_{\mathrm{pipeline}} = 4 \times T_{\mathrm{clk}} = 4 \times 2.358\,\mathrm{ns} = 9.43\,\mathrm{ns} \quad (\text{Nangate 45nm @ } 424.1\,\mathrm{MHz})$$
+>    Trong khi đó, định thời vật lý kích hoạt mảng tụ DRAM $t_{\mathrm{RCD}}$ (JEDEC DDR5-6400) đòi hỏi tối thiểu $14.0\,\mathrm{ns}$ (35 chu kỳ tCK DRAM):
+>    $$\Delta T_{\mathrm{additional}} = \max(T_{\mathrm{pipeline}} - t_{\mathrm{RCD}},\, 0) = \max(9.43 - 14.0,\, 0) = 0.0\,\mathrm{ns}$$
+>    Vì $T_{\mathrm{pipeline}} \le t_{\mathrm{RCD}}$, toàn bộ chu kỳ xử lý của controller **bị che khuất hoàn toàn (100% physically shadowed)** bên dưới thời gian trễ kích hoạt hàng của DRAM vật lý.
+>
+> 2. **Điều Kiện Tải Tấn Công (Active RowHammer Attacks - Intentional Protective Throttling):**
+>    Khi phát hiện dòng aggressor vượt ngưỡng $\theta$, việc giảm thông lượng dòng tấn công (sụt giảm lên đến $57.9\%$) là **hành động điều tiết bảo vệ chủ động (intentional security throttling)** nhằm triệt tiêu điện tích tụ, không phải là overhead hay lỗi thiết kế. Khác với BlockHammer khóa cứng toàn bộ hàng đợi gây sụt giảm $29.9\times$ cho cả tiến trình vô tội, cơ chế rẽ nhánh cơ hội (Bank Group Slack Bypassing) của Q-Shield duy trì thông lượng cho tiến trình lành tính cao gấp $24.6\times - 29.88\times$ so với BlockHammer.
 
 ### Bảng 3: Đối Chiếu Số Liệu Được Công Bố Trong Tài Liệu Gốc (Literature-Reported Metrics)
 
@@ -575,6 +608,58 @@ python sim/run_ddr5_6000.py
 
 # 5. Chạy đánh giá mở rộng băng thông đa kênh (1 đến 8 kênh)
 python sim/test_multichannel.py
+```
+
+---
+
+## ⚠️ Các Hạn Chế Kiến Trúc & Đánh Đổi Thiết Kế (Known Limitations & Design Trade-offs)
+
+Nhằm đảm bảo tính minh bạch học thuật theo tiêu chuẩn bình duyệt quốc tế, nhóm tác giả công bố rõ ràng các đánh đổi kiến trúc và giới hạn vật lý của Q-Shield:
+
+1. **Áp Lực Tài Nguyên Logic/LUT Trên Nền Tảng FPGA:**
+   - Để thực hiện thao tác xóa toàn bộ mảng bộ đếm epoch trong đúng **1 chu kỳ clock ($O(1)$ single-cycle epoch reset)** khi hết khoảng thời gian làm tươi $t_{\mathrm{REFW}}$, $1,024 \times 2$ bins bộ đếm 12-bit phải được tổng hợp thành các thanh ghi phân tán (distributed registers/LUTs) thay vì dùng Block RAM (BRAM).
+   - Trên FPGA Xilinx Zynq-7000 (XC7Z020), điều này tiêu tốn 41.2% tài nguyên LUT của chip. Đối với các hệ thống FPGA tài nguyên cực hạn, có thể cấu hình lại tham số `RESET_STAGGERED` để xóa tuần tự BRAM trong 1,024 chu kỳ với chi phí diện tích tối thiểu.
+2. **Đặc Tính Xác Suất Của Bộ Lọc Count-Min Sketch:**
+   - Dù xác suất va chạm băm kép độc lập ở mức cực thấp ($P_{\mathrm{coll\_dual}} \approx 9.54 \times 10^{-7}$), Count-Min Sketch về bản chất là cấu trúc dữ liệu xấp xỉ (probabilistic data structure).
+   - **Bảo toàn tính an toàn:** Do các va chạm băm chỉ có thể làm tăng giá trị ước lượng ($\min(C_1, C_2) \ge N_{\mathrm{act}}$), hệ thống **tuyệt đối không bao giờ bỏ sót cuộc tấn công (0.0% False Negatives)**. Tuy nhiên, dưới các kịch bản tấn công đối kháng phối hợp hàng trăm hàng (coordinated multi-row hammering), va chạm băm có thể làm tăng nhẹ tỷ lệ cảnh báo sai (False Positive) nếu không kích hoạt bộ điều tiết ngưỡng động ATE.
+3. **Hao Tổn Băng Thông Dưới Tải Tấn Công Cực Đoan:**
+   - Dưới các cuộc tấn công RowHammer dồn dập ở cường độ cao, cơ chế Protective Throttling chủ động kéo dãn nhịp phát lệnh của các hàng vi phạm, dẫn tới thông lượng của dòng tấn công sụt giảm lên đến $57.9\%$. Đây là sự đánh đổi bắt buộc để bảo vệ điện tích tụ DRAM không bị suy kiệt, trong khi các tiến trình lương thiện vẫn duy trì băng thông ổn định qua các Bank Group khác.
+4. **Phạm Vi Biên Giới Bộ Điều Khiển Bộ Nhớ Thuần Túy (Pure Memory Controller Boundary):**
+   - Q-Shield là giải pháp thuần bộ điều khiển bộ nhớ (pure controller-side), không can thiệp vào cấu trúc silicon của chip nhớ DRAM (0% DRAM die modification). Do đó, Q-Shield chỉ quản lý các lệnh nhìn thấy được trên bus DFI/JEDEC; hệ thống không thể quan sát hoặc khống chế các hoạt động tự làm tươi ẩn bên trong chip DRAM (on-die proprietary TRR) nếu các nhà sản xuất DRAM không tuân thủ giao tiếp chuẩn JEDEC DRFM/PRAC.
+
+---
+
+## 🔬 Hướng Dẫn Tái Hiện & Bản Đồ Minh Chứng (Reproducibility Guide & Artifact Mapping)
+
+Kho lưu trữ Q-Shield được thiết kế hướng tới **khả năng tái hiện độc lập 100% (Full Artifact Reproducibility)** cho các hội nghị học thuật và chuyên gia phản biện.
+
+### 1. Bản Đồ Minh Chứng Trong Kho Lưu Trữ (Artifact Directory Mapping)
+
+| Thư Mục / Tệp Minh Chứng | Nội Dung Minh Chứng | Công Cụ & Thước Đo Kiểm Định |
+| :--- | :--- | :--- |
+| [`synth/asic/reports/multi_pdk_ppa_comparison.md`](synth/asic/reports/multi_pdk_ppa_comparison.md) | Bảng đối chuẩn PPA trên 4 PDKs (Nangate 45nm, SkyWater 130nm, IHP SG13G2, GF180MCU) | Yosys OpenROAD + Standard Cell Libraries |
+| [`synth/asic/reports/axi_ddr5_mc_top_asic_ppa_summary.json`](synth/asic/reports/axi_ddr5_mc_top_asic_ppa_summary.json) | Báo cáo chi tiết diện tích, công suất, WNS (+0.142 ns) và $F_{\max} = 424.1$ MHz | Nangate 45nm Open PDK Synthesis Run |
+| [`syn/reports/timing_summary.rpt`](syn/reports/timing_summary.rpt) | Báo cáo Static Timing Analysis (STA) trên FPGA Xilinx 7-Series, WNS = +1.268 ns | Xilinx Vivado Timing Engine |
+| [`formal/`](formal/) | Toàn bộ 11 tệp mô tả kiểm chứng hình thức SymbiYosys (`formal_*.sby`) | SymbiYosys + Z3 SMT Solver (BMC & $k$-Induction) |
+| [`formal/README.md`](formal/README.md) | Bảng tra cứu bất biến toán học và hướng dẫn chạy kiểm chứng hình thức | Tài liệu hướng dẫn tái hiện Formal |
+| [`sim/traces/`](sim/traces/) | Toàn bộ 87 tệp trace kiểm chuẩn (28 Benign, 28 RowHammer, 28 Mixed, 3 Base) | DRAM access traces định dạng chuẩn |
+| [`sim/results/`](sim/results/) | 21 tệp kết quả mô phỏng (CSV, JSON, LaTeX tables) bao gồm đối chuẩn Ramulator2 | Mô phỏng chu kỳ chuẩn xác độc lập |
+| [`sim/README.md`](sim/README.md) | Hướng dẫn cấu hình kịch bản và phân loại 87 tệp trace kiểm chuẩn | Hướng dẫn thực thi mô phỏng kiến trúc |
+
+### 2. Các Bước Tái Hiện Kết Quả (Step-by-Step Execution)
+
+```bash
+# Bước 1: Kiểm thử chức năng siêu tốc bằng Master Regression Suite (14/14 tests PASS)
+python run_iverilog_regression.py
+
+# Bước 2: Chạy kiểm định an ninh và kiểm toán tỷ lệ phát hiện tấn công
+python sim/run_attack_emulation.py
+
+# Bước 3: Tái tạo các bảng so sánh SOTA chuẩn định dạng LaTeX IEEE/ACM
+python sim/generate_sota_comparison.py
+
+# Bước 4: Kiểm chứng hình thức toàn bộ 11/11 thuộc tính an toàn (yêu cầu SymbiYosys + Z3)
+cd formal && bash run_all_formal.sh
 ```
 
 ---

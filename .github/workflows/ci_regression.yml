@@ -44,6 +44,14 @@ jobs:
         run: |
           python run_all_tests.py
 
+      - name: Run Attack Emulation & SDC Resilience Audit
+        run: |
+          python sim/run_attack_emulation.py
+
+      - name: Generate SOTA Architectural & Performance Matrices
+        run: |
+          python sim/generate_sota_comparison.py
+
       - name: Upload Verification Regression Artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,4 +59,6 @@ jobs:
           name: verification-regression-reports
           path: |
             **/results.xml
+            sim/results/attack_emulation_summary.json
+            sim/results/tab_*.tex
           if-no-files-found: ignore
