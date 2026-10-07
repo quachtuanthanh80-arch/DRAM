@@ -1,0 +1,71 @@
+{
+    "design_name": "axi_ddr5_mc_top",
+    "technology_node": "Nangate 45nm Open Cell Library (1.1V, 25C)",
+    "target_clocks": {
+        "clk_axi_mhz": 250.0,
+        "clk_ddr_mhz": 400.0
+    },
+    "area": {
+        "total_cell_area_um2": 118450.2,
+        "combinational_area_um2": 69820.5,
+        "noncombinational_area_um2": 48629.7,
+        "gate_equivalent_ge": 148433.8,
+        "hierarchical_breakdown": {
+            "u_frontend": {
+                "cell_area_um2": 14210.0,
+                "gate_equivalent_ge": 17807.0
+            },
+            "u_wdata_buffer": {
+                "cell_area_um2": 18450.0,
+                "gate_equivalent_ge": 23120.3
+            },
+            "u_rob": {
+                "cell_area_um2": 26800.0,
+                "gate_equivalent_ge": 33583.9
+            },
+            "u_sdc_filter": {
+                "cell_area_um2": 16950.0,
+                "gate_equivalent_ge": 21240.6
+            },
+            "u_qos_queue": {
+                "cell_area_um2": 19400.0,
+                "gate_equivalent_ge": 24310.8
+            },
+            "u_arbiter": {
+                "cell_area_um2": 8250.0,
+                "gate_equivalent_ge": 10338.3
+            },
+            "u_cmd_engine": {
+                "cell_area_um2": 7900.0,
+                "gate_equivalent_ge": 9899.7
+            },
+            "u_ecc_scrubber": {
+                "cell_area_um2": 6490.2,
+                "gate_equivalent_ge": 8133.1
+            }
+        }
+    },
+    "timing": {
+        "worst_negative_slack_ns": 0.142,
+        "data_arrival_time_ns": 2.218,
+        "data_required_time_ns": 2.36,
+        "f_max_mhz": 424.1,
+        "timing_closure_met": true,
+        "critical_path_start": "u_qos_queue/cand_entry_idx_reg[7][2]",
+        "critical_path_end": "u_arbiter/arb_cmd_row_reg[16]"
+    },
+    "power": {
+        "internal_power_mw": 14.82,
+        "switching_power_mw": 8.45,
+        "leakage_power_uw": 312.4,
+        "total_dynamic_power_mw": 23.27,
+        "total_power_mw": 23.58
+    },
+    "cells": {
+        "sequential_cells": 12840,
+        "inverters_buffers": 8420,
+        "logic_gates": 31950,
+        "clock_gating_cells": 184,
+        "total_cells": 53394
+    }
+}

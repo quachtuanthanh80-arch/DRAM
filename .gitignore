@@ -61,7 +61,9 @@ paper/
 doc/
 docs/
 tailieuthamkhao/
-reports/
+/reports/
+!synth/asic/reports/
+!synth/asic/reports/**
 PROPOSAL_QSHIELD.md
 implementation_plan.md
 walkthrough.md

@@ -1,0 +1,25 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2026.1 (win64) Build 6511674 Tue Jun 16 11:02:23 MDT 2026
+| Date              : Mon Sep 14 00:10:10 2026
+| Host              : DESKTOP-9DADM3P running 64-bit major release  (build 9200)
+| Command           : report_clock_networks -file D:/RAM/syn/reports/clock_networks.rpt
+| Design            : sec_ddr5_controller_top
+| Device            : xczu7ev-ffvc1156
+| Speed File        : -2  PRODUCTION 1.31 12-08-2025
+| Design State      : Synthesized
+| Temperature Grade : E
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+Clock Networks Report
+
+
+Constrained Clocks
+-------------------
+
+Clock clk_axi (250MHz)(endpoints: 9673 clock, 0 nonclock)
+Port clk_axi
+
+Clock clk_ddr (400MHz)(endpoints: 952 clock, 0 nonclock)
+Port clk_ddr
+
