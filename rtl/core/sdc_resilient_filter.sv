@@ -9,6 +9,7 @@ module sdc_resilient_filter #(
     parameter int COL_WIDTH      = 10,
     parameter int BG_WIDTH       = 3,
     parameter int BANK_WIDTH     = 2,
+    parameter int BANK_COUNT     = 1 << BANK_WIDTH,
     parameter int TABLE_ENTRIES  = 256,
     parameter int COUNT_WIDTH    = 16
 ) (
@@ -19,6 +20,7 @@ module sdc_resilient_filter #(
     input  logic                      cfg_hash_mode,   // 0: Single-Hash, 1: Dual-Hash
     input  logic [COUNT_WIDTH-1:0]    cfg_sdc_thresh,  // Activation alert threshold
     input  logic [15:0]               cfg_window_size, // Cycles per tREFI window
+    input  logic [2:0]                cfg_multibank_thresh = 3'd2, // Max concurrent throttled banks
 
     // Input Decoded Command from addr_mapper_ddr5
     input  logic                      i_cmd_valid,
@@ -51,6 +53,9 @@ module sdc_resilient_filter #(
     output logic [BANK_WIDTH-1:0]     o_mitigation_bank,
     output logic [ROW_WIDTH-1:0]      o_mitigation_row,
     output logic                      o_sdc_alert,
+    output logic                      o_coordinated_throttle_active,
+    output logic [BANK_COUNT-1:0]     o_bank_throttled_flags,
+    output logic [15:0]               o_coordinated_throttle_cnt,
     output logic [31:0]               o_telemetry_accesses,
     output logic [31:0]               o_telemetry_throttles
 );
@@ -133,7 +138,17 @@ module sdc_resilient_filter #(
         end
     end
 
-    wire will_throttle = (effective_count >= cfg_sdc_thresh);
+    // SledgeHammer Defense: Cross-Bank Multi-Active Monitoring
+    logic [BANK_COUNT-1:0] bank_throttled_flags;
+    logic                  coordinated_throttle_active;
+    logic [15:0]           coordinated_throttle_cnt;
+
+    assign o_coordinated_throttle_active = coordinated_throttle_active;
+    assign o_bank_throttled_flags         = bank_throttled_flags;
+    assign o_coordinated_throttle_cnt     = coordinated_throttle_cnt;
+
+    wire will_throttle      = (effective_count >= cfg_sdc_thresh);
+    wire effective_throttle = will_throttle || coordinated_throttle_active;
 
     // Handshake control
     assign o_cmd_ready = !o_cmd_valid || i_cmd_ready;
@@ -188,26 +203,45 @@ module sdc_resilient_filter #(
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            out_valid               <= 1'b0;
-            out_id                  <= '0;
-            out_is_write            <= 1'b0;
-            out_bg                  <= '0;
-            out_bank                <= '0;
-            out_row                 <= '0;
-            out_col                 <= '0;
-            out_len                 <= '0;
-            out_qos                 <= '0;
-            out_throttled           <= 1'b0;
-            mitigation_req_reg      <= 1'b0;
-            mitigation_bg_reg       <= '0;
-            mitigation_bank_reg     <= '0;
-            mitigation_row_reg      <= '0;
-            sdc_alert_reg           <= 1'b0;
-            telemetry_accesses_reg  <= '0;
-            telemetry_throttles_reg <= '0;
+            out_valid                   <= 1'b0;
+            out_id                      <= '0;
+            out_is_write                <= 1'b0;
+            out_bg                      <= '0;
+            out_bank                    <= '0;
+            out_row                     <= '0;
+            out_col                     <= '0;
+            out_len                     <= '0;
+            out_qos                     <= '0;
+            out_throttled               <= 1'b0;
+            mitigation_req_reg          <= 1'b0;
+            mitigation_bg_reg           <= '0;
+            mitigation_bank_reg         <= '0;
+            mitigation_row_reg          <= '0;
+            sdc_alert_reg               <= 1'b0;
+            telemetry_accesses_reg      <= '0;
+            telemetry_throttles_reg     <= '0;
+            bank_throttled_flags        <= '0;
+            coordinated_throttle_active <= 1'b0;
+            coordinated_throttle_cnt    <= '0;
         end else begin
             // Mitigation pulse is single-cycle
             mitigation_req_reg <= 1'b0;
+
+            // SledgeHammer Cross-Bank tracking
+            if (window_timer >= cfg_window_size) begin
+                bank_throttled_flags        <= '0;
+                coordinated_throttle_active <= 1'b0;
+            end else begin
+                if (i_cmd_valid && o_cmd_ready && will_throttle) begin
+                    bank_throttled_flags[i_cmd_bank] <= 1'b1;
+                end
+                if ($countones(bank_throttled_flags) > cfg_multibank_thresh) begin
+                    coordinated_throttle_active <= 1'b1;
+                    if (!coordinated_throttle_active) begin
+                        coordinated_throttle_cnt <= coordinated_throttle_cnt + 1'b1;
+                    end
+                end
+            end
 
             if (o_cmd_ready) begin
                 out_valid <= i_cmd_valid;
@@ -220,11 +254,11 @@ module sdc_resilient_filter #(
                     out_col       <= i_cmd_col;
                     out_len       <= i_cmd_len;
                     out_qos       <= i_cmd_qos;
-                    out_throttled <= will_throttle;
+                    out_throttled <= effective_throttle;
 
                     telemetry_accesses_reg <= telemetry_accesses_reg + 1'b1;
 
-                    if (will_throttle) begin
+                    if (effective_throttle) begin
                         telemetry_throttles_reg <= telemetry_throttles_reg + 1'b1;
                         mitigation_req_reg      <= 1'b1;
                         mitigation_bg_reg       <= i_cmd_bg;
@@ -326,6 +360,15 @@ module sdc_resilient_filter #(
         if (rst_n && $past(rst_n)) begin
             if ($past(o_cmd_ready && i_cmd_valid && will_throttle)) begin
                 assert (o_cmd_throttled);
+            end
+        end
+    end
+
+    // Property 6: SledgeHammer Multi-Bank Coordinated Throttling Guarantee
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($countones(bank_throttled_flags) > cfg_multibank_thresh) begin
+                assert (coordinated_throttle_active);
             end
         end
     end

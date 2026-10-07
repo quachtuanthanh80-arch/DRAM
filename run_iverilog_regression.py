@@ -184,6 +184,39 @@ def main():
                 os.path.join(root, "rtl", "top", "sec_ddr5_controller_top.sv"),
                 os.path.join(root, "tb", "top", "tb_sec_ddr5_controller_top.sv"),
             ]
+        },
+        {
+            "name": "McSee Defense: Autonomous JEDEC DDR5 RFM Generation",
+            "top": "tb_mcsee_autonomous_rfm",
+            "sources": [
+                os.path.join(root, "rtl", "backend", "ddr5_cmd_engine.sv"),
+                os.path.join(root, "tb", "backend", "tb_mcsee_autonomous_rfm.sv"),
+            ]
+        },
+        {
+            "name": "RowPress Defense: tRAS_max Auto-Precharge Clamping",
+            "top": "tb_rowpress_tras_clamping",
+            "sources": [
+                os.path.join(root, "rtl", "backend", "ddr5_cmd_engine.sv"),
+                os.path.join(root, "tb", "backend", "tb_rowpress_tras_clamping.sv"),
+            ]
+        },
+        {
+            "name": "SledgeHammer Defense: Cross-Bank Multi-Active Monitoring",
+            "top": "tb_sledgehammer_multibank",
+            "sources": [
+                os.path.join(root, "rtl", "core", "sdc_resilient_filter.sv"),
+                os.path.join(root, "tb", "core", "tb_sledgehammer_multibank.sv"),
+            ]
+        },
+        {
+            "name": "Frontend: AMBA AXI5 Poison & ASIL-D Parity Compliance",
+            "top": "tb_axi5_compliance",
+            "sources": [
+                os.path.join(root, "rtl", "frontend", "axi4_skid_buffer.sv"),
+                os.path.join(root, "rtl", "frontend", "axi_slave_frontend.sv"),
+                os.path.join(root, "tb", "frontend", "tb_axi5_compliance.sv"),
+            ]
         }
     ]
 

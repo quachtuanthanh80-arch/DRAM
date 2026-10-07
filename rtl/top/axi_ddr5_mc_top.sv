@@ -73,6 +73,9 @@ module axi_ddr5_mc_top #(
     output logic                                         s_axi_rlast,
     output logic                                         s_axi_rvalid,
     input  logic                                         s_axi_rready,
+    output logic [(AXI_DATA_WIDTH>=64?AXI_DATA_WIDTH/64:1)-1:0] s_axi_rpoison,
+    output logic [AXI_DATA_WIDTH/8-1:0]                  s_axi_rchk,
+    output logic                                         o_parity_err,
 
     //-------------------------------------------------------------------------
     // DFI 5.0 / DRAM Physical Interface
@@ -109,7 +112,10 @@ module axi_ddr5_mc_top #(
     input  logic                                         cfg_victim3_en     = 1'b0,
     input  logic                                         i_dram_abo_alert   = 1'b0,
     output logic [15:0]                                  o_abo_alert_cnt,
-    output logic [15:0]                                  o_ecc_miscorrect_cnt
+    output logic [15:0]                                  o_ecc_miscorrect_cnt,
+    output logic                                         o_coordinated_throttle_active,
+    output logic [15:0]                                  o_rfm_auto_cnt,
+    output logic                                         o_tras_clamped_alert
 );
 
     //=========================================================================
@@ -273,7 +279,11 @@ module axi_ddr5_mc_top #(
         .i_rdata_id          (rob_rid),
         .i_rdata             (rob_rdata),
         .i_rdata_resp        (rob_rresp),
-        .i_rdata_last        (rob_rlast)
+        .i_rdata_last        (rob_rlast),
+        .s_axi_rpoison       (s_axi_rpoison),
+        .s_axi_rchk          (s_axi_rchk),
+        .o_parity_err        (o_parity_err),
+        .i_rdata_poison      (ecc_double_err || ecc_miscorrect_alert)
     );
 
     // Write Decoupling Buffer
@@ -561,6 +571,9 @@ module axi_ddr5_mc_top #(
         .o_mitigation_bank   (sdc_mitigation_bank),
         .o_mitigation_row    (sdc_mitigation_row),
         .o_sdc_alert         (sdc_alert),
+        .o_coordinated_throttle_active (o_coordinated_throttle_active),
+        .o_bank_throttled_flags         (),
+        .o_coordinated_throttle_cnt     (),
         .o_telemetry_accesses(telemetry_accesses),
         .o_telemetry_throttles(telemetry_throttles)
     );
@@ -806,6 +819,10 @@ module axi_ddr5_mc_top #(
         .o_rowpress_bank     (ddr_rowpress_bank),
         .o_rowpress_row      (ddr_rowpress_row),
         .o_rowpress_alert_cnt(ddr_rowpress_alert_cnt),
+        .o_tras_clamped_alert(o_tras_clamped_alert),
+        .o_tras_clamped_cnt  (),
+        .o_rfm_auto_cnt      (o_rfm_auto_cnt),
+        .o_rfm_active        (),
 
         .o_bg_ready          (ddr_bg_ready),
         .o_engine_ready      (ddr_engine_ready),

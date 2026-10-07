@@ -58,6 +58,22 @@ module axi_slave_frontend #(
     input  logic                      s_axi_rready,
 
     //-------------------------------------------------------------------------
+    // ARM AMBA AXI5 Protocol Enhancements (IHI 0022H)
+    //-------------------------------------------------------------------------
+    input  logic                                                s_axi_awpoison = 1'b0,
+    input  logic [(AXI_DATA_WIDTH>=64?AXI_DATA_WIDTH/64:1)-1:0] s_axi_wpoison  = '0,
+    input  logic                                                s_axi_arpoison = 1'b0,
+    output logic [(AXI_DATA_WIDTH>=64?AXI_DATA_WIDTH/64:1)-1:0] s_axi_rpoison,
+
+    // ASIL-D Interface Parity Protection
+    input  logic [3:0]                                          s_axi_awchk = 4'h0,
+    input  logic [3:0]                                          s_axi_archk = 4'h0,
+    input  logic [AXI_DATA_WIDTH/8-1:0]                         s_axi_wchk  = '0,
+    output logic [AXI_DATA_WIDTH/8-1:0]                         s_axi_rchk,
+    input  logic                                                cfg_parity_check_en = 1'b0,
+    output logic                                                o_parity_err,
+
+    //-------------------------------------------------------------------------
     // Internal Core / Staging Buffer Interface
     //-------------------------------------------------------------------------
     // Internal Write Address Request (to wdata_buffer)
@@ -101,7 +117,8 @@ module axi_slave_frontend #(
     input  logic [AXI_ID_WIDTH-1:0]   i_rdata_id,
     input  logic [AXI_DATA_WIDTH-1:0] i_rdata,
     input  logic [1:0]                i_rdata_resp,
-    input  logic                      i_rdata_last
+    input  logic                      i_rdata_last,
+    input  logic                      i_rdata_poison = 1'b0
 );
 
     //=========================================================================
@@ -228,13 +245,15 @@ module axi_slave_frontend #(
     assign o_rd_req_cross_4kb  = (ar_offset_end > 13'd4096);
 
     //=========================================================================
-    // 5. Read Data Channel (R) Skid Buffer
+    // 5. Read Data Channel (R) Skid Buffer with ARM AXI5 Poison Propagation
     //=========================================================================
-    localparam int R_PAYLOAD_W = AXI_ID_WIDTH + AXI_DATA_WIDTH + 2 + 1;
+    localparam int R_POISON_W  = (AXI_DATA_WIDTH >= 64) ? (AXI_DATA_WIDTH / 64) : 1;
+    localparam int R_PAYLOAD_W = AXI_ID_WIDTH + AXI_DATA_WIDTH + 2 + 1 + R_POISON_W;
     logic [R_PAYLOAD_W-1:0] r_payload_in;
     logic [R_PAYLOAD_W-1:0] r_payload_out;
 
-    assign r_payload_in = {i_rdata_id, i_rdata, i_rdata_resp, i_rdata_last};
+    wire [R_POISON_W-1:0] cur_rpoison = (i_rdata_poison || (i_rdata_resp == 2'b10)) ? {R_POISON_W{1'b1}} : {R_POISON_W{1'b0}};
+    assign r_payload_in = {i_rdata_id, i_rdata, i_rdata_resp, i_rdata_last, cur_rpoison};
 
     axi4_skid_buffer #(
         .DATA_WIDTH(R_PAYLOAD_W)
@@ -249,7 +268,39 @@ module axi_slave_frontend #(
         .m_data  (r_payload_out)
     );
 
-    assign {s_axi_rid, s_axi_rdata, s_axi_rresp, s_axi_rlast} = r_payload_out;
+    assign {s_axi_rid, s_axi_rdata, s_axi_rresp, s_axi_rlast, s_axi_rpoison} = r_payload_out;
+
+    //-------------------------------------------------------------------------
+    // ASIL-D Interface Parity Generation & Checking
+    //-------------------------------------------------------------------------
+    always_comb begin
+        for (int b = 0; b < AXI_DATA_WIDTH/8; b++) begin
+            s_axi_rchk[b] = ~(^s_axi_rdata[b*8 +: 8]);
+        end
+    end
+
+    logic parity_err_reg;
+    assign o_parity_err = parity_err_reg;
+    always_ff @(posedge clk_axi or negedge aresetn_axi) begin
+        if (!aresetn_axi) begin
+            parity_err_reg <= 1'b0;
+        end else if (cfg_parity_check_en && s_axi_wvalid && (s_axi_wchk != '0)) begin
+            logic mismatch;
+            mismatch = 1'b0;
+            for (int b = 0; b < AXI_DATA_WIDTH/8; b++) begin
+                if (s_axi_wstrb[b] && (s_axi_wchk[b] != ~(^s_axi_wdata[b*8 +: 8]))) begin
+                    mismatch = 1'b1;
+                end
+            end
+            parity_err_reg <= mismatch;
+        end else begin
+            parity_err_reg <= 1'b0;
+        end
+    end
+
+    // Drain unused poison/chk input signals safely
+    logic _unused_frontend_axi5;
+    assign _unused_frontend_axi5 = &{s_axi_awpoison, s_axi_arpoison, s_axi_wpoison, s_axi_awchk, s_axi_archk, 1'b0};
 
     //=========================================================================
     // 6. SystemVerilog Assertions (SVA) for Protocol Formal Verification
@@ -279,6 +330,9 @@ module axi_slave_frontend #(
             if ($past(s_axi_wvalid && !s_axi_wready)) begin
                 assert (s_axi_wvalid);
                 assert (s_axi_wdata == $past(s_axi_wdata));
+            end
+            if ($past(i_rdata_valid && o_rdata_ready && (i_rdata_poison || (i_rdata_resp == 2'b10)))) begin
+                assert (s_axi_rpoison != '0);
             end
         end
     end

@@ -1,0 +1,224 @@
+// File: tb_rowpress_tras_clamping.sv
+// Chức năng: Kiểm chứng cơ chế RowPress tRAS_max auto-precharge clamping buộc đóng hàng khi mở quá thời gian cho phép.
+
+`timescale 1ns / 1ps
+
+module tb_rowpress_tras_clamping;
+
+    localparam int BG_COUNT       = 8;
+    localparam int BG_WIDTH       = $clog2(BG_COUNT);
+    localparam int BANK_COUNT     = 4;
+    localparam int BANK_WIDTH     = $clog2(BANK_COUNT);
+    localparam int ROW_WIDTH      = 17;
+    localparam int COL_WIDTH      = 10;
+    localparam int AXI_ID_WIDTH   = 4;
+    localparam int AXI_DATA_WIDTH = 64;
+    localparam int AXI_LEN_WIDTH  = 8;
+    localparam int ROB_PTR_WIDTH  = 5;
+    localparam time ClkPeriod     = 2.5ns; // 400 MHz
+
+    logic clk = 0;
+    always #(ClkPeriod/2) clk = ~clk;
+
+    logic                      rst_n;
+    logic                      i_cmd_valid;
+    logic                      i_cmd_is_write;
+    logic [AXI_ID_WIDTH-1:0]   i_cmd_id;
+    logic [BG_WIDTH-1:0]       i_cmd_bg;
+    logic [BANK_WIDTH-1:0]     i_cmd_bank;
+    logic [ROW_WIDTH-1:0]      i_cmd_row;
+    logic [COL_WIDTH-1:0]      i_cmd_col;
+    logic [AXI_LEN_WIDTH-1:0]  i_cmd_len;
+    logic [ROB_PTR_WIDTH-1:0]  i_cmd_tag;
+    logic                      i_cmd_is_mitigation;
+
+    logic [15:0]               cfg_rowpress_thresh;
+    logic [1:0]                cfg_rowpress_curve;
+    logic [15:0]               cfg_tras_max_thresh;
+    logic                      o_rowpress_alert;
+    logic [BG_WIDTH-1:0]       o_rowpress_bg;
+    logic [BANK_WIDTH-1:0]     o_rowpress_bank;
+    logic [ROW_WIDTH-1:0]      o_rowpress_row;
+    logic [15:0]               o_rowpress_alert_cnt;
+    logic                      o_tras_clamped_alert;
+    logic [15:0]               o_tras_clamped_cnt;
+
+    logic                      i_dram_abo_alert;
+    logic                      o_abo_active;
+    logic [15:0]               o_abo_alert_cnt;
+    logic [BG_WIDTH-1:0]       o_abo_bg;
+    logic [BANK_WIDTH-1:0]     o_abo_bank;
+    logic [ROW_WIDTH-1:0]      o_abo_row;
+
+    logic [7:0]                cfg_raammt_thresh;
+    logic [15:0]               o_rfm_auto_cnt;
+    logic                      o_rfm_active;
+
+    logic [BG_COUNT-1:0]       o_bg_ready;
+    logic                      o_engine_ready;
+    logic                      o_slack_cycle;
+
+    logic [2:0]                o_dfi_cmd;
+    logic [BG_WIDTH-1:0]       o_dfi_bg;
+    logic [BANK_WIDTH-1:0]     o_dfi_bank;
+    logic [ROW_WIDTH-1:0]      o_dfi_row;
+    logic [COL_WIDTH-1:0]      o_dfi_col;
+
+    logic                      o_wb_valid;
+    logic [ROB_PTR_WIDTH-1:0]  o_wb_tag;
+    logic [AXI_DATA_WIDTH-1:0] o_wb_data;
+    logic [1:0]                o_wb_resp;
+    logic                      o_wb_last;
+
+    localparam logic [2:0] CMD_NOP = 3'b000;
+    localparam logic [2:0] CMD_ACT = 3'b001;
+    localparam logic [2:0] CMD_PRE = 3'b010;
+    localparam logic [2:0] CMD_RD  = 3'b011;
+    localparam logic [2:0] CMD_WR  = 3'b100;
+    localparam logic [2:0] CMD_REF = 3'b101;
+
+    ddr5_cmd_engine #(
+        .BG_COUNT        (BG_COUNT),
+        .BANK_COUNT      (BANK_COUNT),
+        .ROW_WIDTH       (ROW_WIDTH),
+        .COL_WIDTH       (COL_WIDTH),
+        .AXI_ID_WIDTH    (AXI_ID_WIDTH),
+        .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
+        .AXI_LEN_WIDTH   (AXI_LEN_WIDTH),
+        .ROB_PTR_WIDTH   (ROB_PTR_WIDTH),
+        .T_RCD           (2),
+        .T_RP            (2),
+        .T_RAS           (4),
+        .T_CCD_L         (2),
+        .T_CCD_S         (1),
+        .T_CL            (2)
+    ) u_dut (
+        .clk                 (clk),
+        .rst_n               (rst_n),
+        .i_cmd_valid         (i_cmd_valid),
+        .i_cmd_is_write      (i_cmd_is_write),
+        .i_cmd_id            (i_cmd_id),
+        .i_cmd_bg            (i_cmd_bg),
+        .i_cmd_bank          (i_cmd_bank),
+        .i_cmd_row           (i_cmd_row),
+        .i_cmd_col           (i_cmd_col),
+        .i_cmd_len           (i_cmd_len),
+        .i_cmd_tag           (i_cmd_tag),
+        .i_cmd_is_mitigation (i_cmd_is_mitigation),
+
+        .cfg_rowpress_thresh (16'd5000),
+        .cfg_rowpress_curve  (2'b00),
+        .cfg_tras_max_thresh (cfg_tras_max_thresh),
+        .o_rowpress_alert    (o_rowpress_alert),
+        .o_rowpress_bg       (o_rowpress_bg),
+        .o_rowpress_bank     (o_rowpress_bank),
+        .o_rowpress_row      (o_rowpress_row),
+        .o_rowpress_alert_cnt(o_rowpress_alert_cnt),
+        .o_tras_clamped_alert(o_tras_clamped_alert),
+        .o_tras_clamped_cnt  (o_tras_clamped_cnt),
+
+        .i_dram_abo_alert    (i_dram_abo_alert),
+        .o_abo_active        (o_abo_active),
+        .o_abo_alert_cnt     (o_abo_alert_cnt),
+        .o_abo_bg            (o_abo_bg),
+        .o_abo_bank          (o_abo_bank),
+        .o_abo_row           (o_abo_row),
+
+        .cfg_raammt_thresh   (cfg_raammt_thresh),
+        .o_rfm_auto_cnt      (o_rfm_auto_cnt),
+        .o_rfm_active        (o_rfm_active),
+
+        .o_bg_ready          (o_bg_ready),
+        .o_engine_ready      (o_engine_ready),
+        .o_slack_cycle       (o_slack_cycle),
+
+        .o_dfi_cmd           (o_dfi_cmd),
+        .o_dfi_bg            (o_dfi_bg),
+        .o_dfi_bank          (o_dfi_bank),
+        .o_dfi_row           (o_dfi_row),
+        .o_dfi_col           (o_dfi_col),
+
+        .o_wb_valid          (o_wb_valid),
+        .o_wb_tag            (o_wb_tag),
+        .o_wb_data           (o_wb_data),
+        .o_wb_resp           (o_wb_resp),
+        .o_wb_last           (o_wb_last)
+    );
+
+    int tests_run = 0;
+    int tests_passed = 0;
+    int tests_failed = 0;
+
+    int clamp_cmd_seen = 0;
+    always @(posedge clk) begin
+        if (rst_n && o_dfi_cmd == CMD_PRE && o_tras_clamped_alert) begin
+            clamp_cmd_seen <= 1;
+            $display("[PASS] RowPress tRAS_max clamp PRE issued for BG %0d, Bank %0d at time %0t",
+                     o_dfi_bg, o_dfi_bank, $time);
+        end
+    end
+
+    initial begin
+        rst_n               = 0;
+        i_cmd_valid         = 0;
+        i_cmd_is_write      = 0;
+        i_cmd_id            = 0;
+        i_cmd_bg            = 0;
+        i_cmd_bank          = 0;
+        i_cmd_row           = 0;
+        i_cmd_col           = 0;
+        i_cmd_len           = 0;
+        i_cmd_tag           = 0;
+        i_cmd_is_mitigation = 0;
+        i_dram_abo_alert    = 0;
+        cfg_raammt_thresh   = 8'd64;
+        cfg_tras_max_thresh = 16'd40; // Clamping threshold at 40 cycles
+
+        #(ClkPeriod * 4);
+        rst_n = 1;
+        #(ClkPeriod * 2);
+
+        $display("[TB_ROWPRESS] Testing RowPress tRAS_max Auto-Precharge Clamping...");
+
+        // 1. Send 1 Read command to BG 2, Bank 1 to activate a row
+        @(negedge clk);
+        i_cmd_valid    = 1;
+        i_cmd_is_write = 0;
+        i_cmd_bg       = 3'd2;
+        i_cmd_bank     = 2'd1;
+        i_cmd_row      = 17'h1234;
+        i_cmd_col      = 10'h20;
+        i_cmd_tag      = 5'd1;
+
+        @(posedge clk);
+        #1;
+        @(negedge clk);
+        i_cmd_valid = 0;
+
+        // 2. Wait 60 cycles idle (exceeding cfg_tras_max_thresh of 40)
+        repeat (60) @(posedge clk);
+
+        tests_run++;
+        if (clamp_cmd_seen && o_tras_clamped_cnt >= 16'd1) begin
+            $display("[PASS] RowPress tRAS_max Clamping confirmed! o_tras_clamped_cnt = %0d", o_tras_clamped_cnt);
+            tests_passed++;
+        end else begin
+            $display("[FAIL] RowPress clamping failed! seen=%0d, cnt=%0d", clamp_cmd_seen, o_tras_clamped_cnt);
+            tests_failed++;
+        end
+
+        #(ClkPeriod * 4);
+        $display("================================================================");
+        $display("[TB_ROWPRESS] SUMMARY: %0d/%0d TESTS PASSED, %0d FAILED",
+                 tests_passed, tests_run, tests_failed);
+        $display("================================================================");
+
+        if (tests_failed == 0) begin
+            $display("[ALL TESTS PASSED SUCCESSFULLY]");
+            $finish;
+        end else begin
+            $fatal(1, "[TESTBENCH COMPLETED WITH FAILURES]");
+        end
+    end
+
+endmodule: tb_rowpress_tras_clamping

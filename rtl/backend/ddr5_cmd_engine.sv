@@ -47,11 +47,14 @@ module ddr5_cmd_engine #(
     //-------------------------------------------------------------------------
     input  logic [15:0]                                  cfg_rowpress_thresh,
     input  logic [1:0]                                   cfg_rowpress_curve = 2'b00, // 0: Static, 1: Conservative, 2: Standard, 3: Aggressive
+    input  logic [15:0]                                  cfg_tras_max_thresh = 16'd28000, // 70us clamping at 400MHz
     output logic                                         o_rowpress_alert,
     output logic [BG_WIDTH-1:0]                          o_rowpress_bg,
     output logic [BANK_WIDTH-1:0]                        o_rowpress_bank,
     output logic [ROW_WIDTH-1:0]                         o_rowpress_row,
     output logic [15:0]                                  o_rowpress_alert_cnt,
+    output logic                                         o_tras_clamped_alert,
+    output logic [15:0]                                  o_tras_clamped_cnt,
 
     //-------------------------------------------------------------------------
     // JEDEC PRAC / QPRAC Alert-Back-Off (ABO) Physical Handshake Interface
@@ -62,6 +65,13 @@ module ddr5_cmd_engine #(
     output logic [BG_WIDTH-1:0]                          o_abo_bg,
     output logic [BANK_WIDTH-1:0]                        o_abo_bank,
     output logic [ROW_WIDTH-1:0]                         o_abo_row,
+
+    //-------------------------------------------------------------------------
+    // Autonomous JEDEC DDR5 RFM Generator Interface (McSee Finding Defense)
+    //-------------------------------------------------------------------------
+    input  logic [7:0]                                   cfg_raammt_thresh = 8'd32,
+    output logic [15:0]                                  o_rfm_auto_cnt,
+    output logic                                         o_rfm_active,
 
     //-------------------------------------------------------------------------
     // Readiness & Slack Telemetry to Arbiter
@@ -149,6 +159,10 @@ module ddr5_cmd_engine #(
 
     // PRAC / QPRAC Alert-Back-Off (ABO) Edge Detector & State
     logic                 dram_abo_d;
+
+    // McSee Defense: Autonomous Rolling ACT counters and RFM requests
+    logic [7:0]           rolling_act_cnt [BG_COUNT];
+    logic [BG_COUNT-1:0]  rfm_req;
 
     // Bank-Group level timing
     logic [3:0]           ccd_timer  [BG_COUNT];
@@ -257,6 +271,15 @@ module ddr5_cmd_engine #(
             o_rowpress_row       <= '0;
             o_rowpress_alert_cnt <= 16'd0;
 
+            o_tras_clamped_alert <= 1'b0;
+            o_tras_clamped_cnt   <= 16'd0;
+            o_rfm_auto_cnt       <= 16'd0;
+            o_rfm_active         <= 1'b0;
+            rfm_req              <= '0;
+            for (int bg = 0; bg < BG_COUNT; bg++) begin
+                rolling_act_cnt[bg] <= 8'd0;
+            end
+
             dram_abo_d           <= 1'b0;
             o_abo_active         <= 1'b0;
             o_abo_alert_cnt      <= 16'd0;
@@ -270,6 +293,18 @@ module ddr5_cmd_engine #(
                 end
             end
         end else begin
+            o_tras_clamped_alert <= 1'b0;
+            o_rfm_active         <= 1'b0;
+
+            // Track rolling ACT count for autonomous RFM (McSee defense)
+            if (o_dfi_cmd == CMD_ACT) begin
+                if (rolling_act_cnt[o_dfi_bg] < 8'hFF) begin
+                    rolling_act_cnt[o_dfi_bg] <= rolling_act_cnt[o_dfi_bg] + 1'b1;
+                    if (rolling_act_cnt[o_dfi_bg] + 1'b1 >= (cfg_raammt_thresh != 8'd0 ? cfg_raammt_thresh : 8'd32)) begin
+                        rfm_req[o_dfi_bg] <= 1'b1;
+                    end
+                end
+            end
             // 1. Decrement timers
             if (ccd_s_timer > '0) ccd_s_timer <= ccd_s_timer - 1'b1;
             for (int bg = 0; bg < BG_COUNT; bg++) begin
@@ -389,6 +424,57 @@ module ddr5_cmd_engine #(
                         open_row[i_cmd_bg][i_cmd_bank]  <= i_cmd_row;
                         rcd_timer[i_cmd_bg][i_cmd_bank] <= 5'(T_RCD);
                         ras_timer[i_cmd_bg][i_cmd_bank] <= 5'(T_RAS);
+                    end
+                end else begin
+                    // Idle / Slack cycle: check RowPress tRAS_max auto-precharge clamping and autonomous RFM
+                    logic                  found_clamp;
+                    logic [BG_WIDTH-1:0]   clamp_target_bg;
+                    logic [BANK_WIDTH-1:0] clamp_target_bank;
+                    logic                  found_rfm;
+                    logic [BG_WIDTH-1:0]   rfm_target_bg;
+
+                    found_clamp       = 1'b0;
+                    clamp_target_bg   = '0;
+                    clamp_target_bank = '0;
+                    found_rfm         = 1'b0;
+                    rfm_target_bg     = '0;
+
+                    if (cfg_tras_max_thresh != 16'd0) begin
+                        for (int bg = 0; bg < BG_COUNT; bg++) begin
+                            for (int bk = 0; bk < BANK_COUNT; bk++) begin
+                                if (bank_open[bg][bk] && (act_duration[bg][bk] >= cfg_tras_max_thresh) && !found_clamp) begin
+                                    found_clamp       = 1'b1;
+                                    clamp_target_bg   = bg[BG_WIDTH-1:0];
+                                    clamp_target_bank = bk[BANK_WIDTH-1:0];
+                                end
+                            end
+                        end
+                    end
+
+                    for (int bg = 0; bg < BG_COUNT; bg++) begin
+                        if (rfm_req[bg] && !found_rfm) begin
+                            found_rfm     = 1'b1;
+                            rfm_target_bg = bg[BG_WIDTH-1:0];
+                        end
+                    end
+
+                    if (found_clamp) begin
+                        o_dfi_cmd                                        <= CMD_PRE;
+                        o_dfi_bg                                         <= clamp_target_bg;
+                        o_dfi_bank                                       <= clamp_target_bank;
+                        bank_open[clamp_target_bg][clamp_target_bank]    <= 1'b0;
+                        rp_timer[clamp_target_bg][clamp_target_bank]     <= 5'(T_RP);
+                        act_duration[clamp_target_bg][clamp_target_bank] <= 16'd0;
+                        o_tras_clamped_alert                             <= 1'b1;
+                        o_tras_clamped_cnt                               <= o_tras_clamped_cnt + 1'b1;
+                    end else if (found_rfm) begin
+                        o_dfi_cmd                      <= CMD_REF;
+                        o_dfi_bg                       <= rfm_target_bg;
+                        o_dfi_bank                     <= '0;
+                        rfm_req[rfm_target_bg]         <= 1'b0;
+                        rolling_act_cnt[rfm_target_bg] <= 8'd0;
+                        o_rfm_auto_cnt                 <= o_rfm_auto_cnt + 1'b1;
+                        o_rfm_active                   <= 1'b1;
                     end
                 end
             end else begin
