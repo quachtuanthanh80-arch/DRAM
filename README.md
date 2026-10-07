@@ -141,7 +141,7 @@ Nhằm giải quyết triệt để các hạn chế của các công trình DRA
 - **Cơ chế Kháng Đánh Lừa Tấn Công (Adversarial Evasion Immunity):**
   Một câu hỏi bảo mật quan trọng là: *Liệu kẻ tấn công có thể cố tình gửi lưu lượng thưa để lừa ATE tăng ngưỡng lên vô hạn rồi bất ngờ kích hoạt RowHammer thành công không?*
   **Chứng minh phần cứng:** Ngưỡng động $N_{dynamic}$ được kẹp cứng bằng thanh ghi cấu hình vật lý:
-  $$N_{dynamic}(t) = \min\Big(\max\big(\text{EWMA\_Scale}(\overline{\text{Ratio}}_t),\, N_{base}\big),\, N_{max}\Big)$$
+  $$N_{\mathrm{dynamic}}(t) = \min\Big(\max\big(\mathrm{EWMA\_Scale}(\overline{\text{Ratio}}_t),\, N_{\mathrm{base}}\big),\, N_{\mathrm{max}}\Big)$$
   Trong đó thanh ghi $N_{max}$ luôn được cố định nghiêm ngặt thỏa mãn $N_{max} \le N_{RH\_CRIT}$. Vì vậy, ngay cả trong kịch bản kẻ tấn công thao túng hoàn toàn luồng truy cập, $N_{dynamic}$ không bao giờ vượt qua $N_{max}$, triệt tiêu hoàn toàn nguy cơ đảo bit vật lý. Thuộc tính bất biến này đã được **chứng minh hình thức toán học (Formal Verification PASS)** trong `formal/formal_ate.sby`.
 
 ### 2. Bộ Quản Lý Làm Tươi Định Hướng (Directed Refresh Manager - DRM) & Chống Bỏ Đói Scrubber
@@ -490,7 +490,7 @@ bash run_all_formal.sh
 | # | Formal Proof (.sby) | Khối Phần Cứng Mục Tiêu | Thuộc Tính SVA Chứng Minh | Chế Độ | Trạng Thái |
 |:-:|:---|:---|:---|:---:|:---:|
 | 1 | `formal_async_fifo.sby` | `async_fifo_cdc.sv` | Gray-code monotonicity (khoảng cách Hamming = 1), chặn overflow/underflow | `prove` | **PASS** |
-| 2 | `formal_cmd_engine.sby` | `ddr5_cmd_engine.sv` | Định thời JEDEC ($t_{RCD}, t_{RP}, t_{CCD\_L/S}$) & FSM không deadlock | `bmc` d=20 | **PASS** |
+| 2 | `formal_cmd_engine.sby` | `ddr5_cmd_engine.sv` | Định thời JEDEC ($t_{\mathrm{RCD}}, t_{\mathrm{RP}}, t_{\mathrm{CCD\_L}}, t_{\mathrm{CCD\_S}}$) & FSM không deadlock | `bmc` d=20 | **PASS** |
 | 3 | `formal_drm.sby` | `directed_refresh_manager.sv` | Áp lực ngược `o_drm_stall` (0% rơi yêu cầu), giới hạn chống bỏ đói ECC scrubber ($\le 8$ cấp phát liên tiếp) | `bmc` d=20 | **PASS** |
 | 4 | `formal_ecc_scrubber.sby` | `ecc_scrubber.sv` | Sửa đúng 1-bit SEC & phát hiện 2-bit DED theo ma trận Hsiao (72, 64) | `prove` | **PASS** |
 | 5 | `formal_qos_queue.sby` | `qos_scheduler_queue.sv` | Bất biến hàng đợi QoS & chống bỏ đói tuyệt đối (Anti-starvation aging bound) | `prove` d=25 | **PASS** |
@@ -520,7 +520,7 @@ python run_iverilog_regression.py
 | 2 | **AXI4 Slave & Skid Buffer** | `tb/frontend/tb_axi4_slave_adapter.sv` | Bắt tay Zero-Bubble & Tách Burst Biên 4KB | **PASS** | 0.06s |
 | 3 | **Adaptive Threshold Engine** | `tb/core/tb_adaptive_threshold_engine.sv` | Động cơ thích ứng ngưỡng động EWMA (ATE) | **PASS** | 0.05s |
 | 4 | **Write-Drain & Slack Arbiter** | `tb/backend/tb_slack_aware_arbiter.sv` | Lập lịch đợt ghi khẩn cấp & Giảm lãng phí tWTR | **PASS** | 0.07s |
-| 5 | **RowPress Attack Detection** | `tb/backend/tb_ddr5_cmd_engine.sv` | Bộ đếm chu kỳ mở dòng $t_{AGG\_ON}$ & Precharge ép buộc | **PASS** | 0.08s |
+| 5 | **RowPress Attack Detection** | `tb/backend/tb_ddr5_cmd_engine.sv` | Bộ đếm chu kỳ mở dòng $t_{\mathrm{AGG\_ON}}$ & Precharge ép buộc | **PASS** | 0.08s |
 | 6 | **Directed Refresh Manager** | `tb/backend/tb_directed_refresh_manager.sv` | Phát xung làm tươi DRFM/PRAC cho dòng lân cận | **PASS** | 0.06s |
 | 7 | **Top-Level MC Integration** | `tb/top/tb_axi_ddr5_mc_top.sv` | Tích hợp E2E toàn bộ hệ thống điều khiển DDR5 | **PASS** | 0.25s |
 | 🏆 | **TỔNG KẾT REGRESSION** | **Tất cả 7/7 Test Suite** | **Hoàn thành 100% Pass Rate (0 lỗi)** | **PASS** | **0.65s** |
