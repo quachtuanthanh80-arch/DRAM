@@ -114,4 +114,38 @@ module adaptive_threshold_engine #(
         end
     end
 
+`ifdef FORMAL
+    initial assume (!rst_n);
+    always_ff @(posedge clk) begin
+        if ($past(!rst_n))
+            assume (rst_n);
+        if (rst_n && $past(rst_n)) begin
+            assume ($stable(cfg_base_thresh));
+            assume ($stable(cfg_max_thresh));
+            assume ($stable(cfg_alpha_shift));
+        end
+    end
+
+    // Configuration assumptions
+    always_comb begin
+        assume (base_thresh <= max_thresh);
+    end
+
+    // Property 1: Threshold Safety Bounds Invariant (Evasion Robustness)
+    // Guarantees that adaptive threshold is strictly clamped between base and max thresholds.
+    always_comb begin
+        if (rst_n) begin
+            assert (o_dynamic_thresh >= base_thresh);
+            assert (o_dynamic_thresh <= max_thresh);
+        end
+    end
+
+    // Property 2: Non-Adaptive Bypass Mode
+    always_comb begin
+        if (rst_n && !cfg_ate_en) begin
+            assert (o_dynamic_thresh == base_thresh);
+        end
+    end
+`endif
+
 endmodule: adaptive_threshold_engine

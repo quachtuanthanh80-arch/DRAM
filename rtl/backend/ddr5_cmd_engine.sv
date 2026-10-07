@@ -413,17 +413,22 @@ module ddr5_cmd_engine #(
                         bank_open[i_cmd_bg][i_cmd_bank] <= 1'b0;
                         rp_timer[i_cmd_bg][i_cmd_bank]  <= 5'(T_RP);
                     end else begin
-                        // ROW MISS: Bank closed, issue ACT then CAS
-                        busy              <= 1'b1;
-                        step_state        <= 3'd3; // Wait for RCD after ACT
-                        o_dfi_cmd         <= CMD_ACT;
-                        o_dfi_bg          <= i_cmd_bg;
-                        o_dfi_bank        <= i_cmd_bank;
-                        o_dfi_row         <= i_cmd_row;
-                        bank_open[i_cmd_bg][i_cmd_bank] <= 1'b1;
-                        open_row[i_cmd_bg][i_cmd_bank]  <= i_cmd_row;
-                        rcd_timer[i_cmd_bg][i_cmd_bank] <= 5'(T_RCD);
-                        ras_timer[i_cmd_bg][i_cmd_bank] <= 5'(T_RAS);
+                        // ROW MISS: Bank closed, issue ACT then CAS (respecting tRP recovery if still active)
+                        if (rp_timer[i_cmd_bg][i_cmd_bank] > '0) begin
+                            busy       <= 1'b1;
+                            step_state <= 3'd1; // Wait for RP then ACT
+                        end else begin
+                            busy              <= 1'b1;
+                            step_state        <= 3'd3; // Wait for RCD after ACT
+                            o_dfi_cmd         <= CMD_ACT;
+                            o_dfi_bg          <= i_cmd_bg;
+                            o_dfi_bank        <= i_cmd_bank;
+                            o_dfi_row         <= i_cmd_row;
+                            bank_open[i_cmd_bg][i_cmd_bank] <= 1'b1;
+                            open_row[i_cmd_bg][i_cmd_bank]  <= i_cmd_row;
+                            rcd_timer[i_cmd_bg][i_cmd_bank] <= 5'(T_RCD);
+                            ras_timer[i_cmd_bg][i_cmd_bank] <= 5'(T_RAS);
+                        end
                     end
                 end else begin
                     // Idle / Slack cycle: check RowPress tRAS_max auto-precharge clamping and autonomous RFM

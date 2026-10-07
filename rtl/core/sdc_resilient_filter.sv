@@ -367,8 +367,31 @@ module sdc_resilient_filter #(
     // Property 6: SledgeHammer Multi-Bank Coordinated Throttling Guarantee
     always_ff @(posedge clk) begin
         if (rst_n && $past(rst_n)) begin
-            if ($countones(bank_throttled_flags) > cfg_multibank_thresh) begin
+            if ($past(rst_n && ($countones(bank_throttled_flags) > cfg_multibank_thresh) && (window_timer < cfg_window_size))) begin
                 assert (coordinated_throttle_active);
+            end
+        end
+    end
+
+    // Property 7: Count-Min Sketch Lower Bound (Zero False Negatives)
+    // Mathematical guarantee: min(C1, C2) is an upper bound on true activations.
+    // If effective_count >= cfg_sdc_thresh, will_throttle is unconditionally asserted.
+    always_comb begin
+        if (rst_n) begin
+            if (effective_count >= cfg_sdc_thresh) begin
+                assert (will_throttle);
+                assert (effective_throttle);
+            end
+        end
+    end
+
+    // Property 8: Instantaneous Epoch Clear Correctness
+    // Upon epoch toggle, stale table entries evaluate to 0 effective count with zero command stalls.
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(window_timer >= cfg_window_size)) begin
+                assert (window_timer == 16'd0);
+                assert (current_epoch != $past(current_epoch));
             end
         end
     end

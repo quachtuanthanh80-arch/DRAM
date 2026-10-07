@@ -1,0 +1,13 @@
+[options]
+mode bmc
+depth 20
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv adaptive_threshold_engine.sv
+prep -top adaptive_threshold_engine
+
+[files]
+/mnt/d/RAM/rtl/core/adaptive_threshold_engine.sv

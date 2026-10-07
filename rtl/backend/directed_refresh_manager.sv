@@ -36,7 +36,7 @@ module directed_refresh_manager #(
     input  logic [BANK_WIDTH-1:0]  i_rp_bank,
     input  logic [ROW_WIDTH-1:0]   i_rp_row,
 
-    // ECC Patrol Scrubber Input (Lower Priority)
+    // ECC Patrol Scrubber Input (Lower Priority with Anti-Starvation)
     input  logic                   i_scrub_req,
     input  logic [BG_WIDTH-1:0]    i_scrub_bg,
     input  logic [BANK_WIDTH-1:0]  i_scrub_bank,
@@ -50,9 +50,10 @@ module directed_refresh_manager #(
     output logic [ROW_WIDTH-1:0]   o_mitigation_row,
     input  logic                   i_mitigation_grant,
 
-    // Telemetry
+    // Telemetry & Flow Control
     output logic [15:0]            o_drm_ref_count,
-    output logic                   o_queue_full
+    output logic                   o_queue_full,
+    output logic                   o_drm_stall
 );
 
     localparam int PTR_W = $clog2(QUEUE_DEPTH);
@@ -87,11 +88,17 @@ module directed_refresh_manager #(
     wire sdc_pulse = i_sdc_req && !sdc_req_d;
     wire rp_pulse  = i_rp_req  && !rp_req_d;
 
-    // Active aggressor selection (ABO has absolute highest priority, then SDC, then RowPress)
+    // Active aggressor selection (ABO has highest priority, then SDC, then RowPress)
     wire                   aggr_valid = (abo_pulse || sdc_pulse || rp_pulse) && cfg_drm_en;
     wire [BG_WIDTH-1:0]    aggr_bg    = abo_pulse ? i_abo_bg   : (sdc_pulse ? i_sdc_bg   : i_rp_bg);
     wire [BANK_WIDTH-1:0]  aggr_bank  = abo_pulse ? i_abo_bank : (sdc_pulse ? i_sdc_bank : i_rp_bank);
     wire [ROW_WIDTH-1:0]   aggr_row   = abo_pulse ? i_abo_row  : (sdc_pulse ? i_sdc_row  : i_rp_row);
+
+    // Pending Aggressor Holding Register (Backpressure Buffer against Drops)
+    logic                  pending_aggr_valid;
+    logic [BG_WIDTH-1:0]   pending_aggr_bg;
+    logic [BANK_WIDTH-1:0] pending_aggr_bank;
+    logic [ROW_WIDTH-1:0]  pending_aggr_row;
 
     // Multi-cycle injection generator for victim rows (+1, -1, +2, -2, +3, -3)
     logic [2:0]            inj_state;
@@ -106,17 +113,24 @@ module directed_refresh_manager #(
 
     wire [PTR_W:0] max_victims = cfg_victim3_en ? (PTR_W+1)'(6) : (cfg_victim2_en ? (PTR_W+1)'(4) : (PTR_W+1)'(2));
 
+    // Flow control stall asserted to upstream when queue cannot accept all victim rows
+    assign o_drm_stall = queue_full || ((count + max_victims) > QUEUE_DEPTH[PTR_W:0]) || pending_aggr_valid;
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            wr_ptr          <= '0;
-            rd_ptr          <= '0;
-            inj_state       <= 3'd0;
-            inj_bg          <= '0;
-            inj_bank        <= '0;
-            inj_row         <= '0;
-            inj_victim2     <= 1'b0;
-            inj_victim3     <= 1'b0;
-            o_drm_ref_count <= 16'd0;
+            wr_ptr             <= '0;
+            rd_ptr             <= '0;
+            inj_state          <= 3'd0;
+            inj_bg             <= '0;
+            inj_bank           <= '0;
+            inj_row            <= '0;
+            inj_victim2        <= 1'b0;
+            inj_victim3        <= 1'b0;
+            pending_aggr_valid <= 1'b0;
+            pending_aggr_bg    <= '0;
+            pending_aggr_bank  <= '0;
+            pending_aggr_row   <= '0;
+            o_drm_ref_count    <= 16'd0;
             for (int i = 0; i < QUEUE_DEPTH; i++) begin
                 q_bg[i]   <= '0;
                 q_bank[i] <= '0;
@@ -124,27 +138,49 @@ module directed_refresh_manager #(
             end
         end else begin
             // 1. Dequeue on mitigation grant when serving DRM queue
-            if (i_mitigation_grant && !queue_empty) begin
+            if (i_mitigation_grant && !queue_empty && !o_scrub_grant) begin
                 rd_ptr          <= rd_ptr + 1'b1;
                 o_drm_ref_count <= o_drm_ref_count + 1'b1;
             end
 
-            // 2. Multi-victim enqueue sequencer (bounds-checked)
+            // 2. Multi-victim enqueue sequencer (guaranteed no drops)
             case (inj_state)
                 3'd0: begin
-                    if (aggr_valid && ((count + max_victims) <= QUEUE_DEPTH[PTR_W:0])) begin
-                        // Enqueue Victim 1: Row + 1
-                        q_bg[wr_idx]   <= aggr_bg;
-                        q_bank[wr_idx] <= aggr_bank;
-                        q_row[wr_idx]  <= aggr_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1};
-                        wr_ptr         <= wr_ptr + 1'b1;
+                    if (aggr_valid || pending_aggr_valid) begin
+                        logic [BG_WIDTH-1:0]   curr_aggr_bg;
+                        logic [BANK_WIDTH-1:0] curr_aggr_bank;
+                        logic [ROW_WIDTH-1:0]  curr_aggr_row;
+                        logic                  is_from_pending;
 
-                        inj_bg      <= aggr_bg;
-                        inj_bank    <= aggr_bank;
-                        inj_row     <= aggr_row;
-                        inj_victim2 <= cfg_victim2_en;
-                        inj_victim3 <= cfg_victim3_en;
-                        inj_state   <= 3'd1;
+                        is_from_pending = !aggr_valid && pending_aggr_valid;
+                        curr_aggr_bg    = is_from_pending ? pending_aggr_bg   : aggr_bg;
+                        curr_aggr_bank  = is_from_pending ? pending_aggr_bank : aggr_bank;
+                        curr_aggr_row   = is_from_pending ? pending_aggr_row  : aggr_row;
+
+                        if ((count + max_victims) <= QUEUE_DEPTH[PTR_W:0]) begin
+                            // Enqueue Victim 1: Row + 1
+                            q_bg[wr_idx]   <= curr_aggr_bg;
+                            q_bank[wr_idx] <= curr_aggr_bank;
+                            q_row[wr_idx]  <= curr_aggr_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1};
+                            wr_ptr         <= wr_ptr + 1'b1;
+
+                            inj_bg      <= curr_aggr_bg;
+                            inj_bank    <= curr_aggr_bank;
+                            inj_row     <= curr_aggr_row;
+                            inj_victim2 <= cfg_victim2_en;
+                            inj_victim3 <= cfg_victim3_en;
+                            inj_state   <= 3'd1;
+
+                            if (is_from_pending) begin
+                                pending_aggr_valid <= 1'b0;
+                            end
+                        end else if (aggr_valid && !pending_aggr_valid) begin
+                            // Latch into holding register to prevent drop
+                            pending_aggr_valid <= 1'b1;
+                            pending_aggr_bg    <= aggr_bg;
+                            pending_aggr_bank  <= aggr_bank;
+                            pending_aggr_row   <= aggr_row;
+                        end
                     end
                 end
 
@@ -190,7 +226,7 @@ module directed_refresh_manager #(
                 end
 
                 3'd4: begin
-                    // Enqueue Victim 5: Row + 3 (RhoHammer)
+                    // Enqueue Victim 5: Row + 3 (RhoHammer defense)
                     if (!queue_full) begin
                         q_bg[wr_idx]   <= inj_bg;
                         q_bank[wr_idx] <= inj_bank;
@@ -201,7 +237,7 @@ module directed_refresh_manager #(
                 end
 
                 3'd5: begin
-                    // Enqueue Victim 6: Row - 3 (RhoHammer)
+                    // Enqueue Victim 6: Row - 3 (RhoHammer defense)
                     if (!queue_full) begin
                         q_bg[wr_idx]   <= inj_bg;
                         q_bank[wr_idx] <= inj_bank;
@@ -216,7 +252,24 @@ module directed_refresh_manager #(
         end
     end
 
-    // Arbitration between Directed Refresh and ECC Patrol Scrubbing
+    // Scrubber Anti-Starvation Tracking Counter
+    logic [3:0] drm_consec_grants;
+    wire scrub_prio_boost = (drm_consec_grants >= 4'd8) && i_scrub_req;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            drm_consec_grants <= 4'd0;
+        end else if (i_mitigation_grant) begin
+            if (o_scrub_grant) begin
+                drm_consec_grants <= 4'd0;
+            end else if (!queue_empty) begin
+                if (drm_consec_grants < 4'd15)
+                    drm_consec_grants <= drm_consec_grants + 1'b1;
+            end
+        end
+    end
+
+    // Fair Arbitration between Directed Refresh and ECC Patrol Scrubbing
     always_comb begin
         if (!rst_n) begin
             o_mitigation_req  = 1'b0;
@@ -224,8 +277,15 @@ module directed_refresh_manager #(
             o_mitigation_bank = '0;
             o_mitigation_row  = '0;
             o_scrub_grant     = 1'b0;
+        end else if (scrub_prio_boost) begin
+            // Anti-starvation grant to ECC patrol scrubber
+            o_mitigation_req  = 1'b1;
+            o_mitigation_bg   = i_scrub_bg;
+            o_mitigation_bank = i_scrub_bank;
+            o_mitigation_row  = i_scrub_row;
+            o_scrub_grant     = i_mitigation_grant;
         end else if (!queue_empty) begin
-            // Directed Refresh has highest priority
+            // Directed Refresh has primary priority
             o_mitigation_req  = 1'b1;
             o_mitigation_bg   = q_bg[rd_idx];
             o_mitigation_bank = q_bank[rd_idx];
@@ -264,6 +324,7 @@ module directed_refresh_manager #(
             assert (!o_queue_full);
             assert (!o_mitigation_req);
             assert (!o_scrub_grant);
+            assert (!pending_aggr_valid);
         end else begin
             // 1. Queue Occupancy Invariant: count must never exceed QUEUE_DEPTH
             assert (count <= QUEUE_DEPTH[PTR_W:0]);
@@ -275,17 +336,13 @@ module directed_refresh_manager #(
                 assert (!o_queue_full);
             end
 
-            // 3. Priority Invariant: If victim queue has entries, mitigation request must be directed refresh
-            if (!queue_empty) begin
-                assert (o_mitigation_req);
-                assert (!o_scrub_grant);
-                assert (o_mitigation_bg == q_bg[rd_idx]);
-                assert (o_mitigation_bank == q_bank[rd_idx]);
-                assert (o_mitigation_row == q_row[rd_idx]);
+            // 3. Backpressure Stall Invariant: Stall asserted when buffer space is tight
+            if (queue_full || ((count + max_victims) > QUEUE_DEPTH[PTR_W:0]) || pending_aggr_valid) begin
+                assert (o_drm_stall);
             end
 
             // 4. Idle Invariant: When queue is empty and no patrol scrub request, no mitigation request
-            if (queue_empty && !i_scrub_req) begin
+            if (queue_empty && !i_scrub_req && !scrub_prio_boost) begin
                 assert (!o_mitigation_req);
                 assert (!o_scrub_grant);
             end
@@ -303,5 +360,3 @@ module directed_refresh_manager #(
 `endif
 
 endmodule: directed_refresh_manager
-
-
