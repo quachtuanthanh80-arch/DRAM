@@ -555,7 +555,7 @@ module axi_ddr5_mc_top #(
         .i_cmd_qos           (mapped_cmd_qos),
 
         .o_cmd_valid         (sdc_cmd_valid),
-        .i_cmd_ready         (sdc_cmd_ready),
+        .i_cmd_ready         (sdc_cmd_ready && !drm_stall),
         .o_cmd_id            (sdc_cmd_id),
         .o_cmd_is_write      (sdc_cmd_is_write),
         .o_cmd_bg            (sdc_cmd_bg),
@@ -601,6 +601,7 @@ module axi_ddr5_mc_top #(
     //=========================================================================
     // 5b. Directed Refresh Manager (DRM)
     //=========================================================================
+    logic                  drm_stall;
     logic                  abo_active;
     logic [BG_WIDTH-1:0]   abo_bg;
     logic [BANK_WIDTH-1:0] abo_bank;
@@ -651,7 +652,7 @@ module axi_ddr5_mc_top #(
 
         .o_drm_ref_count     (drm_ref_count),
         .o_queue_full        (),
-        .o_drm_stall         ()
+        .o_drm_stall         (drm_stall)
     );
 
     //=========================================================================
