@@ -1,0 +1,46 @@
+{
+    "DESIGN_NAME": "axi_ddr5_mc_top",
+    "VERILOG_FILES": [
+        "dir::../netlist/axi_ddr5_mc_top_syn.v"
+    ],
+    "CLOCK_PORT": [
+        "clk_axi",
+        "clk_ddr"
+    ],
+    "CLOCK_NET": [
+        "clk_axi",
+        "clk_ddr"
+    ],
+    "CLOCK_PERIOD": 2.50,
+    "SYNTH_TIMING_DERATE": 0.05,
+    "BASE_SDC_FILE": "dir::../constraints/qshield_dual_clk.sdc",
+
+    "FP_CORE_UTIL": 55,
+    "FP_ASPECT_RATIO": 1.0,
+    "FP_SIZING": "relative",
+    "FP_PDN_MULTIPLE_GRID": 1,
+    "FP_PIN_ORDER_CFG": "dir::pin_order.cfg",
+
+    "PL_TARGET_DENSITY": 0.60,
+    "PL_BASIC_PLACEMENT": 0,
+    "PL_RANDOM_GLB_PLACEMENT": 0,
+    "PL_ESTIMATE_PARASITICS": 1,
+
+    "CTS_TARGET_SKEW": 50,
+    "CTS_TOLERANCE": 20,
+    "CTS_SINK_CLUSTERING_SIZE": 16,
+
+    "RT_MAX_LAYER": "met5",
+    "RT_MIN_LAYER": "met1",
+    "ROUTING_CORES": 8,
+    "DIODE_INSERTION_STRATEGY": 3,
+    "GLB_RT_ADJUSTMENT": 0.15,
+
+    "RUN_KLAYOUT": 1,
+    "RUN_MAGIC": 1,
+    "MAGIC_DRC_USE_GDS": 1,
+    "RUN_CVC": 1,
+    "QUIT_ON_TIMING_VIOLATIONS": 0,
+    "QUIT_ON_MAGIC_DRC": 0,
+    "QUIT_ON_LVS_ERROR": 0
+}

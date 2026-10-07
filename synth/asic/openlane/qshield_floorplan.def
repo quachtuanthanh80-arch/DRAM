@@ -1,0 +1,47 @@
+VERSION 5.8 ;
+DIVIDERCHAR "/" ;
+BUSBITCHARS "[]" ;
+DESIGN axi_ddr5_mc_top ;
+UNITS DISTANCE MICRONS 1000 ;
+
+DIEAREA ( 0 0 ) ( 1000000 1000000 ) ;
+
+COMPONENTS 8 ;
+- comp_sdc_resilient_filter sdc_resilient_filter + PLACED ( 70000 500000 ) N ;
+- comp_reorder_buffer_rob reorder_buffer_rob + PLACED ( 520000 500000 ) N ;
+- comp_qos_scheduler_queue qos_scheduler_queue + PLACED ( 70000 200000 ) N ;
+- comp_slack_aware_arbiter slack_aware_arbiter + PLACED ( 520000 350000 ) N ;
+- comp_ddr5_cmd_engine ddr5_cmd_engine + PLACED ( 770000 200000 ) N ;
+- comp_axi_slave_frontend axi_slave_frontend + PLACED ( 70000 70000 ) N ;
+- comp_addr_mapper_ddr5 addr_mapper_ddr5 + PLACED ( 520000 70000 ) N ;
+- comp_ecc_scrubber ecc_scrubber + PLACED ( 770000 70000 ) N ;
+END COMPONENTS
+
+PINS 24 ;
+- s_axi_awaddr + NET s_axi_awaddr + DIRECTION INPUT + PLACED ( 0 150000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_awvalid + NET s_axi_awvalid + DIRECTION INPUT + PLACED ( 0 200000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_awready + NET s_axi_awready + DIRECTION OUTPUT + PLACED ( 0 250000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_wdata + NET s_axi_wdata + DIRECTION INPUT + PLACED ( 0 300000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_wvalid + NET s_axi_wvalid + DIRECTION INPUT + PLACED ( 0 350000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_wready + NET s_axi_wready + DIRECTION OUTPUT + PLACED ( 0 400000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_bvalid + NET s_axi_bvalid + DIRECTION OUTPUT + PLACED ( 0 450000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_bready + NET s_axi_bready + DIRECTION INPUT + PLACED ( 0 500000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_araddr + NET s_axi_araddr + DIRECTION INPUT + PLACED ( 0 550000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_arvalid + NET s_axi_arvalid + DIRECTION INPUT + PLACED ( 0 600000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_arready + NET s_axi_arready + DIRECTION OUTPUT + PLACED ( 0 650000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_rdata + NET s_axi_rdata + DIRECTION OUTPUT + PLACED ( 0 700000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_rvalid + NET s_axi_rvalid + DIRECTION OUTPUT + PLACED ( 0 750000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- s_axi_rready + NET s_axi_rready + DIRECTION INPUT + PLACED ( 0 800000 ) W + LAYER metal3 ( 0 0 ) ( 30000 4000 ) ;
+- dfi_cmd_valid + NET dfi_cmd_valid + DIRECTION OUTPUT + PLACED ( 1000000 200000 ) E + LAYER metal3 ( -30000 0 ) ( 0 4000 ) ;
+- dfi_cmd_type + NET dfi_cmd_type + DIRECTION OUTPUT + PLACED ( 1000000 300000 ) E + LAYER metal3 ( -30000 0 ) ( 0 4000 ) ;
+- dfi_cmd_bg + NET dfi_cmd_bg + DIRECTION OUTPUT + PLACED ( 1000000 400000 ) E + LAYER metal3 ( -30000 0 ) ( 0 4000 ) ;
+- dfi_cmd_bank + NET dfi_cmd_bank + DIRECTION OUTPUT + PLACED ( 1000000 500000 ) E + LAYER metal3 ( -30000 0 ) ( 0 4000 ) ;
+- dfi_cmd_row + NET dfi_cmd_row + DIRECTION OUTPUT + PLACED ( 1000000 600000 ) E + LAYER metal3 ( -30000 0 ) ( 0 4000 ) ;
+- dfi_cmd_col + NET dfi_cmd_col + DIRECTION OUTPUT + PLACED ( 1000000 700000 ) E + LAYER metal3 ( -30000 0 ) ( 0 4000 ) ;
+- clk + NET clk + DIRECTION INPUT + PLACED ( 300000 1000000 ) N + LAYER metal3 ( 0 -30000 ) ( 4000 0 ) ;
+- rst_n + NET rst_n + DIRECTION INPUT + PLACED ( 500000 1000000 ) N + LAYER metal3 ( 0 -30000 ) ( 4000 0 ) ;
+- sdc_alert_pulse + NET sdc_alert_pulse + DIRECTION OUTPUT + PLACED ( 400000 0 ) S + LAYER metal3 ( 0 0 ) ( 4000 30000 ) ;
+- sdc_total_throttled + NET sdc_total_throttled + DIRECTION OUTPUT + PLACED ( 600000 0 ) S + LAYER metal3 ( 0 0 ) ( 4000 30000 ) ;
+END PINS
+
+END DESIGN

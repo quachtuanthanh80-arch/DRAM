@@ -1,0 +1,236 @@
+VERSION 5.8 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+MACRO sdc_resilient_filter
+  CLASS BLOCK ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 150.000 BY 100.000 ;
+  SYMMETRY X Y R90 ;
+  PIN clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 10.000 2.000 12.000 ;
+    END
+  END clk
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 20.000 2.000 22.000 ;
+    END
+  END rst_n
+  OBS
+    LAYER Metal1 ;
+      RECT 0.000 0.000 150.000 100.000 ;
+    LAYER Metal2 ;
+      RECT 0.000 0.000 150.000 100.000 ;
+  END
+END sdc_resilient_filter
+
+MACRO reorder_buffer_rob
+  CLASS BLOCK ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 180.000 BY 140.000 ;
+  SYMMETRY X Y R90 ;
+  PIN clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 10.000 2.000 12.000 ;
+    END
+  END clk
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 20.000 2.000 22.000 ;
+    END
+  END rst_n
+  OBS
+    LAYER Metal1 ;
+      RECT 0.000 0.000 180.000 140.000 ;
+    LAYER Metal2 ;
+      RECT 0.000 0.000 180.000 140.000 ;
+  END
+END reorder_buffer_rob
+
+MACRO qos_scheduler_queue
+  CLASS BLOCK ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 120.000 BY 100.000 ;
+  SYMMETRY X Y R90 ;
+  PIN clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 10.000 2.000 12.000 ;
+    END
+  END clk
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 20.000 2.000 22.000 ;
+    END
+  END rst_n
+  OBS
+    LAYER Metal1 ;
+      RECT 0.000 0.000 120.000 100.000 ;
+    LAYER Metal2 ;
+      RECT 0.000 0.000 120.000 100.000 ;
+  END
+END qos_scheduler_queue
+
+MACRO slack_aware_arbiter
+  CLASS BLOCK ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 100.000 BY 80.000 ;
+  SYMMETRY X Y R90 ;
+  PIN clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 10.000 2.000 12.000 ;
+    END
+  END clk
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 20.000 2.000 22.000 ;
+    END
+  END rst_n
+  OBS
+    LAYER Metal1 ;
+      RECT 0.000 0.000 100.000 80.000 ;
+    LAYER Metal2 ;
+      RECT 0.000 0.000 100.000 80.000 ;
+  END
+END slack_aware_arbiter
+
+MACRO ddr5_cmd_engine
+  CLASS BLOCK ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 130.000 BY 120.000 ;
+  SYMMETRY X Y R90 ;
+  PIN clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 10.000 2.000 12.000 ;
+    END
+  END clk
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 20.000 2.000 22.000 ;
+    END
+  END rst_n
+  OBS
+    LAYER Metal1 ;
+      RECT 0.000 0.000 130.000 120.000 ;
+    LAYER Metal2 ;
+      RECT 0.000 0.000 130.000 120.000 ;
+  END
+END ddr5_cmd_engine
+
+MACRO axi_slave_frontend
+  CLASS BLOCK ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 160.000 BY 110.000 ;
+  SYMMETRY X Y R90 ;
+  PIN clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 10.000 2.000 12.000 ;
+    END
+  END clk
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 20.000 2.000 22.000 ;
+    END
+  END rst_n
+  OBS
+    LAYER Metal1 ;
+      RECT 0.000 0.000 160.000 110.000 ;
+    LAYER Metal2 ;
+      RECT 0.000 0.000 160.000 110.000 ;
+  END
+END axi_slave_frontend
+
+MACRO addr_mapper_ddr5
+  CLASS BLOCK ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 110.000 BY 90.000 ;
+  SYMMETRY X Y R90 ;
+  PIN clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 10.000 2.000 12.000 ;
+    END
+  END clk
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 20.000 2.000 22.000 ;
+    END
+  END rst_n
+  OBS
+    LAYER Metal1 ;
+      RECT 0.000 0.000 110.000 90.000 ;
+    LAYER Metal2 ;
+      RECT 0.000 0.000 110.000 90.000 ;
+  END
+END addr_mapper_ddr5
+
+MACRO ecc_scrubber
+  CLASS BLOCK ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 120.000 BY 90.000 ;
+  SYMMETRY X Y R90 ;
+  PIN clk
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 10.000 2.000 12.000 ;
+    END
+  END clk
+  PIN rst_n
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER Metal1 ;
+        RECT 0.000 20.000 2.000 22.000 ;
+    END
+  END rst_n
+  OBS
+    LAYER Metal1 ;
+      RECT 0.000 0.000 120.000 90.000 ;
+    LAYER Metal2 ;
+      RECT 0.000 0.000 120.000 90.000 ;
+  END
+END ecc_scrubber
+

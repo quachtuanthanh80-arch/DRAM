@@ -1,0 +1,90 @@
+VERSION 5.8 ;
+DIVIDERCHAR "/" ;
+BUSBITCHARS "[]" ;
+
+DESIGN axi_ddr5_mc_top ;
+
+UNITS DISTANCE MICRONS 1000 ;
+
+DIEAREA ( 0 0 ) ( 800000 800000 ) ;
+
+COMPONENTS 8 ;
+- comp_sdc_resilient_filter sdc_resilient_filter
+  + PLACED ( 100000 500000 ) N ;
+- comp_reorder_buffer_rob reorder_buffer_rob
+  + PLACED ( 320000 500000 ) N ;
+- comp_qos_scheduler_queue qos_scheduler_queue
+  + PLACED ( 100000 320000 ) N ;
+- comp_slack_aware_arbiter slack_aware_arbiter
+  + PLACED ( 280000 320000 ) N ;
+- comp_ddr5_cmd_engine ddr5_cmd_engine
+  + PLACED ( 450000 300000 ) N ;
+- comp_axi_slave_frontend axi_slave_frontend
+  + PLACED ( 100000 120000 ) N ;
+- comp_addr_mapper_ddr5 addr_mapper_ddr5
+  + PLACED ( 320000 120000 ) N ;
+- comp_ecc_scrubber ecc_scrubber
+  + PLACED ( 480000 120000 ) N ;
+END COMPONENTS
+
+PINS 16 ;
+- clk_axi + NET clk_axi + DIRECTION INPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 400000 ) E ;
+- clk_ddr + NET clk_ddr + DIRECTION INPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 750000 400000 ) W ;
+- rst_n + NET rst_n + DIRECTION INPUT + USE RESET
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 380000 ) E ;
+- s_axi_awvalid + NET s_axi_awvalid + DIRECTION INPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 300000 ) E ;
+- s_axi_awready + NET s_axi_awready + DIRECTION OUTPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 280000 ) E ;
+- s_axi_wvalid + NET s_axi_wvalid + DIRECTION INPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 260000 ) E ;
+- s_axi_wready + NET s_axi_wready + DIRECTION OUTPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 240000 ) E ;
+- s_axi_arvalid + NET s_axi_arvalid + DIRECTION INPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 220000 ) E ;
+- s_axi_arready + NET s_axi_arready + DIRECTION OUTPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 200000 ) E ;
+- s_axi_rvalid + NET s_axi_rvalid + DIRECTION OUTPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 180000 ) E ;
+- s_axi_rready + NET s_axi_rready + DIRECTION INPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 50000 160000 ) E ;
+- dfi_cmd + NET dfi_cmd + DIRECTION OUTPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 750000 300000 ) W ;
+- dfi_cmd_valid + NET dfi_cmd_valid + DIRECTION OUTPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 750000 280000 ) W ;
+- dfi_wrdata_en + NET dfi_wrdata_en + DIRECTION OUTPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 750000 260000 ) W ;
+- dfi_rddata_valid + NET dfi_rddata_valid + DIRECTION INPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 750000 240000 ) W ;
+- alert_sdc_irq + NET alert_sdc_irq + DIRECTION OUTPUT + USE SIGNAL
+  + LAYER Metal3 ( -500 -2000 ) ( 500 2000 )
+  + PLACED ( 400000 750000 ) S ;
+END PINS
+
+SPECIALNETS 2 ;
+- VDD
+  ( * VDD )
+  + ROUTED TopMetal1 20000 + SHAPE RING ( 60000 60000 ) ( 740000 740000 ) ;
+- VSS
+  ( * VSS )
+  + ROUTED TopMetal1 20000 + SHAPE RING ( 40000 40000 ) ( 760000 760000 ) ;
+END SPECIALNETS
+
+END DESIGN

@@ -1,0 +1,7 @@
+clock,command,Channel,Rank,BankGroup,Bank,Row,Column,type,source
+1,ACT,0,0,0,0,0,1,0,-1
+8,ACT,0,1,0,0,0,0,0,-1
+9,ACT,0,0,1,0,0,0,0,-1
+13,ACT,0,0,2,0,0,0,0,-1
+17,ACT,0,0,0,1,0,0,0,-1
+23,RD,0,0,0,0,0,1,0,-1
