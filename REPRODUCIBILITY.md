@@ -49,16 +49,16 @@ Every figure and table in the manuscript maps 1-to-1 to an execution script and 
 
 | Paper Item | Description | Generating Script | Output Artifact |
 | :--- | :--- | :--- | :--- |
-| **Figure 1** | Microarchitectural Block Pipeline | [`paper/figures/fig_arch_overview.tex`](paper/figures/fig_arch_overview.tex) | `paper/figures/fig_arch_overview.pdf` |
-| **Figure 2** | Inter-BG Timing Slack Matrix | [`paper/figures/fig2_inter_bg_slack_matrix.tex`](paper/figures/fig2_inter_bg_slack_matrix.tex) | `paper/figures/fig2_inter_bg_slack_matrix.pdf` |
-| **Figure 3** | RowPress FPR and Resilience | [`paper/figures/fig7_rowpress_fpr_resilience.tex`](paper/figures/fig7_rowpress_fpr_resilience.tex) | `paper/figures/fig7_rowpress_fpr_resilience.pdf` |
-| **Figure 4** | SEC-DED SDC Bit-Flip Recovery | [`paper/figures/fig5_secded_sdc_resilience.tex`](paper/figures/fig5_secded_sdc_resilience.tex) | `paper/figures/fig5_secded_sdc_resilience.pdf` |
-| **Figure 5** | Double-Bit Detection Matrix | [`paper/figures/plot_template_figures.py`](paper/figures/plot_template_figures.py) | `paper/figures/plot2_double_bit_matrix.pdf` |
-| **Figure 6** | Multi-PDK PPA Scaling | [`paper/figures/fig6_multi_pdk_ppa_scaling.tex`](paper/figures/fig6_multi_pdk_ppa_scaling.tex) | `paper/figures/fig6_multi_pdk_ppa_scaling.pdf` |
-| **Figure 7** | Multi-Tenant Throughput under Attack | [`paper/figures/fig1_multitenant_throughput.tex`](paper/figures/fig1_multitenant_throughput.tex) | `paper/figures/fig1_multitenant_throughput.pdf` |
-| **Figure 8** | Multi-Channel Bandwidth Scaling | [`paper/figures/fig3_multichannel_scaling.tex`](paper/figures/fig3_multichannel_scaling.tex) | `paper/figures/fig3_multichannel_scaling.pdf` |
-| **Figure 9** | Gate Count Comparison | [`paper/figures/fig4_related_work_comparison.tex`](paper/figures/fig4_related_work_comparison.tex) | `paper/figures/fig4_related_work_comparison.pdf` |
-| **Figure 10**| Formal BMC & Induction Convergence | [`paper/figures/fig8_formal_bmc_convergence.tex`](paper/figures/fig8_formal_bmc_convergence.tex) | `paper/figures/fig8_formal_bmc_convergence.pdf` |
+| **Figure 1** | Microarchitectural Block Pipeline | `paper/figures/fig_arch_overview.tex` | `paper/figures/fig_arch_overview.pdf` |
+| **Figure 2** | Inter-BG Timing Slack Matrix | `paper/figures/fig2_inter_bg_slack_matrix.tex` | `paper/figures/fig2_inter_bg_slack_matrix.pdf` |
+| **Figure 3** | RowPress FPR and Resilience | `paper/figures/fig7_rowpress_fpr_resilience.tex` | `paper/figures/fig7_rowpress_fpr_resilience.pdf` |
+| **Figure 4** | SEC-DED SDC Bit-Flip Recovery | `paper/figures/fig5_secded_sdc_resilience.tex` | `paper/figures/fig5_secded_sdc_resilience.pdf` |
+| **Figure 5** | Double-Bit Detection Matrix | `paper/figures/plot_template_figures.py` | `paper/figures/plot2_double_bit_matrix.pdf` |
+| **Figure 6** | Multi-PDK PPA Scaling | `paper/figures/fig6_multi_pdk_ppa_scaling.tex` | `paper/figures/fig6_multi_pdk_ppa_scaling.pdf` |
+| **Figure 7** | Multi-Tenant Throughput under Attack | `paper/figures/fig1_multitenant_throughput.tex` | `paper/figures/fig1_multitenant_throughput.pdf` |
+| **Figure 8** | Multi-Channel Bandwidth Scaling | `paper/figures/fig3_multichannel_scaling.tex` | `paper/figures/fig3_multichannel_scaling.pdf` |
+| **Figure 9** | Gate Count Comparison | `paper/figures/fig4_related_work_comparison.tex` | `paper/figures/fig4_related_work_comparison.pdf` |
+| **Figure 10**| Formal BMC & Induction Convergence | `paper/figures/fig8_formal_bmc_convergence.tex` | `paper/figures/fig8_formal_bmc_convergence.pdf` |
 | **Table I** | Multi-PDK ASIC PPA Comparison | [`synth/asic/scripts/generate_multi_pdk_ppa_report.py`](synth/asic/scripts/generate_multi_pdk_ppa_report.py) | `synth/asic/reports/multi_pdk_ppa_comparison.md` |
 | **Table II** | Subsystem Gate Breakdown | [`synth/asic/reports/`](synth/asic/reports/) | `synth/asic/reports/axi_ddr5_mc_top_asic_ppa_summary.json` |
 | **Table III**| Cycle-Accurate Ramulator2 Matrix | [`sim/run_benchmarks.py`](sim/run_benchmarks.py) | `sim/results/bench_summary.json` |
