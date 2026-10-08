@@ -1,0 +1,30 @@
+{
+  "benchmark_harness": "run_benchmarks.py",
+  "git_commit_sha": "737c37c6c36f796f981bc69d2faf279979a6aa52",
+  "tool_versions": {
+    "python_version": "3.13.15",
+    "platform_system": "Windows",
+    "platform_release": "11",
+    "processor": "AMD64 Family 23 Model 17 Stepping 0, AuthenticAMD"
+  },
+  "command_line_invocation": "sim/run_benchmarks.py --config all --repeat 2 --seed 12345",
+  "total_runs": 180,
+  "repeat_count": 2,
+  "base_seed": 12345,
+  "total_wall_time_seconds": 0.11,
+  "timestamp_epoch": 1791462371.281121,
+  "dram_configs_evaluated": [
+    "DDR4-3200",
+    "DDR5-4800",
+    "DDR5-5600",
+    "DDR5-6000"
+  ],
+  "workloads_evaluated": [
+    "Benign",
+    "RowHammer",
+    "Mixed",
+    "Blacksmith",
+    "RowPress",
+    "MultiTenant"
+  ]
+}

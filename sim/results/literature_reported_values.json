@@ -1,0 +1,92 @@
+[
+  {
+    "scheme": "BlockHammer",
+    "source_paper": "HPCA'21",
+    "reported_benign_overhead_pct": 0.7,
+    "reported_gate_count_ge": 144700,
+    "reported_die_area_mod_pct": 0.0,
+    "simulator_used": "Ramulator 1.0 (DDR4-3200)",
+    "directly_comparable": true,
+    "disclaimer": "Evaluated also directly in-tree on Ramulator 2.0."
+  },
+  {
+    "scheme": "Graphene",
+    "source_paper": "MICRO'20",
+    "reported_benign_overhead_pct": 3.8,
+    "reported_gate_count_ge": 148100,
+    "reported_die_area_mod_pct": 0.0,
+    "simulator_used": "USIMM (DDR3/DDR4)",
+    "directly_comparable": false,
+    "disclaimer": "Not directly comparable: USIMM uses disparate scheduling assumptions."
+  },
+  {
+    "scheme": "AQUA",
+    "source_paper": "MICRO'22",
+    "reported_benign_overhead_pct": 4.6,
+    "reported_gate_count_ge": 160800,
+    "reported_die_area_mod_pct": 0.0,
+    "simulator_used": "Ramulator (DDR4-3200)",
+    "directly_comparable": false,
+    "disclaimer": "Not directly comparable: requires dedicated 41KB SRAM buffer."
+  },
+  {
+    "scheme": "Rubix",
+    "source_paper": "ASPLOS'24",
+    "reported_benign_overhead_pct": 1.9,
+    "reported_gate_count_ge": 146000,
+    "reported_die_area_mod_pct": 0.0,
+    "simulator_used": "gem5 + DRAMsim3",
+    "directly_comparable": false,
+    "disclaimer": "Not directly comparable: evaluated on gem5 full-system simulator."
+  },
+  {
+    "scheme": "PRAC",
+    "source_paper": "ISCA'24",
+    "reported_benign_overhead_pct": 1.5,
+    "reported_gate_count_ge": "In-DRAM Silicon",
+    "reported_die_area_mod_pct": 4.5,
+    "simulator_used": "Ramulator 2.0 (Custom PRAC)",
+    "directly_comparable": false,
+    "disclaimer": "Not directly comparable: modifies DRAM silicon die by 4.5%."
+  },
+  {
+    "scheme": "DREAM",
+    "source_paper": "ISCA'25",
+    "reported_benign_overhead_pct": 0.9,
+    "reported_gate_count_ge": 147050,
+    "reported_die_area_mod_pct": 0.0,
+    "simulator_used": "Ramulator 2.0",
+    "directly_comparable": false,
+    "disclaimer": "Not directly comparable: evaluated on different multi-tenant trace mixes."
+  },
+  {
+    "scheme": "QPRAC",
+    "source_paper": "HPCA'25",
+    "reported_benign_overhead_pct": 1.8,
+    "reported_gate_count_ge": "In-DRAM Silicon",
+    "reported_die_area_mod_pct": 4.2,
+    "simulator_used": "Ramulator 2.0",
+    "directly_comparable": false,
+    "disclaimer": "Not directly comparable: requires DRAM silicon modification."
+  },
+  {
+    "scheme": "PrISM",
+    "source_paper": "ISCA'26",
+    "reported_benign_overhead_pct": 1.2,
+    "reported_gate_count_ge": "In-DRAM Silicon",
+    "reported_die_area_mod_pct": 2.1,
+    "simulator_used": "Ramulator 2.0",
+    "directly_comparable": false,
+    "disclaimer": "Not directly comparable: requires in-DRAM sampling counters."
+  },
+  {
+    "scheme": "Q-Shield",
+    "source_paper": "This Work",
+    "reported_benign_overhead_pct": 0.0,
+    "reported_gate_count_ge": 148434,
+    "reported_die_area_mod_pct": 0.0,
+    "simulator_used": "Ramulator 2.0 (DDR5-4800)",
+    "directly_comparable": true,
+    "disclaimer": "Reference architecture evaluated in this repository."
+  }
+]

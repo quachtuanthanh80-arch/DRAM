@@ -1,0 +1,20 @@
+{
+  "script": "run_attack_emulation.py",
+  "commit_sha": "737c37c6c36f796f981bc69d2faf279979a6aa52",
+  "python_version": "3.13.15",
+  "platform": "Windows-11-10.0.22631-SP0",
+  "hardware_parameters": {
+    "num_bins": 1024,
+    "base_rh_threshold": 32,
+    "rowpress_tact_thresh_cycles": 120,
+    "epoch_window_cycles": 64000
+  },
+  "attacks_evaluated": [
+    "Benign_Standard",
+    "Standard_RowHammer",
+    "Blacksmith_MultiSided",
+    "RowPress_Prolonged",
+    "Mixed_MultiTenant"
+  ],
+  "timestamp_epoch": 1791462826.61601
+}

@@ -1,0 +1,22 @@
+% Auto-generated Qualitative Taxonomy Table
+\begin{table*}[t]
+\centering
+\caption{Qualitative Architectural Taxonomy of Memory Protection Mechanisms}
+\label{tab:qualitative_taxonomy}
+\begin{tabular}{lllcc}
+\hline
+Scheme & Deployment Scope & Rate Limiting Strategy & SDC Protection & Rollback Cycles \\
+\hline
+Baseline (FR-FCFS) & Memory Controller & None (Unmitigated) & None & 0 cycles \\
+BlockHammer & Memory Controller & Hard-Blocking Queue Stall & None & Up to 1.72M cycles \\
+Graphene & Memory Controller & Counter Saturation Stall & None & 128 cycles \\
+AQUA & Memory Controller & SRAM Migration Flush & None & 32 cycles \\
+Rubix & Memory Controller & Bank Quota Limiting & None & 16 cycles \\
+PRAC & In-DRAM Die + Controller & Alert Back-Off (ABO) & Link ECC (PHY only) & 64 cycles (t_DRFM) \\
+DREAM & Memory Controller & Periodic DRFM Scheduling & None & 48 cycles \\
+QPRAC & In-DRAM Die + Controller & Priority Alert Back-Off & Link ECC (PHY only) & 40 cycles \\
+PrISM & In-DRAM Die + Controller & Probabilistic Back-Off & Probabilistic Sampling & 32 cycles \\
+\textbf{Q-Shield (Ours)} & Pure Memory Controller & Smooth Rate Pacing (T_THROTTLE) & Autonomous SEC-DED (72, 64) & 0 cycles (Zero-Bubble) \\
+\hline
+\end{tabular}
+\end{table*}

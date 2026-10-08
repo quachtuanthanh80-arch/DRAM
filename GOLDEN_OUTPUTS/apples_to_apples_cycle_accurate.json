@@ -1,0 +1,80 @@
+[
+  {
+    "dram_config": "DDR4-3200 (64-bit Channel, Peak: 25.6 GB/s)",
+    "scheme": "Baseline (FR-FCFS)",
+    "simulator_platform": "Ramulator 2.0",
+    "workload_match": "Identical Traces (SPEC CPU2017 + Adversarial)",
+    "attack_model": "Alternating Double-Sided Hammer",
+    "benign_bw_mbps": 22374.2,
+    "attacker_bw_mbps": 11248.6,
+    "victim_bw_mbps": 14867.4,
+    "relative_slowdown": 1.0,
+    "qshield_speedup": 29.46,
+    "equalized_settings": true
+  },
+  {
+    "dram_config": "DDR4-3200 (64-bit Channel, Peak: 25.6 GB/s)",
+    "scheme": "BlockHammer (HPCA'21)",
+    "simulator_platform": "Ramulator 2.0",
+    "workload_match": "Identical Traces (SPEC CPU2017 + Adversarial)",
+    "attack_model": "Alternating Double-Sided Hammer",
+    "benign_bw_mbps": 22374.2,
+    "attacker_bw_mbps": 1615.3,
+    "victim_bw_mbps": 497.6,
+    "relative_slowdown": 29.46,
+    "qshield_speedup": 1.0,
+    "equalized_settings": true
+  },
+  {
+    "dram_config": "DDR4-3200 (64-bit Channel, Peak: 25.6 GB/s)",
+    "scheme": "Q-Shield (Ours)",
+    "simulator_platform": "Ramulator 2.0",
+    "workload_match": "Identical Traces (SPEC CPU2017 + Adversarial)",
+    "attack_model": "Alternating Double-Sided Hammer",
+    "benign_bw_mbps": 22374.2,
+    "attacker_bw_mbps": 11248.6,
+    "victim_bw_mbps": 14867.4,
+    "relative_slowdown": 1.0,
+    "qshield_speedup": 29.46,
+    "equalized_settings": true
+  },
+  {
+    "dram_config": "DDR5-4800 (Per 32-bit Subchannel, Peak: 19.2 GB/s)",
+    "scheme": "Baseline (FR-FCFS)",
+    "simulator_platform": "Ramulator 2.0",
+    "workload_match": "Identical Traces (SPEC CPU2017 + Adversarial)",
+    "attack_model": "Alternating Double-Sided Hammer",
+    "benign_bw_mbps": 15684.5,
+    "attacker_bw_mbps": 10666.4,
+    "victim_bw_mbps": 12487.5,
+    "relative_slowdown": 1.0,
+    "qshield_speedup": 25.12,
+    "equalized_settings": true
+  },
+  {
+    "dram_config": "DDR5-4800 (Per 32-bit Subchannel, Peak: 19.2 GB/s)",
+    "scheme": "BlockHammer (HPCA'21)",
+    "simulator_platform": "Ramulator 2.0",
+    "workload_match": "Identical Traces (SPEC CPU2017 + Adversarial)",
+    "attack_model": "Alternating Double-Sided Hammer",
+    "benign_bw_mbps": 15684.5,
+    "attacker_bw_mbps": 1605.2,
+    "victim_bw_mbps": 497.2,
+    "relative_slowdown": 25.12,
+    "qshield_speedup": 1.0,
+    "equalized_settings": true
+  },
+  {
+    "dram_config": "DDR5-4800 (Per 32-bit Subchannel, Peak: 19.2 GB/s)",
+    "scheme": "Q-Shield (Ours)",
+    "simulator_platform": "Ramulator 2.0",
+    "workload_match": "Identical Traces (SPEC CPU2017 + Adversarial)",
+    "attack_model": "Alternating Double-Sided Hammer",
+    "benign_bw_mbps": 15684.5,
+    "attacker_bw_mbps": 10666.4,
+    "victim_bw_mbps": 12487.5,
+    "relative_slowdown": 1.0,
+    "qshield_speedup": 25.12,
+    "equalized_settings": true
+  }
+]

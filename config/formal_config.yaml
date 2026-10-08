@@ -1,0 +1,59 @@
+# Q-Shield Formal Verification Configuration
+# Specifies solver settings, engine configurations, depths, and verification targets.
+
+framework:
+  engine: "sby"
+  supported_engines:
+    - smtbmc
+    - aiger
+  default_solver: "z3"
+  secondary_solvers:
+    - boolector
+    - yices
+    - bitwuzla
+  timeout_seconds: 300
+
+proof_profiles:
+  inductive_safety:
+    mode: "prove"
+    depth: 30
+    solver_options: "-st -v 2"
+    properties:
+      - name: "formal_sdc_filter"
+        target_rtl: "rtl/core/sdc_resilient_filter.sv"
+        bound: 30
+      - name: "formal_rob"
+        target_rtl: "rtl/core/reorder_buffer_rob.sv"
+        bound: 25
+      - name: "formal_skid_buffer"
+        target_rtl: "rtl/frontend/axi4_skid_buffer.sv"
+        bound: 30
+      - name: "formal_ecc_scrubber"
+        target_rtl: "rtl/backend/ecc_scrubber.sv"
+        bound: 20
+      - name: "formal_scrambler"
+        target_rtl: "rtl/memory/bus_scrambler.sv"
+        bound: 20
+      - name: "formal_async_fifo"
+        target_rtl: "rtl/cdc/async_fifo_cdc.sv"
+        bound: 30
+
+  bounded_model_checking:
+    mode: "bmc"
+    depth: 20
+    properties:
+      - name: "formal_ate"
+        target_rtl: "rtl/core/adaptive_threshold_engine.sv"
+        bound: 20
+      - name: "formal_drm"
+        target_rtl: "rtl/backend/directed_refresh_manager.sv"
+        bound: 20
+      - name: "formal_cmd_engine"
+        target_rtl: "rtl/backend/ddr5_cmd_engine.sv"
+        bound: 25
+      - name: "formal_slack_arbiter"
+        target_rtl: "rtl/backend/slack_aware_arbiter.sv"
+        bound: 20
+      - name: "formal_qos_queue"
+        target_rtl: "rtl/core/qos_scheduler_queue.sv"
+        bound: 20

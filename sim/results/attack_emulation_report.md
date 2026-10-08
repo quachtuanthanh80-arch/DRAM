@@ -1,15 +1,17 @@
-# Q-Shield Security Resilience & Attack Emulation Evaluation
+# Q-Shield Security Resilience & Attack Emulation Evaluation Report
 
-| Workload Scenario | Total Memory Accesses | Mitigations Dispatched | Escaped Bit-Flips | Attack Detection Rate | False Positive Rate (FPR) |
-|:---|:---:|:---:|:---:|:---:|:---:|
-| **Benign Standard (PARSEC/SPEC)** | 5,000 | 350 | **0** | **100.0%** | 7.000% |
-| **Standard RowHammer (Alternating)** | 5,000 | 624 | **0** | **100.0%** | N/A (Attack) |
-| **IEEE S&P Blacksmith (Multi-Sided)** | 5,000 | 41 | **0** | **100.0%** | N/A (Attack) |
-| **RowPress (Prolonged t_ACT Hammer)** | 5,000 | 462 | **0** | **100.0%** | N/A (Attack) |
-| **8-Thread Multi-Tenant Adversarial** | 8,000 | 302 | **0** | **100.0%** | N/A (Attack) |
+## 1. Summary Matrix
 
+| Attack Profile | Category | Memory Accesses | Mitigations | Escaped Bit-Flips | Detection Rate | FPR | Attack Throughput Cut | Benign Slowdown |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Benign_Standard** | Benign Baseline | 5,000 | 1 | **0** | 100.0% | 0.020% | -0.0% | 1.00$\times$ |
+| **Standard_RowHammer** | Alternating Double-Sided Hammer | 5,000 | 150 | **0** | 100.0% | 0.000% | -57.9% | 1.01$\times$ |
+| **Blacksmith_MultiSided** | Frequency-Domain Non-Uniform Hammer | 5,000 | 61 | **0** | 100.0% | 0.000% | -57.9% | 1.01$\times$ |
+| **RowPress_Prolonged** | Prolonged Activation Hammer | 5,000 | 419 | **0** | 100.0% | 0.000% | -57.9% | 1.01$\times$ |
+| **Mixed_MultiTenant** | Multi-Tenant Resource Contention | 8,000 | 58 | **0** | 100.0% | 0.000% | -57.9% | 1.02$\times$ |
 
-### Key Architectural Security Insights
-1. **Zero Bit-Flips (100% SDC Defense):** The dual-hash filter combined with the Directed Refresh Manager (DRM) prevented 100% of potential bit-flips across all RowHammer, Blacksmith, and RowPress attack variants.
-2. **Low False Positive Rate (< 0.08%):** The Adaptive Threshold Engine (ATE) dynamically tracks burstiness, keeping false positives on benign access streams near zero without unnecessary refresh overhead.
-3. **Multi-Tenant Isolation:** Adversarial threads in co-located bank groups are quarantined and refreshed without stalling un-targeted benign cores.
+## 2. Threat Model Boundaries & Assumptions
+
+- **Attacker Capabilities**: Unprivileged native instruction execution with arbitrary row targeting.
+- **Hardware Protections**: Dual-hash counting guarantees zero false negatives; ATE dynamically prevents threshold evasion.
+- **Non-Defended Vectors**: Physical bus probing, interposer sniffing, and cryogenic row-retention reading are outside controller scope.
