@@ -140,26 +140,26 @@ Nhằm giải quyết triệt để các hạn chế của các công trình DRA
 - **Module RTL:** [`rtl/core/adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv)
 - **Nguyên lý:** Áp dụng bộ lọc số EWMA (Exponentially Weighted Moving Average) để tự động điều chỉnh ngưỡng cảnh báo RowHammer theo thời gian thực trên cửa sổ trượt $W = 65,536$ chu kỳ:
 
-  $$
-  \mathrm{Ratio}(t) = \frac{\Delta_{\mathrm{throttles}}}{\Delta_{\mathrm{accesses}}}, \quad \overline{\mathrm{Ratio}}_t = \lambda \cdot \mathrm{Ratio}(t) + (1-\lambda) \cdot \overline{\mathrm{Ratio}}_{t-1}
-  $$
+$$
+\mathrm{Ratio}(t) = \frac{\Delta_{\mathrm{throttles}}}{\Delta_{\mathrm{accesses}}}, \quad \overline{\mathrm{Ratio}}_t = \lambda \cdot \mathrm{Ratio}(t) + (1-\lambda) \cdot \overline{\mathrm{Ratio}}_{t-1}
+$$
 
 - **Cơ chế Kháng Đánh Lừa Tấn Công (Adversarial Evasion Immunity):**
   Một câu hỏi bảo mật quan trọng là: *Liệu kẻ tấn công có thể cố tình gửi lưu lượng thưa để lừa ATE tăng ngưỡng lên vô hạn rồi bất ngờ kích hoạt RowHammer thành công không?*
 
   **Chứng minh phần cứng:** Ngưỡng động $N_{\mathrm{dynamic}}$ được kẹp cứng bằng thanh ghi cấu hình vật lý:
 
-  $$
-  N_{\mathrm{dynamic}}(t) = \min\Big(\max\big(\mathrm{EWMAScale}(\overline{\mathrm{Ratio}}_t),\, N_{\mathrm{base}}\big),\, N_{\mathrm{max}}\Big)
-  $$
+$$
+N_{\mathrm{dynamic}}(t) = \min\Big(\max\big(\mathrm{EWMAScale}(\overline{\mathrm{Ratio}}_t),\, N_{\mathrm{base}}\big),\, N_{\mathrm{max}}\Big)
+$$
 
   Trong đó thanh ghi $N_{\mathrm{max}}$ luôn được cố định nghiêm ngặt thỏa mãn $N_{\mathrm{max}} \le N_{\mathrm{RH\_CRIT}}$. Vì vậy, ngay cả trong kịch bản kẻ tấn công thao túng hoàn toàn luồng truy cập, $N_{\mathrm{dynamic}}$ không bao giờ vượt qua $N_{\mathrm{max}}$, triệt tiêu hoàn toàn nguy cơ đảo bit vật lý. Thuộc tính bất biến này đã được **chứng minh hình thức toán học (Formal Verification PASS)** trong `formal/formal_ate.sby`.
 - **Biên Độ An Toàn Vật Lý DRAM (Physical Safety Margin Analysis):**
   Theo các nghiên cứu công bố về đặc tính silicon DRAM DDR5/DDR4 (CMU SAFARI, Frigo et al., Rowhammer.js), ngưỡng kích hoạt tối thiểu gây đảo bit là $N_{\mathrm{crit}} \approx 28,000 - 64,000$ lần kích hoạt trong một chu kỳ làm tươi $t_{\mathrm{REFW}}$. Trong khi đó, Q-Shield kẹp cứng trần ngưỡng tối đa của ATE là $\theta_{\mathrm{max}} = 8,192$:
 
-  $$
-  \text{Safety Margin} = \frac{N_{\mathrm{crit}}}{\theta_{\mathrm{max}}} = \frac{28,000}{8,192} \approx 3.42\times
-  $$
+$$
+\text{Safety Margin} = \frac{N_{\mathrm{crit}}}{\theta_{\mathrm{max}}} = \frac{28,000}{8,192} \approx 3.42\times
+$$
 
   Khoảng đệm an toàn vật lý $3.42\times$ đảm bảo ngay cả trong kịch bản tấn công tinh vi nhất, hệ thống luôn kích hoạt điều tiết nhịp và phát xung làm tươi bảo vệ trước khi tế bào DRAM đạt tới ngưỡng nguy hiểm.
 - **Bảng Đánh Đổi Báo Động Sai vs Tỷ Lệ Phát Hiện (Empirical Trade-off Table):**
@@ -343,7 +343,7 @@ Q-Shield được tổng hợp ASIC chuẩn mực trên **4 thư viện công ng
 
 Q-Shield hỗ trợ mở rộng song song linh hoạt theo **dãy số tự nhiên liên tục từ 1 đến 8 kênh vật lý** (tương ứng **2 đến 16 kênh con độc lập 32-bit** trên chuẩn JEDEC DDR5):
 - **Kênh là lũy thừa của 2** ($N \in \{1, 2, 4, 8\}$): Phân bổ xen kẽ địa chỉ theo mặt nạ dòng Cache (CacheLine Interleaving: `(addr >> 6) & (N - 1)`).
-- **Kênh không phải lũy thừa của 2** ($N \in \{3, 5, 6, 7\}$): Phân bổ xen kẽ theo số dư Modulo-$N$ (Modulo-$N$ Interleaving: `(addr >> 6) % N`), triệt tiêu điểm nghẽn tập trung và phân bố đều lưu lượng trên toàn bộ các kênh lẻ/chẵn.
+- **Kênh không phải lũy thừa của 2** ($N \in \{3, 5, 6, 7\}$): Phân bổ xen kẽ theo số dư Modulo-N (Modulo-N Interleaving: `(addr >> 6) % N`), triệt tiêu điểm nghẽn tập trung và phân bổ đều lưu lượng trên toàn bộ các kênh lẻ/chẵn.
 
 ### Bảng Đo Lường Mở Rộng Liên Tục (DDR5-4800: 1–8 Kênh Vật Lý, 2–16 Kênh Con 32-bit)
 
