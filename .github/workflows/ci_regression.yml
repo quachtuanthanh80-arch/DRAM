@@ -40,6 +40,10 @@ jobs:
           make --version
           python -c "import cocotb_tools.config; print('Cocotb Makefiles:', cocotb_tools.config.makefiles_dir)"
 
+      - name: Validate Documentation Consistency & Integrity
+        run: |
+          python tools/check_documentation_consistency.py
+
       - name: Run Master Verification & Regression Suite
         run: |
           python run_all_tests.py

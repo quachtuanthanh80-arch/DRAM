@@ -9,14 +9,14 @@ All notable changes, methodological improvements, and architectural updates to t
 ### Major Methodological & Peer-Review Upgrades
 - **Transition from Promotional to Objective Academic Style**:
   - Eliminated unqualified marketing terminology (e.g., "0% overhead", "100% pass", "flawless SOTA", "zero weaknesses") across `README.md`, `sim/`, and `formal/`.
-  - Added operational contexts and conditional bounds to all performance claims (e.g., *"$<0.05\%$ overhead under non-congested SPEC CPU2017 workloads due to physical $t_{\mathrm{RCD}}/t_{\mathrm{RP}}$ pipeline latency shadowing"*).
+  - Added operational contexts and conditional bounds to all performance claims (e.g., *"< 0.05% overhead under non-congested SPEC CPU2017 workloads due to physical t_RCD / t_RP pipeline latency shadowing"*).
   - Replaced promotional badges with objective, informative status indicators.
 - **Three-Tier Comparative Architecture Matrix**:
   - Partitioned evaluations into (1) Apples-to-Apples cycle-accurate comparisons on Ramulator 2.0, (2) Literature-reported values with platform discrepancy caveats, and (3) Qualitative architectural taxonomy.
 - **Structured Artifact Mapping**:
   - Established a 1-to-1 mapping table linking all 10 manuscript figures and 4 tables directly to generating scripts and raw data outputs.
 - **Extended Limitations & Trade-offs Disclosure**:
-  - Detailed the Count-Min sketch probabilistic upper bound, false positive trade-offs ($0.08\% \to 1.38\%$), FPGA distributed LUT utilization ($86.8\%$), deliberate attacker throughput throttling ($-57.9\%$), and pure-controller boundaries.
+  - Detailed the Count-Min sketch probabilistic upper bound, false positive trade-offs (0.08% → 1.38%), FPGA distributed LUT utilization (86.8%), deliberate attacker throughput throttling (-57.9%), and pure-controller boundaries.
 - **Formal Verification Expansion**:
   - Documented individual SVA properties, mathematical targets, solver configurations, and unconstrained input rationale across BMC and $k$-induction modes in `formal/README.md`.
 - **Reproducibility & Environment Support**:

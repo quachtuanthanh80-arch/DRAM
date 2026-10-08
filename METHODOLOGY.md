@@ -39,13 +39,29 @@ To reflect realistic compute demands, benchmarks employ 87 cycle-accurate memory
 
 1. **Benign Scientific & Standard Workloads**:
    - Traces extracted from **SPEC CPU2017** (`mcf`, `lbm`, `omnetpp`, `gcc`) and **PARSEC 3.0** (`streamcluster`, `canneal`).
-   - Selected for diverse memory access characteristics: `mcf` exhibits a high row-miss rate ($78.4\%$), whereas `lbm` produces heavy streaming bus saturation ($99.9\%$).
+   - Selected for diverse memory access characteristics: `mcf` exhibits a high row-miss rate (78.4%), whereas `lbm` produces heavy streaming bus saturation (99.9%).
 2. **Cloud Database Workloads**:
    - **YCSB** Workload A (50% Read / 50% Write) and Workload B (95% Read / 5% Write) representing transactional cloud database behavior.
 3. **Adversarial Disturbance Patterns**:
    - *Alternating Double-Sided RowHammer*: Pounding adjacent wordlines ($Row_{k-1}, Row_{k+1}$) at wire speed.
    - *Blacksmith Frequency-Domain Hammer*: Non-uniform multi-sided frequency toggling across multiple aggressor rows (IEEE S&P'22).
    - *RowPress*: Holding rows active for prolonged durations up to JEDEC $t_{\mathrm{RAS\_max}}$ ($70\,\mu\text{s}$) to accelerate charge leakage.
+
+### 3.1 Workload Coverage & Future Extensions
+
+**Evaluated Scope**:
+- ✓ Single-threaded CPU workloads (SPEC CPU2017)
+- ✓ Multi-threaded parallelism (PARSEC 3.0)
+- ✓ Key-value store patterns (YCSB A/B)
+- ✓ Standard RowHammer patterns (frequencies 4–16 kHz)
+- ✓ RowPress patterns (row hold time up to $70\,\mu\text{s}$)
+
+**Unmodeled Scenarios & Planned Extensions**:
+- ✗ *Multi-Tenant Scenarios*: Concurrent benign and hostile threads co-located on separate CPU cores sharing a single memory channel.
+- ✗ *Cache Coherency Traffic*: Inter-core invalidation snooping and directory back-invalidation stalls.
+- ✗ *Heterogeneous Accelerator Workloads*: GPU/NPU dense streaming burst patterns with non-standard stride alignments.
+- ✗ *Carrier-Frequency Attacks (> 20 kHz)*: RF-assisted or electromagnetic disturbance beyond digital command frequency limits.
+- ✗ *Long-Duration Thermal Stress*: Multi-hour temperature cycling and wear-out aging effects on cell retention.
 
 ---
 
@@ -58,7 +74,7 @@ To reflect realistic compute demands, benchmarks employ 87 cycle-accurate memory
 3. **Relative Slowdown**:
    $$\text{Slowdown} = \frac{\text{Latency under Multi-Tenant Attack}}{\text{Latency in Isolation}}$$
 4. **False Positive Rate (FPR)**:
-   $$\text{FPR} = \frac{\text{Benign Requests Throttled}}{\text{Total Benign Requests}} \times 100\%$$
+   $$\text{FPR} = \frac{\text{Benign Requests Throttled}}{\text{Total Benign Requests}} \times 100$$
 
 ---
 
@@ -66,7 +82,7 @@ To reflect realistic compute demands, benchmarks employ 87 cycle-accurate memory
 
 - **Warmup Phase**: Each simulation executes $100,000$ memory cycles of warmup to prime cache lines, open page states, and queuing structures before logging metrics.
 - **Monte Carlo Repetitions**: Stochastic experiments are evaluated across **10 independent runs** initialized with fixed pseudo-random seeds (`seed = 12345` through `12354`).
-- **Confidence Intervals**: Numerical results report the empirical mean with standard deviations ($\sigma$) and 95% confidence intervals ($\text{CI}_{95} = \bar{x} \pm 1.96 \frac{\sigma}{\sqrt{N}}$), yielding $\sigma < 1.2\%$ across all primary benchmark indicators.
+- **Confidence Intervals**: Numerical results report the empirical mean with standard deviations ($\sigma$) and 95% confidence intervals ($\text{CI}_{95} = \bar{x} \pm 1.96 \frac{\sigma}{\sqrt{N}}$), yielding $\sigma < 0.012$ (< 1.2%) across all primary benchmark indicators.
 
 ---
 

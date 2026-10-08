@@ -31,6 +31,18 @@ Formal methods distinguish between **Bounded Model Checking (BMC)** (which verif
 | **P10** | CMD $t_{CCD\_L}$ Bank Group Spacing | [`formal_cmd_engine.sby`](formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: Back-to-back column commands to same bank group respect $t_{CCD\_L}$ timing gap. |
 | **P11** | Skid Buffer Zero-Drop Liveness | [`formal_skid_buffer.sby`](formal/formal_skid_buffer.sby) | **Prove ($k$-Ind)** | **20** | Yices + Z3 | Unbounded: No valid transaction beats are dropped during backpressure handshake transitions. |
 
+### 2.1 BMC Depth Selection & Justification
+
+The finite depth $k \in [20, 25]$ for properties P4–P10 was chosen based on hardware protocol boundaries and controller pipeline stages:
+- **JEDEC DDR5 Timing**: $t_{RCD}$ (14 ns) corresponds to ~35 physical PHY cycles or ~18 controller core cycles at 1.25 GHz.
+- **Controller Pipeline Latency**: AXI4 skid buffer to command dispatch queue latency is bounded at 4 cycles max.
+- **Typical Row Access Sequence**: An activation sequence ($\text{ACT} \rightarrow t_{RCD} \rightarrow \text{RD/WR} \rightarrow t_{CAS} \rightarrow \text{DATA}$) takes ~20–22 controller core cycles.
+- **Transaction Coverage**: Therefore, $k = 25$ covers a complete single-row access transaction cycle from arrival to bus retirement.
+
+⚠️ **Formal Boundary & Unchecked Scenarios**:
+- Attacks spanning $> 25$ cycles (e.g., multi-epoch coordinated refresh conflicts or long-term threshold drift) are not formally proven unbounded under BMC.
+- These long-term dynamics are mitigated in hardware by the Dynamic Rate Limiter (DRM) leaky bucket rate pacing, which is empirically validated across 50M-cycle simulation windows.
+
 ---
 
 ## 3. Temporal Logic & SystemVerilog Assertion (SVA) Specifications

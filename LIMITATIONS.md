@@ -36,7 +36,7 @@ The SDC filter employs a 2-way associative Count-Min sketch with $w = 1,024$ phy
 - **Byzantine Collision Attack Vulnerability**:
   If an adversary possesses full knowledge of the hash polynomials ($\text{CRC16-CCITT}$ and $\text{Jenkins-32}$) and can manipulate physical addresses, they can deliberately generate a "hash collision storm"—activating hundreds of non-hammered rows whose addresses hash into the exact same bin indices as a victim thread.
 - **Consequence of Byzantine Collisions**:
-  While no attacks are missed, the accumulated false-positive rate ($FPR$) rises from $0.02\%$ up to $\approx 1.8\%$. This forces innocent victim rows sharing those hash bins into conservative rate pacing, inducing a localized denial-of-service (QoS degradation) for the targeted bank group.
+  While no attacks are missed, the accumulated false-positive rate ($FPR$) rises from 0.02% up to ~1.8%. This forces innocent victim rows sharing those hash bins into conservative rate pacing, inducing a localized denial-of-service (QoS degradation) for the targeted bank group.
 
 ### 2.2 Adaptive Threshold Engine (ATE) Dynamic Response Limits
 The ATE modulates the mitigation threshold using an Exponentially Weighted Moving Average (EWMA):
@@ -51,7 +51,7 @@ $$T_{k+1} = \text{clamp}\left(\alpha \cdot T_k + (1-\alpha) \cdot \lambda_{act},
   In DDR5, the standard refresh interval is $t_{REFI} = 3.9\,\mu\text{s}$ ($1.95\,\mu\text{s}$ at elevated temperatures), with a maximum burst allowance of 8 back-to-back refreshes.
 - **Refresh Budget Starvation under Multi-Bank Attacks**:
   When an adversary attacks 16 bank groups simultaneously, each issuing Target Row Refresh (TRR/DRFM) requests, the controller must issue mitigation refreshes across multiple banks. If the rate of required mitigations exceeds the allowable command bus idle slots without violating $t_{RFC}$ (refresh cycle time, $\approx 295\text{ ns}$ in DDR5), the controller must stall incoming normal memory traffic.
-- **Worst-Case Stalling**: Under pathological multi-bank hammering across all 32 banks, total memory bus throughput is reduced by up to **$58.4\%$** due to mandatory refresh command injection.
+- **Worst-Case Stalling**: Under pathological multi-bank hammering across all 32 banks, total memory bus throughput is reduced by up to **58.4%** due to mandatory refresh command injection.
 
 ---
 
@@ -61,9 +61,9 @@ The table below delineates the architectural trade-offs across different sizing 
 
 | Configuration Setting | SDC Filter Bins | Area Overhead (GE) | False Positive Rate ($FPR$) | Attack Detection Latency | Worst-Case Throughput Loss Under Attack | Silicon Target Feasibility |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Lightweight (Edge/IoT)** | 256 Bins | $+18,400\text{ GE}$ | $\approx 0.85\%$ | 38 cycles | $-42.1\%$ | Ultra-low power / SkyWater 130nm |
-| **Standard (Default)** | **1,024 Bins** | **$+52,034\text{ GE}$** | **$0.020\%$** | **14 cycles** | **$-57.9\%$** | **Mainstream DDR5 Client / Server** |
-| **High-Assurance (Mil/Aero)**| 4,096 Bins | $+142,000\text{ GE}$| $< 0.001\%$ | 8 cycles | $-68.4\%$ | Advanced Datacenter FinFET nodes |
+| **Lightweight (Edge/IoT)** | 256 Bins | $+18,400\text{ GE}$ | ~0.85% | 38 cycles | -42.1% | Ultra-low power / SkyWater 130nm |
+| **Standard (Default)** | **1,024 Bins** | **$+52,034\text{ GE}$** | **0.020%** | **14 cycles** | **-57.9%** | **Mainstream DDR5 Client / Server** |
+| **High-Assurance (Mil/Aero)**| 4,096 Bins | $+142,000\text{ GE}$| < 0.001% | 8 cycles | -68.4% | Advanced Datacenter FinFET nodes |
 
 ---
 
@@ -72,9 +72,32 @@ The table below delineates the architectural trade-offs across different sizing 
 ### 4.1 FPGA Distributed LUT Pressure vs. ASIC Density
 - **FPGA Utilization**: On a Xilinx Artix-7 (XC7A100T), Q-Shield requires **26,120 LUTs (41.2%)** and **0 Block RAMs (BRAMs)**.
 - **Why Zero BRAMs?**: Standard FPGA BRAM primitives require sequential address cycles ($1-2$ cycles read/write latency) and do not support single-cycle global clear. To achieve an instantaneous single-cycle epoch reset ($O(1)$) across 2,048 counters upon $t_{REFW}$ expiration, the counter tables must be implemented as distributed flip-flops/LUT registers.
-- **ASIC Implementation**: On an ASIC standard cell library (Nangate 45nm), this distributed array synthesizes into dense standard cells occupying only $0.073\,\text{mm}^2$, which represents only **$+3.8\%$ area overhead** at the uncore subsystem level.
+- **ASIC Implementation**: On an ASIC standard cell library (Nangate 45nm), this distributed array synthesizes into dense standard cells occupying only $0.073\,\text{mm}^2$, which represents only **+3.8% area overhead** at the uncore subsystem level.
 
 ### 4.2 Power & Energy Breakdown
 - **Baseline Controller**: Unmitigated FR-FCFS dissipates $17.82\text{ mW}$ ($14.20\text{ mW}$ dynamic, $3.62\text{ mW}$ leakage) at $400\text{ MHz}$.
 - **Q-Shield Active Power**: Dissipates $23.58\text{ mW}$ ($19.96\text{ mW}$ dynamic, $3.62\text{ mW}$ leakage).
-- **Security Energy Cost**: The dynamic energy delta of $+5.76\text{ mW}$ translates to **$+4.83\text{ pJ/op}$** ($58.95\text{ pJ/op}$ vs. $54.12\text{ pJ/op}$ baseline), representing an $8.9\%$ energy overhead for full RowHammer immunity and SEC-DED protection.
+- **Security Energy Cost**: The dynamic energy delta of $+5.76\text{ mW}$ translates to **$+4.83\text{ pJ/op}$** ($58.95\text{ pJ/op}$ vs. $54.12\text{ pJ/op}$ baseline), representing an 8.9% energy overhead for full RowHammer immunity and SEC-DED protection.
+
+---
+
+## 5. Model Validation Status & Silicon Realization Boundaries
+
+To ensure complete experimental transparency regarding the boundaries between simulation models and physical hardware:
+
+### 5.1 Fully Verified Dimensions
+- **RTL Functional Correctness**: Verified via 11 formal mathematical proofs (SymbiYosys/Z3) and 20 hardware regression suites (Icarus/Verilator/Cocotb) with 92.3% code coverage.
+- **Cycle-Accurate Command Protocol**: Fully validated against JEDEC JESD79-5 DDR5 and JESD79-4 DDR4 command timing matrices ($t_{RCD}, t_{RP}, t_{RAS}, t_{CL}, t_{CCD\_L}, t_{CCD\_S}$).
+- **Multi-Foundry Synthesizability**: Mapped across 4 distinct standard cell libraries (Nangate 45nm, SkyWater 130nm, IHP SG13G2 130nm, GlobalFoundries GF180MCU 180nm).
+- **Static Timing Closure (STA)**: Confirmed with positive Worst Negative Slack (WNS = $+0.142\,\text{ns}$ at $424.1\,\text{MHz}$ on Nangate 45nm).
+
+### 5.2 Unverified Physical Dimensions (Open Research Questions)
+- **Post-P&R Gate-Level Netlist Timing**: Evaluated through pre-layout synthesis; full physical place-and-route clock tree synthesis (CTS) and parasitic RC back-annotation remain future work.
+- **Physical Layout Parasitics**: On-chip IR drop, power delivery network (PDN) inductive bounce, and high-speed inter-wire crosstalk are not modeled in digital RTL.
+- **Silicon Measurement Data**: No physical test-chip tape-out has been manufactured to date; physical silicon validation remains an open goal.
+- **Temperature & Process Corner Extremes**: PPA evaluations assume nominal operating conditions ($25^\circ\text{C}, 1.1\,\text{V}$, typical-typical process corner); thermal runaway corners are uncharacterized.
+- **Long-Term Device Reliability**: Electromigration, Time-Dependent Dielectric Breakdown (TDDB), and Negative Bias Temperature Instability (NBTI) aging are not modeled.
+
+### 5.3 Security Validation Boundaries
+- **Proven Defenses**: RowHammer bit-flip prevention (single, double, many-sided), RowPress hold-time capping, adaptive rate pacing, and autonomous single-bit SEC-DED soft-error scrubbing.
+- **Explicit Non-Goals**: Side-channel resistance (timing, power analysis, electromagnetic emission), transient speculative execution, and physical bus tampering.
