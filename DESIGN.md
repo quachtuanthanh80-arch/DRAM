@@ -54,37 +54,37 @@ Q-Shield integrates RowHammer mitigation, Silent Data Corruption (SDC) resilienc
 ## 2. Microarchitectural Modules
 
 ### 2.1 AMBA AXI4 Frontend & Skid Buffering
-- **Source Module**: [`rtl/bus/axi_slave_if.sv`](file:///d:/RAM/rtl/bus/axi_slave_if.sv), [`rtl/core/skid_buffer.sv`](file:///d:/RAM/rtl/core/skid_buffer.sv)
+- **Source Module**: [`rtl/frontend/axi_slave_frontend.sv`](rtl/frontend/axi_slave_frontend.sv), [`rtl/frontend/axi4_skid_buffer.sv`](rtl/frontend/axi4_skid_buffer.sv)
 - **Mechanism**: Implements full AMBA AXI4 protocol with independent address/data channels (`AW`, `W`, `B`, `AR`, `R`).
 - **Skid Buffering**: Decouples the ready/valid handshake with zero register-induced bubbles ($IPC=1.0$). When downstream pipelines assert backpressure, incoming requests are temporarily buffered in a single-depth latch stage without dropping back-to-back transfer beats.
 - **Boundary Detection**: Decomposes bursts crossing 4KB memory boundaries into compliant transactions per AMBA AXI specification section A3.4.1.
 
 ### 2.2 Dual-Hash SDC-Resilient Filter
-- **Source Module**: [`rtl/security/sdc_filter_top.sv`](file:///d:/RAM/rtl/security/sdc_filter_top.sv), [`rtl/security/hash_crc16.sv`](file:///d:/RAM/rtl/security/hash_crc16.sv)
+- **Source Module**: [`rtl/core/sdc_resilient_filter.sv`](rtl/core/sdc_resilient_filter.sv)
 - **Algorithm**: A 2-way associative Count-Min sketch with 1,024 physical bins per table. Uses orthogonal polynomials:
   $$\text{Hash}_1(\text{Row}) = \text{CRC16-CCITT}(x^{16} + x^{12} + x^5 + 1)$$
   $$\text{Hash}_2(\text{Row}) = \text{Jenkins-32 Bit Permutation}$$
 - **O(1) Epoch Reset**: Traditional multi-entry counters require $O(N)$ clock cycles to zeroize upon refresh window expiration ($t_{REFW} = 64\text{ ms}$ or $32\text{ ms}$). Q-Shield uses an epoch-tag generation register: counter invalidation occurs in a **single clock cycle** ($O(1)$) by incrementing the active epoch identifier, preventing pipeline stalls during refresh boundaries.
 
 ### 2.3 Adaptive Threshold Engine (ATE)
-- **Source Module**: [`rtl/security/adaptive_threshold_engine.sv`](file:///d:/RAM/rtl/security/adaptive_threshold_engine.sv)
+- **Source Module**: [`rtl/core/adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv)
 - **Operational Rationale**: Static threshold defenses fail against non-uniform or phase-shifted RowHammer attacks (e.g., RowPress or alternating many-sided hammer).
 - **Control Law**: Continuously monitors activation density $\lambda_{act}$ and modulates mitigation threshold $T_{thresh}$ via Exponentially Weighted Moving Average (EWMA):
   $$T_{k+1} = \text{clamp}\left( \alpha \cdot T_k + (1-\alpha) \cdot \frac{N_{bank\_act}}{\Delta t}, \; T_{min}, \; T_{max} \right)$$
   Where $\alpha = 0.875$, $T_{min} = 16$, and $T_{max} = 512$.
 
 ### 2.4 Dynamic Rate Limiter (DRM) & Backpressure
-- **Source Module**: [`rtl/security/dynamic_rate_limiter.sv`](file:///d:/RAM/rtl/security/dynamic_rate_limiter.sv)
+- **Source Module**: [`rtl/backend/directed_refresh_manager.sv`](rtl/backend/directed_refresh_manager.sv)
 - **Mechanism**: Leaky-bucket rate pacing that throttles suspected aggressor rows rather than hard-killing memory channels.
 - **Non-blocking Behavior**: If an aggressor bank is throttled, non-conflicting bank groups bypass the stalled queue through the Slack-Aware Arbiter, maintaining high memory bus utilization for benign threads.
 
 ### 2.5 Hazard-Proof Reorder Buffer (ROB)
-- **Source Module**: [`rtl/core/reorder_buffer.sv`](file:///d:/RAM/rtl/core/reorder_buffer.sv)
+- **Source Module**: [`rtl/core/reorder_buffer_rob.sv`](rtl/core/reorder_buffer_rob.sv)
 - **Structure**: 16-entry circular FIFO with content-addressable memory (CAM) lookup.
 - **Hazard Resolution**: Eliminates Read-After-Write (RAW) data hazards by tracking in-flight write addresses. If a read targets a pending write address, it either forwards data directly from the write buffer or stalls until the write retires, ensuring strict in-order memory consistency at retirement.
 
 ### 2.6 SEC-DED (72, 64) Hamming Engine & Autonomous Scrubber
-- **Source Module**: [`rtl/ecc/secded_ecc_top.sv`](file:///d:/RAM/rtl/ecc/secded_ecc_top.sv), [`rtl/ecc/ecc_scrubber.sv`](file:///d:/RAM/rtl/ecc/ecc_scrubber.sv)
+- **Source Module**: [`rtl/backend/ecc_scrubber.sv`](rtl/backend/ecc_scrubber.sv)
 - **Coding Scheme**: Standard (72, 64) Hsiao SEC-DED matrix providing single-error correction and double-error detection.
 - **Patrol Scrubbing**: An autonomous hardware engine steps through physical memory addresses during idle command slots, correcting single-bit soft errors before accumulation into uncorrectable multi-bit errors.
 

@@ -9,7 +9,7 @@ This document details the formal verification methodology, temporal logic specif
 - **Toolchain**: SymbiYosys (SBY) v0.38+ with Yosys 0.38+
 - **SMT Solvers**: Yices 2.6.4 (primary for bit-level arithmetic and BMC), Z3 4.12.2 (secondary for $k$-induction)
 - **Clock Domain**: Synchronous controller core domain (`clk`, active-high synchronous `rst_n`)
-- **Execution Script**: [`formal/run_all_formal.sh`](file:///d:/RAM/formal/run_all_formal.sh)
+- **Execution Script**: [`formal/run_all_formal.sh`](formal/run_all_formal.sh)
 
 ---
 
@@ -19,17 +19,17 @@ Formal methods distinguish between **Bounded Model Checking (BMC)** (which verif
 
 | # | Property Target | SBY Configuration File | Mode | Depth ($k$) | Solver | Verified Guarantee |
 | :- | :--- | :--- | :--- | :-: | :--- | :--- |
-| **P1** | SDC Counter Monotonicity | [`formal_sdc_filter.sby`](file:///d:/RAM/formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: Counters monotonically increment upon activation; never decrement or wrap illegally. |
-| **P2** | SDC Single-Cycle Reset | [`formal_sdc_filter.sby`](file:///d:/RAM/formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: On epoch trigger, all counter outputs evaluate to 0 within exactly 1 clock cycle. |
-| **P3** | SDC False-Negative Immunity | [`formal_sdc_filter.sby`](file:///d:/RAM/formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: If true row activations exceed threshold $T$, filter output never reports $< T$. |
-| **P4** | ATE Clamping Safety | [`formal_ate.sby`](file:///d:/RAM/formal/formal_ate.sby) | **BMC** | **20** | Yices | Bounded: Threshold $T_{thresh}$ is strictly bounded within $[T_{min}, T_{max}] = [16, 512]$ across all arbitrary inputs. |
-| **P5** | ATE Saturation Invariance | [`formal_ate.sby`](file:///d:/RAM/formal/formal_ate.sby) | **BMC** | **20** | Yices | Bounded: EWMA multiplier arithmetic does not experience arithmetic overflow or sign bit corruption. |
-| **P6** | DRM Rate Pacing Safety | [`formal_drm.sby`](file:///d:/RAM/formal/formal_drm.sby) | **BMC** | **20** | Yices | Bounded: Throttled aggressor rows cannot exceed target dispatch rate $R_{max}$. |
-| **P7** | DRM Queue Non-Starvation | [`formal_drm.sby`](file:///d:/RAM/formal/formal_drm.sby) | **BMC** | **20** | Yices | Bounded: Benign bank queues never experience indefinite backpressure due to aggressor stalls. |
-| **P8** | CMD $t_{RCD}$ Timing Compliance | [`formal_cmd_engine.sby`](file:///d:/RAM/formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: `READ`/`WRITE` commands are strictly separated from prior `ACT` by $\ge t_{RCD}$ cycles. |
-| **P9** | CMD $t_{RP}$ Precharge Compliance | [`formal_cmd_engine.sby`](file:///d:/RAM/formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: Subsequent `ACT` to same bank is strictly separated from `PRE` by $\ge t_{RP}$ cycles. |
-| **P10** | CMD $t_{CCD\_L}$ Bank Group Spacing | [`formal_cmd_engine.sby`](file:///d:/RAM/formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: Back-to-back column commands to same bank group respect $t_{CCD\_L}$ timing gap. |
-| **P11** | Skid Buffer Zero-Drop Liveness | [`formal_skid_buffer.sby`](file:///d:/RAM/formal/formal_skid_buffer.sby) | **Prove ($k$-Ind)** | **20** | Yices + Z3 | Unbounded: No valid transaction beats are dropped during backpressure handshake transitions. |
+| **P1** | SDC Counter Monotonicity | [`formal_sdc_filter.sby`](formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: Counters monotonically increment upon activation; never decrement or wrap illegally. |
+| **P2** | SDC Single-Cycle Reset | [`formal_sdc_filter.sby`](formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: On epoch trigger, all counter outputs evaluate to 0 within exactly 1 clock cycle. |
+| **P3** | SDC False-Negative Immunity | [`formal_sdc_filter.sby`](formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: If true row activations exceed threshold $T$, filter output never reports $< T$. |
+| **P4** | ATE Clamping Safety | [`formal_ate.sby`](formal/formal_ate.sby) | **BMC** | **20** | Yices | Bounded: Threshold $T_{thresh}$ is strictly bounded within $[T_{min}, T_{max}] = [16, 512]$ across all arbitrary inputs. |
+| **P5** | ATE Saturation Invariance | [`formal_ate.sby`](formal/formal_ate.sby) | **BMC** | **20** | Yices | Bounded: EWMA multiplier arithmetic does not experience arithmetic overflow or sign bit corruption. |
+| **P6** | DRM Rate Pacing Safety | [`formal_drm.sby`](formal/formal_drm.sby) | **BMC** | **20** | Yices | Bounded: Throttled aggressor rows cannot exceed target dispatch rate $R_{max}$. |
+| **P7** | DRM Queue Non-Starvation | [`formal_drm.sby`](formal/formal_drm.sby) | **BMC** | **20** | Yices | Bounded: Benign bank queues never experience indefinite backpressure due to aggressor stalls. |
+| **P8** | CMD $t_{RCD}$ Timing Compliance | [`formal_cmd_engine.sby`](formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: `READ`/`WRITE` commands are strictly separated from prior `ACT` by $\ge t_{RCD}$ cycles. |
+| **P9** | CMD $t_{RP}$ Precharge Compliance | [`formal_cmd_engine.sby`](formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: Subsequent `ACT` to same bank is strictly separated from `PRE` by $\ge t_{RP}$ cycles. |
+| **P10** | CMD $t_{CCD\_L}$ Bank Group Spacing | [`formal_cmd_engine.sby`](formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: Back-to-back column commands to same bank group respect $t_{CCD\_L}$ timing gap. |
+| **P11** | Skid Buffer Zero-Drop Liveness | [`formal_skid_buffer.sby`](formal/formal_skid_buffer.sby) | **Prove ($k$-Ind)** | **20** | Yices + Z3 | Unbounded: No valid transaction beats are dropped during backpressure handshake transitions. |
 
 ---
 
