@@ -237,14 +237,17 @@ def main():
             pass
 
     if cocotb_share:
-        env["COCOTB_SHARE"] = cocotb_share
+        env["COCOTB_SHARE_DIR"] = str(cocotb_share)
+        env["COCOTB_SHARE"] = str(cocotb_share)
+
+    import re
 
     for idx, item in enumerate(suites, 1):
         name = item["name"]
         stage = item["stage"]
         cwd = item["cwd"]
         makefile = item["makefile"]
-        overrides = item["env_overrides"]
+        overrides = item.get("env_overrides", {})
 
         print(f"[{idx:02d}/{len(suites):02d}] Stage: {stage:<11} | Running: {name} ...", end=" ", flush=True)
 
@@ -254,10 +257,11 @@ def main():
             test_results.append({"name": name, "stage": stage, "status": "SKIPPED", "runtime_seconds": 0.0, "exit_code": -1})
             continue
 
-        cmd = ["make", "-f", makefile]
+        cmd = ["make", "-f", makefile, "sim"]
         run_env = env.copy()
         for k, v in overrides.items():
-            run_env[k] = v
+            run_env[k] = str(v)
+            cmd.append(f"{k}={v}")
 
         t0 = time.time()
         try:
@@ -265,8 +269,9 @@ def main():
             elapsed = time.time() - t0
             output = res.stdout
 
-            # Clean output parsing
-            passed = res.returncode == 0 and "FAIL" not in output and "Error" not in output
+            # Clean output parsing: returncode 0 and no FAIL>0 counts in Cocotb
+            fail_match = re.search(r"FAIL=([1-9]\d*)", output)
+            passed = (res.returncode == 0) and (not fail_match)
             if passed:
                 total_passed += 1
                 status = "PASS"
@@ -275,6 +280,9 @@ def main():
                 total_failed += 1
                 status = "FAIL"
                 print(f"[FAIL] (Exit Code: {res.returncode})")
+                tail_lines = output.strip().splitlines()[-15:]
+                for line in tail_lines:
+                    print(f"    | {line}")
             
             test_results.append({
                 "name": name,
