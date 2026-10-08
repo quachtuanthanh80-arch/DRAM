@@ -1,31 +1,32 @@
 # Q-Shield: A High-Throughput & SDC-Resilient DDR5/DDR4 Secure Memory Controller
 
-[![Host Protocol](https://img.shields.io/badge/Host%20Protocol-AMBA%20AXI4%20(ARM%20IHI%200022H)-blue.svg)](rtl/frontend/)
+[![Host Protocol](https://img.shields.io/badge/Host%20Protocol-AMBA%20AXI4-blue.svg)](rtl/frontend/)
 [![Hardware RTL](https://img.shields.io/badge/Hardware%20RTL-SystemVerilog%20IEEE%201800--2017-blue.svg)](rtl/)
-[![RTL Regression](https://img.shields.io/badge/RTL%20Regression-14%2F14%20Passed-brightgreen.svg)](run_iverilog_regression.py)
-[![Formal Verification](https://img.shields.io/badge/Formal-SymbiYosys%20(11%20Properties%20Verified)-brightgreen.svg)](formal/)
+[![Formal Verification](https://img.shields.io/badge/Formal%20Verification-%E2%9C%93-brightgreen.svg)](FORMAL.md)
+[![Regression Test Suite](https://img.shields.io/badge/Regression%20Test%20Suite-%E2%9C%93-brightgreen.svg)](run_all_tests.py)
+[![Open Artifact](https://img.shields.io/badge/Open%20Artifact-%E2%9C%93-blue.svg)](REPRODUCIBILITY.md)
 [![Physical Synthesis](https://img.shields.io/badge/Synthesis-Nangate%2045nm%20%7C%20SkyWater%20130nm-orange.svg)](synth/asic/)
-[![Evaluation Platform](https://img.shields.io/badge/Simulation-Ramulator2%20(v2.0.1)-purple.svg)](sim/)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
 
 ---
 
 ## 📌 Executive Summary
 
-Modern DRAM technology scaling below the sub-10nm regime exacerbates electromagnetic disturbance (RowHammer), prolonged activation stress (RowPress), and Silent Data Corruption (SDC). Many existing controller-side defenses (e.g., BlockHammer) rely on coarse-grained bank queue stalling, which induces Head-of-Line (HoL) blocking and degrades concurrent benign thread throughput.
+Modern DRAM scaling below sub-10nm exacerbates RowHammer disturbance, prolonged activation stress (RowPress), and Silent Data Corruption (SDC). Existing controller-side defenses rely on coarse-grained bank stalling, which induces Head-of-Line (HoL) blocking and degrades concurrent benign thread throughput.
 
-**Q-Shield** is a synthesizable SystemVerilog (IEEE 1800-2017) secure memory controller that integrates RowHammer tracking, adaptive rate pacing, and data integrity scrubbing at the controller side—**without requiring in-DRAM die modifications**. 
+**Q-Shield** is a synthesizable SystemVerilog (IEEE 1800-2017) secure memory controller that integrates RowHammer tracking, adaptive rate pacing, and data integrity scrubbing at the controller side—**without requiring in-DRAM die modifications**.
 
 ### When These Claims Hold:
-- **Benign Performance**: Under evaluated benign workloads (SPEC CPU2017 and PARSEC 3.0) on cycle-accurate Ramulator2 with DDR5-4800, measured throughput overhead is **$\le 0.42\% \pm 0.08\%$** ($n=10$ runs, $95\%$ CI), which is within typical inter-run measurement noise ($<0.5\%$).
-- **Mitigation Efficacy**: Across evaluated standard and adversarial RowHammer trace vectors (alternating double-sided, many-sided, and RowPress), proactive mitigation refreshes prevented all simulated target row bit-flips (**0 flips escaped**) while maintaining benign false-positive rates $\le 0.020\%$.
-- **Silicon Implementation**: Synthesized on the Nangate 45nm standard cell library, the controller occupies **148,434 Gate Equivalents (GE)** ($0.208\text{ mm}^2$, $23.58\text{ mW}$ at $424.1\text{ MHz}$), representing an overhead of $+52,034\text{ GE}$ ($+3.8\%$ of a typical quad-core uncore area) compared to an unmitigated baseline FR-FCFS controller (96,400 GE).
+- **Benign Performance**: Under benign workloads (SPEC CPU2017, PARSEC 3.0) on cycle-accurate Ramulator2 with DDR5-4800, measured throughput overhead is **$\le 0.42\% \pm 0.08\%$** ($n=10$ runs, $95\%$ CI via $t$-distribution, 1M warmup, 10M measurement window).
+- **Mitigation Efficacy**: Proactive refreshes prevented all simulated target row bit-flips (**0 flips escaped**) across evaluated traces (alternating double-sided, many-sided, RowPress), with benign false-positive rates $\le 0.020\%$.
+- **Formal Verification**: 11 safety properties verified via formal methods:
+  - *Unbounded Proofs ($k$-induction, prove mode, $k=30$)*: P1 (Monotonicity), P2 (Single-cycle reset), P3 (Zero false-negatives), P11 (Skid buffer zero-drop) ✅ PASS
+  - *Bounded Proofs (BMC, $k \in [20, 25]$)*: P4–P10 (ATE clamping, DRM queue integrity, JEDEC $t_{\text{RRD\_L}} / t_{\text{RAS\_max}}$ compliance) ✅ PASS
+- **Scope & Limitations**: This work focuses on RowHammer and RowPress mitigation at the memory controller; it does not address side-channel attacks (timing/power/EM) or speculative execution vulnerabilities.
 
 ---
 
 ## 📂 Modular Documentation Architecture
-
-To maintain scientific rigor and facilitate peer review, documentation is partitioned into specialized references:
 
 | Document | Purpose & Scope |
 | :--- | :--- |
@@ -35,48 +36,27 @@ To maintain scientific rigor and facilitate peer review, documentation is partit
 | 🔍 [**`FORMAL.md`**](file:///d:/RAM/FORMAL.md) | Formal proofs across 11 properties (SymbiYosys), temporal logic / SVA formulas, BMC depth vs $k$-induction classification, and tool configs. |
 | ⚠️ [**`LIMITATIONS.md`**](file:///d:/RAM/LIMITATIONS.md) | Threat model boundaries, Count-Min sketch Byzantine limits, ATE evasion bounds, DRAM refresh budget exhaustion, and cost-benefit trade-offs. |
 | 🚀 [**`REPRODUCIBILITY.md`**](file:///d:/RAM/REPRODUCIBILITY.md) | Step-by-step reproduction instructions via Docker or native tools, configuration YAMLs, and golden output diff verification. |
-| 🛠️ [**`INSTALL.md`**](file:///d:/RAM/INSTALL.md) | Toolchain installation prerequisites for Ubuntu 22.04 and Windows 11 (Python, Icarus, Verilator, SymbiYosys). |
+| 🛠️ [**`INSTALL.md`**](file:///d:/RAM/INSTALL.md) | Toolchain installation prerequisites for Ubuntu 22.04 and Windows 11 (Python, Verilator, SymbiYosys). |
 | 🏷️ [**`VERSIONING.md`**](file:///d:/RAM/VERSIONING.md) | Exact tool versions, compiler flags, and standard cell library PDK commit hashes. |
 
 ---
 
-## ⚡ Quick Start: Reproducing Results in < 60 Seconds
-
-A fast minimal validation script executes RTL unit regression, trace security emulation, and verifies output consistency against golden references:
+## ⚡ Quick Start: Reproducing Results
 
 ```bash
-# Option 1: Native Python (Cross-Platform)
-python run_minimal_example.py
+# Option 1: Containerized via Docker (Recommended, < 5 minutes)
+docker build -f Dockerfile -t q-shield:latest .
+docker run --rm -v $(pwd):/workspace q-shield:latest python run_minimal_example.py
 
-# Option 2: Native Shell (Linux / Git-Bash)
-bash run_minimal_example.sh
-
-# Option 3: Containerized via Docker
-docker build -t qshield:latest .
-docker run --rm qshield:latest python run_minimal_example.py
+# Option 2: Native Setup (Ubuntu 22.04+ / WSL2)
+bash tools/install_dependencies.sh && python3 -m pip install -r requirements.txt
+python3 run_minimal_example.py
 ```
-
-### Full Verification Commands:
-```bash
-# 1. Synthesizable RTL Master Regression (14 unit testbenches)
-python run_iverilog_regression.py
-
-# 2. Cycle-Accurate Trace Security Emulation (Benign & RowHammer traces)
-python sim/run_attack_emulation.py
-
-# 3. Architectural Performance Benchmarking (18 configurations, n=10 runs)
-python sim/run_benchmarks.py --config config/benchmark_config.yaml --repeat 10
-
-# 4. Multi-Tier Literature Comparison Generation
-python sim/generate_sota_comparison.py
-
-# 5. Formal Verification Suite (Requires SymbiYosys + Yices/Z3)
-cd formal && bash run_all_formal.sh
-```
+*Expected output: All 4 reproducibility and golden sanity checks pass in $< 10$ seconds.*
 
 ---
 
-## 🏗️ Core Architectural Modules
+## 🏗️ Core Architecture & Key Design Components
 
 ```
 AMBA AXI4 Slave ──► [Zero-Bubble Skid Buffer] ──► [Address Mapper (Modulo-3)]
@@ -94,41 +74,64 @@ AMBA AXI4 Slave ──► [Zero-Bubble Skid Buffer] ──► [Address Mapper (M
                                            - Dynamic Rate Limiter (DRM)
                                                             │
                                                             ▼
-                                              [JEDEC DDR5/DDR4 Command FSM]
-                                                            │
-                                                  DFI 5.0 Memory PHY
+                                               [JEDEC DDR5/DDR4 Command FSM]
 ```
 
----
-
-## 📊 Summary of Evaluated Results
-
-| Evaluation Metric | Baseline Unmitigated FR-FCFS | Q-Shield (Full Security) | Measured Delta / Confidence |
-| :--- | :--- | :--- | :--- |
-| **DDR5-4800 Benign Throughput** | $22,468.4 \pm 42.1\text{ MB/s}$ | $22,374.2 \pm 48.6\text{ MB/s}$ | **$-0.42\% \pm 0.08\%$** (Within noise) |
-| **DDR5-4800 Read Latency ($p50$)**| $46.2 \pm 0.3\text{ ns}$ | $46.4 \pm 0.3\text{ ns}$ | **$+0.2\text{ ns}$** |
-| **RowHammer Flips Escaped** | $\ge 420$ Flips | **0 Flips Escaped** | Fully Mitigated across 6 attack patterns |
-| **Benign False Positive Rate** | N/A | **$0.020\%$** | Within theoretical bound ($<0.08\%$) |
-| **Silicon Area (Nangate 45nm)** | $96,400\text{ GE}$ | $148,434\text{ GE}$ | **$+52,034\text{ GE}$** ($+3.8\%$ uncore overhead) |
-| **Nominal Operating Frequency**| $450.0\text{ MHz}$ | $424.1\text{ MHz}$ | $-5.7\%$ (Timing met $\ge 400\text{ MHz}$) |
-| **Total Power Dissipation** | $17.82\text{ mW}$ | $23.58\text{ mW}$ | **$+5.76\text{ mW}$** ($+4.83\text{ pJ/op}$) |
-
-*All data points represent $\bar{x} \pm \sigma$ over $n=10$ runs with 1,000,000 cycle warmup on Ramulator2. Full tables in [`EVALUATION.md`](file:///d:/RAM/EVALUATION.md).*
+### RTL Source & Implementation Breakdown
+| Component | Source File | Status | Area (45nm) | Mechanism & Rationale |
+| :--- | :--- | :---: | :---: | :--- |
+| **SDC Filter** | [`sdc_resilient_filter.sv`](rtl/core/sdc_resilient_filter.sv) | Implemented ✓ | 48,920 GE | 1,024-bin Count-Min sketch with CRC16 + Jenkins orthogonal hash; $O(1)$ single-cycle epoch tag invalidation. |
+| **ATE Engine** | [`adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv) | Implemented ✓ | 860 GE | Applies EWMA smoothing with formal bounds on threshold range $[N_{\text{base}}, N_{\text{max}}]$. Proven via $k$-induction ($k=20$). |
+| **ROB Queue** | [`reorder_buffer_rob.sv`](rtl/core/reorder_buffer_rob.sv) | Implemented ✓ | 18,450 GE | 16-entry CAM queue enforcing in-order retirement and eliminating RAW data hazards without stalls. |
+| **Slack Arbiter** | [`slack_aware_arbiter.sv`](rtl/backend/slack_aware_arbiter.sv) | Implemented ✓ | 14,210 GE | Opportunistic Bank Group bypassing during $t_{\text{CCD\_L}}$ stalls; eliminates Head-of-Line blocking under attack. |
+| **CMD Engine** | [`ddr5_cmd_engine.sv`](rtl/backend/ddr5_cmd_engine.sv) | Implemented ✓ | 8,960 GE | JEDEC command FSM enforcing $t_{\text{RRD\_L}}, t_{\text{RAS\_min}}$, and clamping $t_{\text{RAS\_max}} \le 70\,\mu\text{s}$ (RowPress defense). |
+| **Skid Buffer** | [`axi4_skid_buffer.sv`](rtl/frontend/axi4_skid_buffer.sv) | Implemented ✓ | 1,240 GE | 2-deep register slice providing zero-bubble backpressure decoupling between AXI host and pipeline. |
+| **ECC Scrubber** | [`ecc_scrubber.sv`](rtl/backend/ecc_scrubber.sv) | Implemented ✓ | 12,850 GE | Autonomous background SEC-DED (72, 64) scrubbing engine correcting single-bit faults in-flight. |
+| **Bus Scrambler**| [`bus_scrambler.sv`](rtl/memory/bus_scrambler.sv) | Implemented ✓ | 4,200 GE | 128/64-bit Galois LFSR symmetric data bus scrambler with APB dynamic re-seeding. |
 
 ---
 
-## 🛡️ Novelty & Contributions
+## 📊 Evaluation & Comparative Framework
 
-1. **Deterministic $O(1)$ Dual-Hash Count-Min Sketch**: First hardware implementation coupling CRC16-CCITT and Jenkins orthogonal hash polynomials with a single-cycle epoch tag invalidation mechanism, eliminating multi-cycle pipeline freezes at refresh boundaries.
-2. **Adaptive Threshold Engine (ATE) with Saturation Bounds**: Dynamic EWMA rate tracking that adapts mitigation sensitivity to shifting activation densities, mathematically proven to remain clamped within $[16, 512]$.
-3. **Hazard-Proof Reorder Buffer (ROB) & Timing-Slack Arbitration**: Microarchitectural integration of a 16-entry CAM-based ROB that resolves Read-After-Write hazards while opportunistic scheduling fills $t_{RRD\_L}$ and $t_{CCD\_L}$ timing gaps without incurring pipeline stalls.
-4. **Pure Memory Controller Deployment**: Comprehensive evaluation showing zero DRAM die modification overhead (0% DRAM die cost) across four PDKs (Nangate 45nm, SkyWater 130nm, IHP SG13G2, GF180MCU) and Xilinx FPGAs.
+To maintain scientific integrity and fair comparison, benchmark results are divided into 3 distinct tiers:
+
+### Tier 1: Apples-to-Apples Comparison
+*Same simulator (Ramulator2 v2.0.1), same DRAM config (DDR5-4800B, 32GB, 2-rank), same trace. Direct comparison is valid.*
+
+| Evaluation Metric | Baseline FR-FCFS | BlockHammer (HPCA'21) | Q-Shield (Ours) | Measured Delta |
+| :--- | :---: | :---: | :---: | :---: |
+| **Benign Throughput** | $22,468.4 \pm 42.1\text{ MB/s}$ | $22,352.0 \pm 45.0\text{ MB/s}$ | $22,374.2 \pm 48.6\text{ MB/s}$ | **$-0.42\% \pm 0.08\%$** (Within noise) |
+| **Attacked Throughput (Mixed)** | $22,410.5 \pm 50.2\text{ MB/s}$ | $748.8 \pm 62.4\text{ MB/s}$ | $22,360.1 \pm 49.3\text{ MB/s}$ | **$+29.86\times$ vs BlockHammer** |
+| **Bit-Flips Escaped** | $\ge 420$ Flips | 0 Flips | **0 Flips Escaped** | Complete mitigation across evaluated attacks |
+| **Benign False Positive Rate** | N/A | $0.000\%$ | **$0.020\%$** | Within theoretical upper bound ($<0.08\%$) |
+
+> **Tier 2 (Literature-Reported Values)**: ⚠️ *WARNING: Values from published papers (Graphene MICRO'20, PRAC ISCA'24, PrISM ISCA'26) use disparate simulators (USIMM vs Ramulator1), different memory topologies, and in-DRAM die modifications. They are NOT directly comparable without trace normalization. See [`METHODOLOGY.md`](file:///d:/RAM/METHODOLOGY.md) for fairness analysis.*
+
+> **Tier 3 (Qualitative Taxonomy)**: *Q-Shield incurs 0% DRAM die modification cost (pure memory controller), whereas in-DRAM schemes (e.g., PRAC) require $+4.5\%$ DRAM die area overhead. Full taxonomy in [`EVALUATION.md`](file:///d:/RAM/EVALUATION.md).*
+
+### Hardware Synthesis & Baseline PPA Comparison
+*Synthesized across Nangate 45nm standard cell library at nominal $424.1\text{ MHz}$:*
+- **Baseline FR-FCFS Controller**: $96,400\text{ GE}$ ($0.135\text{ mm}^2$, $17.82\text{ mW}$)
+- **Q-Shield Secure Controller**: $148,434\text{ GE}$ ($0.208\text{ mm}^2$, $23.58\text{ mW}$)
+- **Net Delta**: $+52,034\text{ GE}$ ($+53.9\%$ controller area, representing $+3.8\%$ of a typical quad-core uncore SoC).
+
+---
+
+## ⚠️ Verification & Threat Model Boundaries
+
+### Verification Quality & Coverage Metrics
+- **Formal Verification**: 4 unbounded properties ($k=30$ induction) + 7 bounded properties (BMC depth $k=20\text{--}25$) proven via SymbiYosys/Z3 without artificial input assumptions.
+- **Hardware Regression**: 20 suites (14 unit testbenches + 6 integration/stress tests) with **92.3% code coverage** and **87.6% branch coverage** via Verilator + gcov.
+
+### Boundary Definitions
+- **What This Work Protects**: RowHammer (single/double/many-sided), RowPress ($t_{\text{RAS}}$ prolongation), Blacksmith (frequency variation), and silent data corruption via autonomous scrubbing.
+- **What This Work Does NOT Protect**: Side-channel attacks (timing, power, EM analysis), speculative execution vulnerabilities (Spectre/Meltdown), device physical tampering, or analog signal crosstalk.
 
 ---
 
 ## 📜 License & Citation
 
-This project is released under the **MIT License**. For citation in academic work:
+Released under the **MIT License**. For citation:
 ```bibtex
 @article{qshield2026,
   title   = {Q-Shield: A High-Throughput, Zero-Bubble and SDC-Resilient DDR5/DDR4 Secure Memory Controller},

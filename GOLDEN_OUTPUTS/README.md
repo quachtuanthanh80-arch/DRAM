@@ -24,22 +24,10 @@ This directory contains deterministic, verified golden reference outputs generat
 To verify that local execution matches the golden references within numerical tolerance:
 
 ```bash
-# Compare local RTL regression against golden
-python -c "
-import json
-with open('regression_summary.json') as f1, open('GOLDEN_OUTPUTS/regression_summary.json') as f2:
-    d1, d2 = json.load(f1), json.load(f2)
-    assert d1['summary']['failed'] == 0, 'Local regression has failures'
-    assert d1['summary']['total_tests'] == d2['summary']['total_tests'], 'Test count mismatch'
-    print('✓ RTL Regression matches Golden (14/14 passed)')
-"
+# Verify using the automated verification utility (numerical tolerance <= 1%)
+python tools/verify_golden_outputs.py
 
-# Compare local Attack Emulation against golden
-python -c "
-import json
-with open('sim/results/attack_emulation_summary.json') as f1, open('GOLDEN_OUTPUTS/attack_emulation_summary.json') as f2:
-    d1, d2 = json.load(f1), json.load(f2)
-    assert d1['summary']['escaped_flips'] == d2['summary']['escaped_flips'] == 0, 'Security breach detected'
-    print('✓ Attack Emulation matches Golden (0 escaped flips, FPR within bound)')
-"
+# Verify SHA256 integrity of golden files
+sha256sum -c GOLDEN_OUTPUTS/checksums.sha256
 ```
+
