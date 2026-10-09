@@ -21,6 +21,8 @@ results*.xml
 *.fst
 *.hier
 obj_dir/
+ci_test_summary.json
+
 
 # SymbiYosys formal verification run directories
 formal/formal_*/

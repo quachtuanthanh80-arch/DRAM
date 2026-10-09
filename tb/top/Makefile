@@ -10,9 +10,13 @@ VERILOG_SOURCES = \
     $(ROOT_DIR)/rtl/frontend/axi_slave_frontend.sv \
     $(ROOT_DIR)/rtl/frontend/wdata_buffer.sv \
     $(ROOT_DIR)/rtl/frontend/domain_bank_coloring.sv \
+    $(ROOT_DIR)/rtl/core/scarf_dram_randomizer.sv \
     $(ROOT_DIR)/rtl/frontend/addr_mapper_ddr5.sv \
     $(ROOT_DIR)/rtl/cdc/rst_sync.sv \
     $(ROOT_DIR)/rtl/cdc/async_fifo_cdc.sv \
+    $(ROOT_DIR)/rtl/core/fault_hardened_csr.sv \
+    $(ROOT_DIR)/rtl/crypto/multi_vm_key_table.sv \
+    $(ROOT_DIR)/rtl/core/pxor_hash_engine.sv \
     $(ROOT_DIR)/rtl/core/sdc_resilient_filter.sv \
     $(ROOT_DIR)/rtl/core/adaptive_threshold_engine.sv \
     $(ROOT_DIR)/rtl/core/qos_scheduler_queue.sv \
@@ -28,8 +32,8 @@ VERILOG_SOURCES = \
 TOPLEVEL ?= axi_ddr5_mc_top
 MODULE ?= test_top_e2e
 
-EXTRA_ARGS += --trace -Wno-DECLFILENAME -Wno-MULTITOP -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL \
-              -I$(ROOT_DIR)/rtl/frontend -I$(ROOT_DIR)/rtl/cdc -I$(ROOT_DIR)/rtl/core -I$(ROOT_DIR)/rtl/backend -I$(ROOT_DIR)/rtl/memory -I$(ROOT_DIR)/rtl/bus -I$(ROOT_DIR)/rtl/top
+EXTRA_ARGS += --trace -Wno-DECLFILENAME -Wno-MULTITOP -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT \
+              -I$(ROOT_DIR)/rtl/frontend -I$(ROOT_DIR)/rtl/cdc -I$(ROOT_DIR)/rtl/core -I$(ROOT_DIR)/rtl/crypto -I$(ROOT_DIR)/rtl/backend -I$(ROOT_DIR)/rtl/memory -I$(ROOT_DIR)/rtl/bus -I$(ROOT_DIR)/rtl/top
 
 COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
 include $(COCOTB_SHARE_DIR)/Makefile.sim

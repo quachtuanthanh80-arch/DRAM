@@ -2,6 +2,7 @@
 // Chức năng: Bộ mã hóa Feistel 1 chu kỳ hoán vị ngẫu nhiên địa chỉ hàng và bank DRAM theo kiến trúc SCARF.
 `timescale 1ns / 1ps
 
+/* verilator lint_off UNOPTFLAT */
 module scarf_dram_randomizer #(
     parameter int ROW_WIDTH   = 17,
     parameter int BANK_WIDTH  = 2,
@@ -83,7 +84,7 @@ module scarf_dram_randomizer #(
     genvar r;
     generate
         for (r = 0; r < ROUNDS; r = r + 1) begin : gen_feistel_rounds
-            wire [7:0] rkey = ((cfg_scramble_seed >> ((r * 6) % 56)) & 8'hFF) ^ 8'(r);
+            wire [7:0] rkey = 8'(cfg_scramble_seed >> ((r * 6) % 56)) ^ 8'(r);
             assign l_pipe[r+1] = r_pipe[r][L_W-1:0];
             assign r_pipe[r+1] = {1'b0, l_pipe[r]} ^ {1'b0, feistel_f(r_pipe[r], rkey, i_tweak, r)};
         end
