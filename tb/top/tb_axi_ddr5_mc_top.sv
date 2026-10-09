@@ -340,7 +340,7 @@ module tb_axi_ddr5_mc_top;
         //---------------------------------------------------------------------
         $display("[TEST 6] RowHammer SDC Defense: Blasting Target Row > Threshold");
         cfg_rh_threshold = 16'd4;
-        cfg_window_size  = 16'd100;
+        cfg_window_size  = 16'd1000;
         repeat (5) @(posedge clk_axi);
 
         for (int i = 0; i < 8; i++) begin

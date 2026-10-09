@@ -51,12 +51,12 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
 
     compile_cmd = [iverilog, "-g2012", "-Wall", "-s", top_module, "-o", vvp_file] + sources
     t0 = time.time()
-    res_compile = subprocess.run(compile_cmd, cwd=cwd, capture_output=True, text=True)
+    res_compile = subprocess.run(compile_cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
     if res_compile.returncode != 0:
         elapsed = time.time() - t0
         err_msg = res_compile.stdout + "\n" + res_compile.stderr
-        with open(log_file, "w") as f:
+        with open(log_file, "w", encoding="utf-8") as f:
             f.write(f"=== COMPILE COMMAND ===\n{' '.join(compile_cmd)}\n\n=== ERROR LOG ===\n{err_msg}\n")
         return {
             "name": name,
@@ -70,7 +70,7 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
         }
 
     sim_cmd = [vvp, vvp_file]
-    res_sim = subprocess.run(sim_cmd, cwd=cwd, capture_output=True, text=True)
+    res_sim = subprocess.run(sim_cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     elapsed = time.time() - t0
 
     # Clean up intermediate vvp binary
@@ -81,7 +81,7 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
         pass
 
     full_log = f"=== COMPILE COMMAND ===\n{' '.join(compile_cmd)}\n\n=== SIM COMMAND ===\n{' '.join(sim_cmd)}\n\n=== STDOUT ===\n{res_sim.stdout}\n\n=== STDERR ===\n{res_sim.stderr}\n"
-    with open(log_file, "w") as f:
+    with open(log_file, "w", encoding="utf-8") as f:
         f.write(full_log)
 
     output = res_sim.stdout + "\n" + res_sim.stderr
@@ -228,8 +228,12 @@ def main():
                 os.path.join(root, "rtl", "frontend", "axi_slave_frontend.sv"),
                 os.path.join(root, "rtl", "frontend", "wdata_buffer.sv"),
                 os.path.join(root, "rtl", "frontend", "domain_bank_coloring.sv"),
+                os.path.join(root, "rtl", "core", "scarf_dram_randomizer.sv"),
                 os.path.join(root, "rtl", "frontend", "addr_mapper_ddr5.sv"),
                 os.path.join(root, "rtl", "core", "reorder_buffer_rob.sv"),
+                os.path.join(root, "rtl", "core", "fault_hardened_csr.sv"),
+                os.path.join(root, "rtl", "crypto", "multi_vm_key_table.sv"),
+                os.path.join(root, "rtl", "core", "pxor_hash_engine.sv"),
                 os.path.join(root, "rtl", "core", "sdc_resilient_filter.sv"),
                 os.path.join(root, "rtl", "core", "adaptive_threshold_engine.sv"),
                 os.path.join(root, "rtl", "backend", "directed_refresh_manager.sv"),
@@ -241,6 +245,46 @@ def main():
                 os.path.join(root, "rtl", "bus", "perf_monitor_unit.sv"),
                 os.path.join(root, "rtl", "top", "axi_ddr5_mc_top.sv"),
                 os.path.join(root, "tb", "top", "tb_axi_ddr5_mc_top.sv"),
+            ]
+        },
+        {
+            "name": "Security V3.0: SCARF 1-Cycle DRAM Address Randomizer",
+            "top": "tb_scarf_randomizer",
+            "module_covered": "rtl/core/scarf_dram_randomizer.sv",
+            "behavior_verified": "10-round Feistel permutation, non-linear S-Box, bijectivity, and seed avalanche",
+            "sources": [
+                os.path.join(root, "rtl", "core", "scarf_dram_randomizer.sv"),
+                os.path.join(root, "tb", "core", "tb_scarf_randomizer.sv"),
+            ]
+        },
+        {
+            "name": "Security V3.0: Crystalor PXOR-Hash Universal Hashing Engine",
+            "top": "tb_pxor_sdc_filter",
+            "module_covered": "rtl/core/pxor_hash_engine.sv",
+            "behavior_verified": "Parallel XOR universal hashing with bounded collision and uniform distribution",
+            "sources": [
+                os.path.join(root, "rtl", "core", "pxor_hash_engine.sv"),
+                os.path.join(root, "tb", "core", "tb_pxor_sdc_filter.sv"),
+            ]
+        },
+        {
+            "name": "Security V3.0: AMD SEV Multi-ASID Confidential Key Table",
+            "top": "tb_multi_vm_key_table",
+            "module_covered": "rtl/crypto/multi_vm_key_table.sv",
+            "behavior_verified": "16-VM key isolation, C-bit DMA bypass, and APB4 supervisor privilege protection",
+            "sources": [
+                os.path.join(root, "rtl", "crypto", "multi_vm_key_table.sv"),
+                os.path.join(root, "tb", "crypto", "tb_multi_vm_key_table.sv"),
+            ]
+        },
+        {
+            "name": "Security V3.0: HOST '20 Fault-Hardened CSR with TMR Glitch Watchdog",
+            "top": "tb_fault_hardened_csr",
+            "module_covered": "rtl/core/fault_hardened_csr.sv",
+            "behavior_verified": "Triple Modular Redundancy 2-out-of-3 voting, single-rail SEU masking, and glitch latch",
+            "sources": [
+                os.path.join(root, "rtl", "core", "fault_hardened_csr.sv"),
+                os.path.join(root, "tb", "core", "tb_fault_hardened_csr.sv"),
             ]
         },
         {
@@ -291,6 +335,7 @@ def main():
             "module_covered": "rtl/core/sdc_resilient_filter.sv",
             "behavior_verified": "Cross-bank multi-aggressor tracking and bin saturation mitigation",
             "sources": [
+                os.path.join(root, "rtl", "core", "pxor_hash_engine.sv"),
                 os.path.join(root, "rtl", "core", "sdc_resilient_filter.sv"),
                 os.path.join(root, "tb", "core", "tb_sledgehammer_multibank.sv"),
             ]
@@ -358,7 +403,7 @@ def main():
     }
 
     summary_json_path = os.path.join(root, "regression_summary.json")
-    with open(summary_json_path, "w") as f:
+    with open(summary_json_path, "w", encoding="utf-8") as f:
         json.dump(summary_payload, f, indent=2)
 
     # 2. Save Failure Diagnostics JSON
@@ -368,7 +413,7 @@ def main():
         "failures": failed_records,
         "timestamp_epoch": time.time(),
     }
-    with open(failure_json_path, "w") as f:
+    with open(failure_json_path, "w", encoding="utf-8") as f:
         json.dump(failure_payload, f, indent=2)
 
     print("\n" + "=" * 96)

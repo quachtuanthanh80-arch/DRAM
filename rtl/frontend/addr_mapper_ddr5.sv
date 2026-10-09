@@ -1,7 +1,5 @@
-//=============================================================================
-// File:        addr_mapper_ddr5.sv
-// Chức năng:   Ánh xạ địa chỉ tuyến tính AXI4 sang Rank/BG/Bank/Row/Col với kỹ thuật băm xen kẽ Modulo-3.
-//=============================================================================
+// File: addr_mapper_ddr5.sv
+// Chức năng: Ánh xạ địa chỉ tuyến tính AXI4 sang Rank/BG/Bank/Row/Col kết hợp bộ xáo trộn ngẫu nhiên SCARF.
 `timescale 1ns / 1ps
 
 module addr_mapper_ddr5 #(
@@ -20,6 +18,11 @@ module addr_mapper_ddr5 #(
     input  logic                      cfg_is_ddr5,
     input  logic                      cfg_bank_coloring_en,
     input  logic [1:0]                cfg_mapping_mode,
+
+    // Cấu hình xáo trộn địa chỉ bảo mật (SCARF Cryptographic Address Randomization)
+    input  logic                      cfg_scramble_en,
+    input  logic [1:0]                cfg_scramble_mode, // 0: Tắt, 1: LFSR, 2: SCARF 1-chu kỳ
+    input  logic [63:0]               cfg_scramble_seed,
 
     // Request from Frontend / CDC
     input  logic                      i_req_valid,
@@ -89,6 +92,30 @@ module addr_mapper_ddr5 #(
     wire [RAW_ROW_BITS-1:0] raw_row = (AXI_ADDR_WIDTH > 18) ? i_req_addr[AXI_ADDR_WIDTH-1:18] : '0;
     wire [ROW_WIDTH-1:0]    dec_row = {{(ROW_WIDTH > RAW_ROW_BITS ? (ROW_WIDTH - RAW_ROW_BITS) : 0){1'b0}}, raw_row};
 
+    // Tích hợp bộ xáo trộn SCARF Feistel phá hủy tính quy luật vật lý của ZenHammer/Phoenix
+    wire [ROW_WIDTH-1:0]  scarf_row;
+    wire [BANK_WIDTH-1:0] scarf_bank;
+
+    scarf_dram_randomizer #(
+        .ROW_WIDTH   (ROW_WIDTH),
+        .BANK_WIDTH  (BANK_WIDTH),
+        .TWEAK_WIDTH (16),
+        .ROUNDS      (10)
+    ) u_scarf_randomizer (
+        .clk               (clk),
+        .rst_n             (rst_n),
+        .cfg_scramble_en   (cfg_scramble_en && (cfg_scramble_mode == 2'b10)),
+        .cfg_scramble_seed (cfg_scramble_seed),
+        .i_tweak           ({{(16-BG_WIDTH){1'b0}}, dec_bg}),
+        .i_row             (dec_row),
+        .i_bank            (dec_bank),
+        .o_scrambled_row   (scarf_row),
+        .o_scrambled_bank  (scarf_bank)
+    );
+
+    wire [ROW_WIDTH-1:0]  final_row  = (cfg_scramble_en && cfg_scramble_mode == 2'b10) ? scarf_row  : dec_row;
+    wire [BANK_WIDTH-1:0] final_bank = (cfg_scramble_en && cfg_scramble_mode == 2'b10) ? scarf_bank : dec_bank;
+
     // Pipeline Register
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -107,8 +134,8 @@ module addr_mapper_ddr5 #(
                 cmd_id_reg       <= i_req_id;
                 cmd_is_write_reg <= i_req_is_write;
                 cmd_bg_reg       <= dec_bg;
-                cmd_bank_reg     <= dec_bank;
-                cmd_row_reg      <= dec_row;
+                cmd_bank_reg     <= final_bank;
+                cmd_row_reg      <= final_row;
                 cmd_col_reg      <= dec_col;
                 cmd_len_reg      <= i_req_len;
                 cmd_qos_reg      <= i_req_qos;

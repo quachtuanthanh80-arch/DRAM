@@ -98,13 +98,13 @@ module axi_ddr5_mc_top #(
     output logic [15:0]                                  o_ecc_double_err_cnt,
 
     // Extended Architecture & Telemetry Ports (Upgrade V3)
-    input  logic                                         cfg_bank_coloring_en,
-    input  logic [1:0]                                   cfg_mapping_mode,
-    input  logic                                         cfg_scramble_en,
-    input  logic                                         cfg_scramble_reseed,
-    input  logic [63:0]                                  cfg_scramble_seed,
-    input  logic                                         cfg_pmu_en,
-    input  logic                                         cfg_pmu_reset,
+    input  logic                                         cfg_bank_coloring_en = 1'b0,
+    input  logic [1:0]                                   cfg_mapping_mode     = 2'b00,
+    input  logic                                         cfg_scramble_en      = 1'b0,
+    input  logic                                         cfg_scramble_reseed  = 1'b0,
+    input  logic [63:0]                                  cfg_scramble_seed    = 64'hA5A5_5A5A_0123_4567,
+    input  logic                                         cfg_pmu_en           = 1'b1,
+    input  logic                                         cfg_pmu_reset        = 1'b0,
     output logic [7:0][31:0]                             o_pmu_counters,
 
     // Advanced Threat Defense & PRAC Alerts (Upgrade P0)
@@ -115,7 +115,12 @@ module axi_ddr5_mc_top #(
     output logic [15:0]                                  o_ecc_miscorrect_cnt,
     output logic                                         o_coordinated_throttle_active,
     output logic [15:0]                                  o_rfm_auto_cnt,
-    output logic                                         o_tras_clamped_alert
+    output logic                                         o_tras_clamped_alert,
+
+    // Cryptographic & Fault-Tolerant Enhancements (Upgrade V3.0)
+    input  logic [1:0]                                   cfg_scramble_mode  = 2'b10, // 0: None, 1: LFSR, 2: SCARF
+    output logic                                         o_glitch_alert,
+    output logic                                         o_security_locked
 );
 
     //=========================================================================
@@ -173,6 +178,11 @@ module axi_ddr5_mc_top #(
     logic [AXI_DATA_WIDTH-1:0] rob_rdata;
     logic [1:0]                rob_rresp;
     logic                      rob_rlast;
+
+    // Early declarations for cross-module error signals
+    logic                      ecc_double_err;
+    logic                      ecc_miscorrect_alert;
+    logic                      drm_stall;
 
     // Write Decoupling Buffer Command Signals
     logic                      wbuf_cmd_valid;
@@ -396,6 +406,85 @@ module axi_ddr5_mc_top #(
     logic [7:0]                mapped_cmd_len;
     logic [AXI_QOS_WIDTH-1:0]  mapped_cmd_qos;
 
+    // Fault-Hardened CSR with TMR 2-out-of-3 majority voting logic (HOST 2020)
+    logic [15:0] voted_rh_threshold;
+    logic [1:0]  voted_rowpress_curve;
+    logic        voted_dual_hash_en;
+    logic [1:0]  voted_scramble_mode;
+
+    // Bộ phát hiện xung thay đổi cấu hình để cập nhật đồng bộ vào 3 đường ray TMR
+    logic [15:0] prev_rh_thresh;
+    logic [1:0]  prev_rowpress;
+    logic        prev_dual_hash;
+    logic [1:0]  prev_scramble;
+    logic        cfg_we_reg;
+
+    always_ff @(posedge clk_axi or negedge rst_n_axi) begin
+        if (!rst_n_axi) begin
+            prev_rh_thresh <= 16'd0;
+            prev_rowpress  <= 2'b00;
+            prev_dual_hash <= 1'b0;
+            prev_scramble  <= 2'b00;
+            cfg_we_reg     <= 1'b1; // Cập nhật ngay chu kỳ đầu sau reset
+        end else begin
+            prev_rh_thresh <= cfg_rh_threshold;
+            prev_rowpress  <= cfg_rowpress_curve;
+            prev_dual_hash <= cfg_dual_hash_en;
+            prev_scramble  <= cfg_scramble_mode;
+            cfg_we_reg     <= (cfg_rh_threshold   != prev_rh_thresh) ||
+                              (cfg_rowpress_curve != prev_rowpress)  ||
+                              (cfg_dual_hash_en   != prev_dual_hash)  ||
+                              (cfg_scramble_mode  != prev_scramble);
+        end
+    end
+
+    fault_hardened_csr u_fh_csr (
+        .clk                  (clk_axi),
+        .rst_n                (rst_n_axi),
+        .i_cfg_we             (cfg_we_reg),
+        .i_cfg_rh_threshold   (prev_rh_thresh),
+        .i_cfg_rowpress_curve (prev_rowpress),
+        .i_cfg_dual_hash_en   (prev_dual_hash),
+        .i_cfg_scramble_mode  (prev_scramble),
+        .o_cfg_rh_threshold   (voted_rh_threshold),
+        .o_cfg_rowpress_curve (voted_rowpress_curve),
+        .o_cfg_dual_hash_en   (voted_dual_hash_en),
+        .o_cfg_scramble_mode  (voted_scramble_mode),
+        .o_glitch_alert       (o_glitch_alert),
+        .o_security_locked    (o_security_locked)
+    );
+
+    // Multi-ASID Confidential Key Table (AMD SEV-style)
+    logic [255:0] vm_wr_key, vm_rd_key;
+    logic [127:0] vm_wr_tweak, vm_rd_tweak;
+    logic         vm_wr_bypass, vm_rd_bypass;
+
+    multi_vm_key_table #(
+        .ASID_WIDTH (4)
+    ) u_vm_key_table (
+        .clk             (clk_axi),
+        .rst_n           (rst_n_axi),
+        .s_apb_psel      (1'b0),
+        .s_apb_penable   (1'b0),
+        .s_apb_pwrite    (1'b0),
+        .s_apb_paddr     (8'h0),
+        .s_apb_pwdata    (32'h0),
+        .s_apb_pprot     (3'b010),
+        .s_apb_prdata    (),
+        .s_apb_pready    (),
+        .s_apb_pslverr   (),
+        .i_wr_asid       (4'h0),
+        .i_wr_c_bit      (1'b1),
+        .o_wr_key        (vm_wr_key),
+        .o_wr_tweak_key  (vm_wr_tweak),
+        .o_wr_bypass     (vm_wr_bypass),
+        .i_rd_asid       (4'h0),
+        .i_rd_c_bit      (1'b1),
+        .o_rd_key        (vm_rd_key),
+        .o_rd_tweak_key  (vm_rd_tweak),
+        .o_rd_bypass     (vm_rd_bypass)
+    );
+
     addr_mapper_ddr5 #(
         .AXI_ID_WIDTH   (AXI_ID_WIDTH),
         .AXI_ADDR_WIDTH (AXI_ADDR_WIDTH),
@@ -410,6 +499,9 @@ module axi_ddr5_mc_top #(
         .cfg_is_ddr5          (cfg_is_ddr5),
         .cfg_bank_coloring_en (cfg_bank_coloring_en),
         .cfg_mapping_mode     (cfg_mapping_mode),
+        .cfg_scramble_en      (voted_scramble_mode != 2'b00),
+        .cfg_scramble_mode    (voted_scramble_mode),
+        .cfg_scramble_seed    (cfg_scramble_seed),
 
         .i_req_valid    (req_to_map_valid),
         .o_req_ready    (req_to_map_ready),
@@ -539,7 +631,9 @@ module axi_ddr5_mc_top #(
         .clk                 (clk_axi),
         .rst_n               (rst_n_axi),
 
-        .cfg_hash_mode       (cfg_dual_hash_en),
+        .cfg_hash_mode       (voted_dual_hash_en),
+        .cfg_pxor_mode       (1'b1),
+        .cfg_pxor_seed       (cfg_scramble_seed),
         .cfg_sdc_thresh      (ate_dynamic_thresh),
         .cfg_window_size     (cfg_window_size),
 
@@ -590,7 +684,7 @@ module axi_ddr5_mc_top #(
         .rst_n                (rst_n_axi),
         .cfg_ate_en           (1'b1),
         .cfg_alpha_shift      (4'd4),
-        .cfg_base_thresh      (cfg_rh_threshold),
+        .cfg_base_thresh      (voted_rh_threshold),
         .cfg_max_thresh       (16'd8192),
         .i_telemetry_accesses (telemetry_accesses),
         .i_telemetry_throttles(telemetry_throttles),
@@ -601,12 +695,10 @@ module axi_ddr5_mc_top #(
     //=========================================================================
     // 5b. Directed Refresh Manager (DRM)
     //=========================================================================
-    logic                  drm_stall;
     logic                  abo_active;
     logic [BG_WIDTH-1:0]   abo_bg;
     logic [BANK_WIDTH-1:0] abo_bank;
     logic [ROW_WIDTH-1:0]  abo_row;
-    logic                  ecc_miscorrect_alert;
     logic                  ecc_chipkill_fallback_req;
     logic [ROW_WIDTH-1:0]  raw_dfi_row;
 
@@ -847,7 +939,6 @@ module axi_ddr5_mc_top #(
     // 9. ECC Background Patrol Scrubber
     //=========================================================================
     logic ecc_single_err;
-    logic ecc_double_err;
 
     ecc_scrubber #(
         .DATA_WIDTH       (AXI_DATA_WIDTH),
@@ -936,6 +1027,8 @@ module axi_ddr5_mc_top #(
 
     // Unused signals sink
     logic _unused_top_sink;
-    assign _unused_top_sink = &{1'b0, rst_n_ddr, wbuf_data_valid, wbuf_data_last, ecc_double_err, 1'b0};
+    assign _unused_top_sink = &{1'b0, rst_n_ddr, wbuf_data_valid, wbuf_data_last, ecc_double_err,
+                                vm_wr_key[0], vm_rd_key[0], vm_wr_tweak[0], vm_rd_tweak[0],
+                                vm_wr_bypass, vm_rd_bypass, voted_rowpress_curve[0], 1'b0};
 
 endmodule

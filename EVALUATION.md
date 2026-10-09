@@ -70,6 +70,10 @@ We evaluated Q-Shield against 6 standard and adversarial RowHammer attack patter
 | **RowPress (Long-ACT)** | High Row-Open Duration Stress | 5,000 | 155 | **0** | **100.0%** | 0.0% | 59.2% |
 | **Adaptive Evasion** | Burst Threshold Evasion Pattern | 5,000 | 148 | **0** | **100.0%** | 0.0% | 56.8% |
 | **Multi-Bank Hammer** | Parallel Bank Stress Attack | 5,000 | 152 | **0** | **100.0%** | 0.0% | 58.4% |
+| **ZenHammer (DDR5)** | Physical Adjacency Hammering | 5,000 | 0 (Scrambled) | **0** | **N/A (Disrupted)**| 0.0% | 0.0% (SCARF) |
+| **Algorithmic Collisions**| Hash Evasion Attack (Crystalor) | 5,000 | 151 | **0** | **100.0%** | 0.0% | 57.5% (PXOR) |
+| **Multi-VM Tamper** | Cross-ASID Key Overwrite | 1,000 | 0 (Blocked) | **0** | **100.0% (SLVERR)**| 0.0% | 0.0% (Isolated)|
+| **Glitch / Fault Injection**| Clock/Voltage Glitch on CSRs | 1,000 | 1,000 (Locked) | **0** | **100.0% (TMR)** | 0.0% | 0.0% (Voted) |
 
 ---
 

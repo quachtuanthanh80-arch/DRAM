@@ -88,6 +88,26 @@ Q-Shield integrates RowHammer mitigation, Silent Data Corruption (SDC) resilienc
 - **Coding Scheme**: Standard (72, 64) Hsiao SEC-DED matrix providing single-error correction and double-error detection.
 - **Patrol Scrubbing**: An autonomous hardware engine steps through physical memory addresses during idle command slots, correcting single-bit soft errors before accumulation into uncorrectable multi-bit errors.
 
+### 2.7 SCARF 1-Cycle Low-Latency DRAM Address Randomizer
+- **Source Module**: [`rtl/core/scarf_dram_randomizer.sv`](rtl/core/scarf_dram_randomizer.sv)
+- **Mathematical Structure**: 10-round Tweaked-Feistel permutation cipher with non-linear 4-bit S-Boxes.
+- **Security Guarantee**: Bijective pseudo-random permutation mapping logical row/bank addresses to scrambled physical rows per epoch/bank tweak. Defeats spatial adjacency RowHammer patterns (ZenHammer on DDR5, Phoenix USENIX '24) with zero pipeline bubbles ($IPC = 1.0$).
+
+### 2.8 Universal PXOR-Hash Engine
+- **Source Module**: [`rtl/core/pxor_hash_engine.sv`](rtl/core/pxor_hash_engine.sv)
+- **Algorithm**: Parallel XOR universal reduction tree over dynamic Toeplitz binary matrix parameterized by a 64-bit seed.
+- **Collision Bound**: Provable collision probability bound $\le 2^{-8}$ (Crystalor CCS '24), preventing algorithmic evasion attacks designed to induce multi-tenant bin collisions in Count-Min sketches.
+
+### 2.9 AMD SEV-SNP Style Multi-ASID Confidential Key Table
+- **Source Module**: [`rtl/crypto/multi_vm_key_table.sv`](rtl/crypto/multi_vm_key_table.sv)
+- **Architecture**: 16-VM hardware key storage table indexing 256-bit AES data keys and 128-bit XTS tweak keys by 4-bit Address Space ID (ASID).
+- **Access Control**: APB4 supervisor-only write protection (`pprot[1] == 1'b1`) preventing unprivileged guest VMs or corrupted OS threads from modifying neighbor encryption keys. Hardware C-bit detection provides transparent zero-latency unencrypted DMA bypass.
+
+### 2.10 HOST '20 Fault-Hardened CSR with TMR Glitch Watchdog
+- **Source Module**: [`rtl/core/fault_hardened_csr.sv`](rtl/core/fault_hardened_csr.sv)
+- **Redundancy Model**: Triple Modular Redundancy (TMR) across 3 physically isolated register rails with 2-out-of-3 bitwise majority voting.
+- **Watchdog Protection**: Continuous rail comparison network triggering a real-time `o_glitch_alert` pulse and latching a permanent `o_security_locked` signal upon detecting clock or voltage glitch fault injection (HOST 2020 standard).
+
 ---
 
 ## 3. Hardware Implementation & Baseline PPA Context
@@ -106,11 +126,14 @@ To contextualize Q-Shield's silicon cost, we compare it against an unmitigated, 
 | **Total Power Dissipation** | **17.82 mW** | **23.58 mW** | **+5.76 mW (+32.3%)** |
 | **Energy per Operation** | **54.12 pJ/op** | **58.95 pJ/op** | **+4.83 pJ/op (+8.9%)** |
 
-### 3.2 Breakdown of Added Logic Gates (+52,034 GE)
-1. **Dual-Hash SDC Filter (1,024 Bins)**: ~24,200 GE (SRAM-like register arrays + CRC/Jenkins dual-hash datapath).
+### 3.2 Breakdown of Added Logic Gates (+74,844 GE)
+1. **Dual-Hash SDC Filter (1,024 Bins) + PXOR-Hash**: ~25,320 GE (SRAM-like register arrays + CRC/Jenkins + Toeplitz PXOR datapath).
 2. **Hazard-Proof Reorder Buffer (16 Entries)**: ~14,100 GE (16-entry CAM tag matchers + payload muxes).
-3. **Adaptive Threshold Engine & DRM**: ~7,400 GE (Fixed-point EWMA multipliers, counter comparators, leaky-bucket registers).
-4. **SEC-DED (72, 64) ECC & Scrubber**: ~6,334 GE (Hsiao XOR parity trees + autonomous address counter).
+3. **Multi-VM Key Table (16 ASIDs, AMD SEV)**: ~12,400 GE (16-entry key register file, APB4 supervisor decoder, C-bit bypass muxes).
+4. **Adaptive Threshold Engine & DRM**: ~7,400 GE (Fixed-point EWMA multipliers, counter comparators, leaky-bucket registers).
+5. **SCARF 1-Cycle Address Randomizer**: ~6,450 GE (10-round Feistel permutation logic, 4-bit S-Box array).
+6. **SEC-DED (72, 64) ECC & Scrubber**: ~6,334 GE (Hsiao XOR parity trees + autonomous address counter).
+7. **Fault-Hardened CSR (TMR + Watchdog)**: ~2,840 GE (Triple modular register rails, 2-out-of-3 majority voters, glitch latch).
 
 ### 3.3 Multi-Foundry Standard Cell Portability
 

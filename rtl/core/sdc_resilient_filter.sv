@@ -18,6 +18,8 @@ module sdc_resilient_filter #(
 
     // Configuration & Thresholds
     input  logic                      cfg_hash_mode,   // 0: Single-Hash, 1: Dual-Hash
+    input  logic                      cfg_pxor_mode        = 1'b0, // 1: Crystalor PXOR Universal Hash, 0: Modulo/CRC-8
+    input  logic [63:0]               cfg_pxor_seed        = 64'hA5A5_5A5A_0123_4567, // Universal hash matrix seed
     input  logic [COUNT_WIDTH-1:0]    cfg_sdc_thresh,  // Activation alert threshold
     input  logic [15:0]               cfg_window_size, // Cycles per tREFI window
     input  logic [2:0]                cfg_multibank_thresh = 3'd2, // Max concurrent throttled banks
@@ -96,6 +98,31 @@ module sdc_resilient_filter #(
         hash_b = calc_crc8(full_row_tag);
     end
 
+    // Động cơ băm vạn năng PXOR-Hash (Crystalor CCS '24)
+    logic [IDX_W-1:0] pxor_hash_a;
+    logic [IDX_W-1:0] pxor_hash_b;
+
+    pxor_hash_engine #(
+        .TAG_WIDTH  (ADDR_TAG_W),
+        .HASH_WIDTH (IDX_W)
+    ) u_pxor_a (
+        .i_tag  (full_row_tag),
+        .i_seed (cfg_pxor_seed),
+        .o_hash (pxor_hash_a)
+    );
+
+    pxor_hash_engine #(
+        .TAG_WIDTH  (ADDR_TAG_W),
+        .HASH_WIDTH (IDX_W)
+    ) u_pxor_b (
+        .i_tag  (full_row_tag),
+        .i_seed (~cfg_pxor_seed ^ 64'hF0F0_0F0F_AAAA_5555),
+        .o_hash (pxor_hash_b)
+    );
+
+    wire [IDX_W-1:0] eff_hash_a = cfg_pxor_mode ? pxor_hash_a : hash_a;
+    wire [IDX_W-1:0] eff_hash_b = cfg_pxor_mode ? pxor_hash_b : hash_b;
+
     //=========================================================================
     // 2. O(1) Window Reset Logic via Epoch Tagging
     //=========================================================================
@@ -125,8 +152,8 @@ module sdc_resilient_filter #(
     logic [COUNT_WIDTH-1:0]     table_b_count [TABLE_ENTRIES-1:0];
 
     // Read current effective counts
-    wire [COUNT_WIDTH-1:0] cur_cnt_a = (table_a_epoch[hash_a] == current_epoch) ? table_a_count[hash_a] : '0;
-    wire [COUNT_WIDTH-1:0] cur_cnt_b = (table_b_epoch[hash_b] == current_epoch) ? table_b_count[hash_b] : '0;
+    wire [COUNT_WIDTH-1:0] cur_cnt_a = (table_a_epoch[eff_hash_a] == current_epoch) ? table_a_count[eff_hash_a] : '0;
+    wire [COUNT_WIDTH-1:0] cur_cnt_b = (table_b_epoch[eff_hash_b] == current_epoch) ? table_b_count[eff_hash_b] : '0;
 
     // Minimum count evaluation (Theorem 1)
     logic [COUNT_WIDTH-1:0] effective_count;
@@ -165,14 +192,14 @@ module sdc_resilient_filter #(
         end else if (i_cmd_valid && o_cmd_ready) begin
             // Increment Table A
             if (cur_cnt_a != {COUNT_WIDTH{1'b1}}) begin
-                table_a_count[hash_a] <= cur_cnt_a + 1'b1;
-                table_a_epoch[hash_a] <= current_epoch;
+                table_a_count[eff_hash_a] <= cur_cnt_a + 1'b1;
+                table_a_epoch[eff_hash_a] <= current_epoch;
             end
             // Increment Table B (in Dual-Hash mode)
             if (cfg_hash_mode == 1'b1) begin
                 if (cur_cnt_b != {COUNT_WIDTH{1'b1}}) begin
-                    table_b_count[hash_b] <= cur_cnt_b + 1'b1;
-                    table_b_epoch[hash_b] <= current_epoch;
+                    table_b_count[eff_hash_b] <= cur_cnt_b + 1'b1;
+                    table_b_epoch[eff_hash_b] <= current_epoch;
                 end
             end
         end
