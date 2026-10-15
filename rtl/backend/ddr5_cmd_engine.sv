@@ -81,6 +81,13 @@ module ddr5_cmd_engine #(
     output logic                                         o_slack_cycle,
 
     //-------------------------------------------------------------------------
+    // Decoy Dummy Access Interface (Thang Hoang & S3ORAM / SledgeHammer defense)
+    //-------------------------------------------------------------------------
+    input  logic                                         cfg_decoy_en = 1'b0,
+    output logic                                         o_decoy_active,
+    output logic [15:0]                                  o_decoy_cnt,
+
+    //-------------------------------------------------------------------------
     // DFI / DRAM Physical Command Interface
     //-------------------------------------------------------------------------
     output logic [2:0]                                   o_dfi_cmd,     // 0=NOP, 1=ACT, 2=PRE, 3=RD, 4=WR, 5=REF
@@ -167,6 +174,7 @@ module ddr5_cmd_engine #(
     // Bank-Group level timing
     logic [3:0]           ccd_timer  [BG_COUNT];
     logic [2:0]           ccd_s_timer;
+    logic [BG_WIDTH-1:0]  decoy_bg_ptr;
 
     // Command Pipeline Registers
     logic                 busy;
@@ -286,6 +294,9 @@ module ddr5_cmd_engine #(
             o_abo_bg             <= '0;
             o_abo_bank           <= '0;
             o_abo_row            <= '0;
+            o_decoy_active       <= 1'b0;
+            o_decoy_cnt          <= 16'd0;
+            decoy_bg_ptr         <= '0;
 
             for (int bg = 0; bg < BG_COUNT; bg++) begin
                 for (int bk = 0; bk < BANK_COUNT; bk++) begin
@@ -295,6 +306,7 @@ module ddr5_cmd_engine #(
         end else begin
             o_tras_clamped_alert <= 1'b0;
             o_rfm_active         <= 1'b0;
+            o_decoy_active       <= 1'b0;
 
             // Track rolling ACT count for autonomous RFM (McSee defense)
             if (o_dfi_cmd == CMD_ACT) begin
@@ -480,6 +492,17 @@ module ddr5_cmd_engine #(
                         rolling_act_cnt[rfm_target_bg] <= 8'd0;
                         o_rfm_auto_cnt                 <= o_rfm_auto_cnt + 1'b1;
                         o_rfm_active                   <= 1'b1;
+                    end else if (cfg_decoy_en && (ccd_s_timer == '0)) begin
+                        // Cơ chế Decoy Access: Phát DFI NOP kết hợp đảo chuyển mạch giả bus địa chỉ (S3ORAM/SledgeHammer defense)
+                        // Giữ o_dfi_cmd = NOP để không vi phạm định thời JEDEC/trạng thái Bank, đồng thời gây nhiễu entropy quan sát
+                        o_decoy_active <= 1'b1;
+                        o_decoy_cnt    <= o_decoy_cnt + 1'b1;
+                        decoy_bg_ptr   <= decoy_bg_ptr + 1'b1;
+                        o_dfi_cmd      <= CMD_NOP;
+                        o_dfi_bg       <= o_dfi_bg + 1'b1;
+                        o_dfi_bank     <= ~o_dfi_bank;
+                        o_dfi_row      <= {o_dfi_row[ROW_WIDTH-2:0], ~o_dfi_row[ROW_WIDTH-1]};
+                        o_dfi_col      <= o_dfi_col ^ COL_WIDTH'(10'h155);
                     end
                 end
             end else begin

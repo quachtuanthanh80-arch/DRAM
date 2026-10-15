@@ -32,7 +32,7 @@ def main():
     # 1. RTL Unit Test Filter
     run_command(
         f"{sys.executable} run_iverilog_regression.py",
-        "Phase 1: RTL Master Regression (14 Synthesizable Modules)"
+        "Phase 1: RTL Master Regression (18 Synthesizable Modules)"
     )
 
     # 2. Attack Emulation

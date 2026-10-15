@@ -33,6 +33,7 @@ report_utilization -file "D:/RAM/syn/reports/utilization.rpt" -pb "D:/RAM/syn/re
 report_timing_summary -file "D:/RAM/syn/reports/timing_summary.rpt" -max_paths 10
 report_clock_networks -file "D:/RAM/syn/reports/clock_networks.rpt"
 report_design_analysis -file "D:/RAM/syn/reports/design_analysis.rpt"
+report_power -file "D:/RAM/syn/reports/power.rpt"
 
 puts "=========================================================="
 puts "Synthesis and Timing Analysis Completed Successfully!"

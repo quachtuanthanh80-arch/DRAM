@@ -75,4 +75,6 @@ walkthrough.md
 ~$*
 scratch/
 tools/download_sota_papers.py
+tools/download_vietnamese_papers.py
+tools/download_hcmute_papers.py
 DRAM/

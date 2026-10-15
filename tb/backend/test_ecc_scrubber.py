@@ -145,3 +145,66 @@ async def test_patrol_scanner_address_progression(dut):
     actual_bgs   = [bg for (bg, bank) in visited_bgs[:8]]
     assert actual_bgs == expected_bgs, f"Expected BGs {expected_bgs}, got {actual_bgs}"
     dut._log.info("Patrol memory scanner BG and Bank address progression verified successfully!")
+
+@cocotb.test()
+async def test_zem_zero_cycle_fault_masking(dut):
+    """Verify ZEM (Zero-Cycle Bit-Masking Module, Le Minh Son et al., HCMUTE/NUS)
+       records faulty bit position upon single-bit error detection and provides
+       instant 0-cycle combinational correction mask on matching read lookups."""
+    clock = Clock(dut.clk, 2.5, unit="ns")
+    cocotb.start_soon(clock.start())
+
+    await reset_dut(dut)
+    dut.cfg_enable.value = 1
+    dut.i_zem_lookup_valid.value = 0
+    dut.i_zem_lookup_bg.value = 0
+    dut.i_zem_lookup_bank.value = 0
+    dut.i_zem_lookup_row.value = 0
+
+    orig_data = 0xDEAD_BEEF_CAFE_0042
+    clean_ecc = compute_hamming_ecc(orig_data)
+    fault_bit = 42
+    corrupted_data = orig_data ^ (1 << fault_bit)
+
+    # 1. Provide single-bit corrupted read data to trigger SEC-DED syndrome & ZEM allocation
+    dut.i_data_valid.value = 1
+    dut.i_raw_data.value = corrupted_data
+    dut.i_raw_ecc.value = clean_ecc
+    await RisingEdge(dut.clk)
+    await Timer(0.5, unit="ns")
+
+    assert int(dut.o_single_err.value) == 1, "Single-bit error was not detected by syndrome!"
+    assert int(dut.o_corrected_data.value) == orig_data, "Syndrome failed to correct data!"
+
+    # Current patrol address where error was caught
+    target_bg   = int(dut.o_scrub_bg.value)
+    target_bank = int(dut.o_scrub_bank.value)
+    target_row  = int(dut.o_scrub_row.value)
+
+    # 2. Perform 0-Cycle ZEM Lookup on matching coordinates
+    dut.i_data_valid.value = 0
+    dut.i_zem_lookup_valid.value = 1
+    dut.i_zem_lookup_bg.value = target_bg
+    dut.i_zem_lookup_bank.value = target_bank
+    dut.i_zem_lookup_row.value = target_row
+
+    # Immediate combinational propagation within 0 cycles
+    await Timer(0.5, unit="ns")
+    assert int(dut.o_zem_hit.value) == 1, "ZEM Cache failed to hit on recorded faulty coordinate!"
+    expected_mask = (1 << fault_bit)
+    assert int(dut.o_zem_mask.value) == expected_mask, \
+        f"ZEM Mask mismatch! Expected {hex(expected_mask)}, got {hex(int(dut.o_zem_mask.value))}"
+
+    # Verify that XOR-ing corrupted data with ZEM mask instantly restores correct data in 0 cycles
+    instant_corrected = corrupted_data ^ int(dut.o_zem_mask.value)
+    assert instant_corrected == orig_data, \
+        f"Instant 0-cycle correction failed! Expected {hex(orig_data)}, got {hex(instant_corrected)}"
+    dut._log.info(f"[PASS] ZEM Cache successfully returned 0-cycle bit mask 0x{expected_mask:016x}!")
+
+    # 3. Test non-matching address (Zero False Masking)
+    dut.i_zem_lookup_bg.value = (target_bg + 1) % 8
+    await Timer(0.5, unit="ns")
+    assert int(dut.o_zem_hit.value) == 0, "ZEM false hit on non-matching Bank Group!"
+    assert int(dut.o_zem_mask.value) == 0, "ZEM returned non-zero mask for clean address!"
+    dut._log.info("[PASS] ZEM Cache verified zero false-positives on clean addresses!")
+

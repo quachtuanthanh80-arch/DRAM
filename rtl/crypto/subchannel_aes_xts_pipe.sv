@@ -149,7 +149,12 @@ module aes_xts_lane
     logic [127:0] pre_whitened;
     logic [127:0] initial_state;
 
-    assign pre_whitened  = enc_enable ? (data_in ^ tweak_in) : data_in;
+    // Operand Isolation (Vo Minh Huan et al., HCMUTE):
+    // Clamps inputs to zero when transaction is not valid to prevent useless dynamic switching
+    wire [DataWidth-1:0]  iso_data_in  = valid_in ? data_in  : '0;
+    wire [TweakWidth-1:0] iso_tweak_in = valid_in ? tweak_in : '0;
+
+    assign pre_whitened  = enc_enable ? (iso_data_in ^ iso_tweak_in) : iso_data_in;
     assign initial_state = enc_enable ? (pre_whitened ^ round_keys[0]) : pre_whitened;
 
     // Intermediate pipeline wires
@@ -187,16 +192,17 @@ module aes_xts_lane
             );
 
             // Delay register for sideband data (Tweak, Plaintext Data, Meta)
+            // Fine-Grain Clock Gating / Enable: only toggles when stage contains valid data
             always_ff @(posedge clk or negedge rst_n) begin
                 if (!rst_n) begin
                     tweak_pipe[r]  <= '0;
                     data_pipe[r]   <= '0;
                     meta_pipe[r]   <= '0;
                     bypass_pipe[r] <= 1'b0;
-                end else if (stage_ready[r-1]) begin
+                end else if (stage_ready[r-1] && stage_valid[r-1]) begin
                     if (r == 1) begin
-                        tweak_pipe[r]  <= tweak_in;
-                        data_pipe[r]   <= data_in;
+                        tweak_pipe[r]  <= iso_tweak_in;
+                        data_pipe[r]   <= iso_data_in;
                         meta_pipe[r]   <= meta_in;
                         bypass_pipe[r] <= ~enc_enable;
                     end else begin

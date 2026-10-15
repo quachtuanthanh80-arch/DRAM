@@ -12,12 +12,14 @@ module fault_hardened_csr (
     input  logic [1:0]  i_cfg_rowpress_curve,
     input  logic        i_cfg_dual_hash_en,
     input  logic [1:0]  i_cfg_scramble_mode,
+    input  logic        i_cfg_decoy_en = 1'b0,
 
     // Đầu ra đã qua bộ bỏ phiếu đa số 2-out-of-3 (TMR Majority Voting)
     output logic [15:0] o_cfg_rh_threshold,
     output logic [1:0]  o_cfg_rowpress_curve,
     output logic        o_cfg_dual_hash_en,
     output logic [1:0]  o_cfg_scramble_mode,
+    output logic        o_cfg_decoy_en,
 
     // Cảnh báo tấn công xung điện áp/xung clock (Glitch & Fault Alert)
     output logic        o_glitch_alert,
@@ -29,6 +31,7 @@ module fault_hardened_csr (
     logic [1:0]  rail0_rowpress,  rail1_rowpress,  rail2_rowpress;
     logic        rail0_dual_hash, rail1_dual_hash, rail2_dual_hash;
     logic [1:0]  rail0_scramble,  rail1_scramble,  rail2_scramble;
+    logic        rail0_decoy_en,  rail1_decoy_en,  rail2_decoy_en;
 
     logic        glitch_latch;
 
@@ -51,6 +54,10 @@ module fault_hardened_csr (
             rail1_scramble  <= 2'b10;
             rail2_scramble  <= 2'b10;
 
+            rail0_decoy_en  <= 1'b0;
+            rail1_decoy_en  <= 1'b0;
+            rail2_decoy_en  <= 1'b0;
+
             glitch_latch    <= 1'b0;
         end else begin
             if (i_cfg_we && !glitch_latch) begin
@@ -69,6 +76,10 @@ module fault_hardened_csr (
                 rail0_scramble  <= i_cfg_scramble_mode;
                 rail1_scramble  <= i_cfg_scramble_mode;
                 rail2_scramble  <= i_cfg_scramble_mode;
+
+                rail0_decoy_en  <= i_cfg_decoy_en;
+                rail1_decoy_en  <= i_cfg_decoy_en;
+                rail2_decoy_en  <= i_cfg_decoy_en;
             end
 
             // Chốt khóa an toàn khi phát hiện xung nhiễu gây lệch bit giữa các ray
@@ -93,6 +104,7 @@ module fault_hardened_csr (
             o_cfg_scramble_mode[i]  = tmr_vote(rail0_scramble[i], rail1_scramble[i], rail2_scramble[i]);
         end
         o_cfg_dual_hash_en = tmr_vote(rail0_dual_hash, rail1_dual_hash, rail2_dual_hash);
+        o_cfg_decoy_en     = tmr_vote(rail0_decoy_en, rail1_decoy_en, rail2_decoy_en);
     end
 
     // Phát hiện sai lệch (mismatch) giữa 3 đường ray
@@ -100,8 +112,9 @@ module fault_hardened_csr (
     wire mismatch_rowpress = (rail0_rowpress  != rail1_rowpress)  || (rail1_rowpress  != rail2_rowpress);
     wire mismatch_hash     = (rail0_dual_hash != rail1_dual_hash) || (rail1_dual_hash != rail2_dual_hash);
     wire mismatch_scramble = (rail0_scramble  != rail1_scramble)  || (rail1_scramble  != rail2_scramble);
+    wire mismatch_decoy    = (rail0_decoy_en  != rail1_decoy_en)  || (rail1_decoy_en  != rail2_decoy_en);
 
-    assign o_glitch_alert    = mismatch_thresh || mismatch_rowpress || mismatch_hash || mismatch_scramble;
+    assign o_glitch_alert    = mismatch_thresh || mismatch_rowpress || mismatch_hash || mismatch_scramble || mismatch_decoy;
     assign o_security_locked = glitch_latch;
 
 endmodule

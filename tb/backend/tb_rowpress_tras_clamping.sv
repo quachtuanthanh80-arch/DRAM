@@ -108,6 +108,7 @@ module tb_rowpress_tras_clamping;
 
         .cfg_rowpress_thresh (16'd5000),
         .cfg_rowpress_curve  (2'b00),
+        .cfg_decoy_en        (1'b0),
         .cfg_tras_max_thresh (cfg_tras_max_thresh),
         .o_rowpress_alert    (o_rowpress_alert),
         .o_rowpress_bg       (o_rowpress_bg),
@@ -131,6 +132,8 @@ module tb_rowpress_tras_clamping;
         .o_bg_ready          (o_bg_ready),
         .o_engine_ready      (o_engine_ready),
         .o_slack_cycle       (o_slack_cycle),
+        .o_decoy_active      (),
+        .o_decoy_cnt         (),
 
         .o_dfi_cmd           (o_dfi_cmd),
         .o_dfi_bg            (o_dfi_bg),

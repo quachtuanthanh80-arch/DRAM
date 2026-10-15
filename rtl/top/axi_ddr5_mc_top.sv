@@ -119,6 +119,9 @@ module axi_ddr5_mc_top #(
 
     // Cryptographic & Fault-Tolerant Enhancements (Upgrade V3.0)
     input  logic [1:0]                                   cfg_scramble_mode  = 2'b10, // 0: None, 1: LFSR, 2: SCARF
+    input  logic                                         cfg_decoy_en       = 1'b0,
+    output logic                                         o_decoy_active,
+    output logic [15:0]                                  o_decoy_cnt,
     output logic                                         o_glitch_alert,
     output logic                                         o_security_locked
 );
@@ -411,12 +414,14 @@ module axi_ddr5_mc_top #(
     logic [1:0]  voted_rowpress_curve;
     logic        voted_dual_hash_en;
     logic [1:0]  voted_scramble_mode;
+    logic        voted_decoy_en;
 
     // Bộ phát hiện xung thay đổi cấu hình để cập nhật đồng bộ vào 3 đường ray TMR
     logic [15:0] prev_rh_thresh;
     logic [1:0]  prev_rowpress;
     logic        prev_dual_hash;
     logic [1:0]  prev_scramble;
+    logic        prev_decoy_en;
     logic        cfg_we_reg;
 
     always_ff @(posedge clk_axi or negedge rst_n_axi) begin
@@ -425,16 +430,19 @@ module axi_ddr5_mc_top #(
             prev_rowpress  <= 2'b00;
             prev_dual_hash <= 1'b0;
             prev_scramble  <= 2'b00;
+            prev_decoy_en  <= 1'b0;
             cfg_we_reg     <= 1'b1; // Cập nhật ngay chu kỳ đầu sau reset
         end else begin
             prev_rh_thresh <= cfg_rh_threshold;
             prev_rowpress  <= cfg_rowpress_curve;
             prev_dual_hash <= cfg_dual_hash_en;
             prev_scramble  <= cfg_scramble_mode;
+            prev_decoy_en  <= cfg_decoy_en;
             cfg_we_reg     <= (cfg_rh_threshold   != prev_rh_thresh) ||
                               (cfg_rowpress_curve != prev_rowpress)  ||
                               (cfg_dual_hash_en   != prev_dual_hash)  ||
-                              (cfg_scramble_mode  != prev_scramble);
+                              (cfg_scramble_mode  != prev_scramble)   ||
+                              (cfg_decoy_en       != prev_decoy_en);
         end
     end
 
@@ -446,10 +454,12 @@ module axi_ddr5_mc_top #(
         .i_cfg_rowpress_curve (prev_rowpress),
         .i_cfg_dual_hash_en   (prev_dual_hash),
         .i_cfg_scramble_mode  (prev_scramble),
+        .i_cfg_decoy_en       (prev_decoy_en),
         .o_cfg_rh_threshold   (voted_rh_threshold),
         .o_cfg_rowpress_curve (voted_rowpress_curve),
         .o_cfg_dual_hash_en   (voted_dual_hash_en),
         .o_cfg_scramble_mode  (voted_scramble_mode),
+        .o_cfg_decoy_en       (voted_decoy_en),
         .o_glitch_alert       (o_glitch_alert),
         .o_security_locked    (o_security_locked)
     );
@@ -917,6 +927,9 @@ module axi_ddr5_mc_top #(
         .o_tras_clamped_cnt  (),
         .o_rfm_auto_cnt      (o_rfm_auto_cnt),
         .o_rfm_active        (),
+        .cfg_decoy_en        (voted_decoy_en),
+        .o_decoy_active      (o_decoy_active),
+        .o_decoy_cnt         (o_decoy_cnt),
 
         .o_bg_ready          (ddr_bg_ready),
         .o_engine_ready      (ddr_engine_ready),
@@ -976,7 +989,15 @@ module axi_ddr5_mc_top #(
         .o_double_err_cnt    (o_ecc_double_err_cnt),
         .o_ecc_miscorrect_alert (ecc_miscorrect_alert),
         .o_ecc_miscorrect_cnt   (o_ecc_miscorrect_cnt),
-        .o_chipkill_fallback_req(ecc_chipkill_fallback_req)
+        .o_chipkill_fallback_req(ecc_chipkill_fallback_req),
+
+        .i_zem_lookup_valid     (1'b0),
+        .i_zem_lookup_bg        ({BG_WIDTH{1'b0}}),
+        .i_zem_lookup_bank      ({BANK_WIDTH{1'b0}}),
+        .i_zem_lookup_row       ({ROW_WIDTH{1'b0}}),
+        .o_zem_hit              (),
+        .o_zem_mask             (),
+        .o_zem_hit_cnt          ()
     );
 
     //=========================================================================

@@ -153,7 +153,7 @@ module qos_scheduler_queue #(
     end
 
     //=========================================================================
-    // Arbitration Helper Function
+    // Arbitration Helper Function (Age-Weighted Priority Escalation)
     //=========================================================================
     function automatic logic is_better(
         input logic [7:0]               cand_age,
@@ -165,9 +165,16 @@ module qos_scheduler_queue #(
     );
         logic cand_starved;
         logic best_starved;
+        logic [4:0] cand_eff_qos;
+        logic [4:0] best_eff_qos;
         begin
             cand_starved = (cand_age >= STARVATION_LIMIT[7:0]);
             best_starved = (best_age >= STARVATION_LIMIT[7:0]);
+
+            // Cơ chế: Leo thang ưu tiên động theo tuổi (Age-Weighted Escalation, Le et al. 2017)
+            // Ý tưởng: Tăng 1 mức QoS mỗi 16 chu kỳ chờ đợi (bão hòa ở 15) để chặn hoàn toàn nghẽn luồng nền
+            cand_eff_qos = (5'(cand_qos) + 5'(cand_age[7:4]) > 5'd15) ? 5'd15 : (5'(cand_qos) + 5'(cand_age[7:4]));
+            best_eff_qos = (5'(best_qos) + 5'(best_age[7:4]) > 5'd15) ? 5'd15 : (5'(best_qos) + 5'(best_age[7:4]));
 
             if (cand_starved && !best_starved)
                 is_better = 1'b1;
@@ -177,9 +184,9 @@ module qos_scheduler_queue #(
                 is_better = 1'b1;
             else if (cand_throttled && !best_throttled)
                 is_better = 1'b0;
-            else if (cand_qos > best_qos)
+            else if (cand_eff_qos > best_eff_qos)
                 is_better = 1'b1;
-            else if (cand_qos == best_qos && cand_age > best_age)
+            else if (cand_eff_qos == best_eff_qos && cand_age > best_age)
                 is_better = 1'b1;
             else
                 is_better = 1'b0;
@@ -205,8 +212,10 @@ module qos_scheduler_queue #(
         for (int bg = 0; bg < NUM_BG; bg++) begin
             logic [IDX_W-1:0] best_e;
             logic             cand_found;
-            best_e     = '0;
-            cand_found = 1'b0;
+            logic [4:0]       best_eff_qos;
+            best_e       = '0;
+            cand_found   = 1'b0;
+            best_eff_qos = '0;
 
             for (int e = 0; e < QUEUE_DEPTH; e++) begin
                 if (q_valid[bg * QUEUE_DEPTH + e]) begin
@@ -230,8 +239,9 @@ module qos_scheduler_queue #(
                 o_cand_bank[bg*BANK_WIDTH +: BANK_WIDTH]         = q_bank[bg * QUEUE_DEPTH + 32'(best_e)];
                 o_cand_row[bg*ROW_WIDTH +: ROW_WIDTH]            = q_row[bg * QUEUE_DEPTH + 32'(best_e)];
                 o_cand_col[bg*COL_WIDTH +: COL_WIDTH]            = q_col[bg * QUEUE_DEPTH + 32'(best_e)];
-                o_cand_len[bg*8 +: 8]                            = q_len[bg * QUEUE_DEPTH + 32'(best_e)];
-                o_cand_qos[bg*AXI_QOS_WIDTH +: AXI_QOS_WIDTH]    = q_qos[bg * QUEUE_DEPTH + 32'(best_e)];
+                best_eff_qos = (5'(q_qos[bg * QUEUE_DEPTH + 32'(best_e)]) + 5'(q_age[bg * QUEUE_DEPTH + 32'(best_e)][7:4]) > 5'd15) ?
+                               5'd15 : (5'(q_qos[bg * QUEUE_DEPTH + 32'(best_e)]) + 5'(q_age[bg * QUEUE_DEPTH + 32'(best_e)][7:4]));
+                o_cand_qos[bg*AXI_QOS_WIDTH +: AXI_QOS_WIDTH]    = best_eff_qos[AXI_QOS_WIDTH-1:0];
                 o_cand_throttled[bg]                             = q_throttled[bg * QUEUE_DEPTH + 32'(best_e)];
                 o_cand_starved[bg]                               = (q_age[bg * QUEUE_DEPTH + 32'(best_e)] >= STARVATION_LIMIT[7:0]);
             end
@@ -304,6 +314,23 @@ module qos_scheduler_queue #(
                     if (was_deq && !was_enq) begin
                         assert (!q_valid[bg * QUEUE_DEPTH + e]);
                     end
+                end
+            end
+        end
+    end
+
+    // 5. QoS Aging Monotonicity & Upper Bound (Le Duc Hung et al.)
+    // Muc QoS hieu dung khong bao gio nho hon QoS goc va luon bi chan tren o muc toi da 15 (bao hoa 4-bit)
+    always_comb begin
+        if (rst_n) begin
+            for (int bg = 0; bg < NUM_BG; bg++) begin
+                if (o_cand_valid[bg]) begin
+                    logic [IDX_W-1:0]         cand_idx;
+                    logic [AXI_QOS_WIDTH-1:0] cand_eff_qos;
+                    cand_idx     = o_cand_entry_idx[bg*IDX_W +: IDX_W];
+                    cand_eff_qos = o_cand_qos[bg*AXI_QOS_WIDTH +: AXI_QOS_WIDTH];
+                    assert (cand_eff_qos >= q_qos[bg * QUEUE_DEPTH + 32'(cand_idx)]);
+                    assert (cand_eff_qos <= 4'd15);
                 end
             end
         end

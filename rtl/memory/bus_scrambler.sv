@@ -37,48 +37,27 @@ module bus_scrambler #(
 
     assign o_lfsr_state = lfsr_state_q;
 
-    // Tinh toan buoc nhay Galois LFSR song song 1 chu ky
-    // Co che Galois: Bit thap nhat dich ra lam feedback cho cac tap points
-    always_comb begin
-        if (lfsr_state_q[0]) begin
-            lfsr_next = (lfsr_state_q >> 1) ^ POLY;
-        end else begin
-            lfsr_next = (lfsr_state_q >> 1);
-        end
-    end
+    // Tinh toan buoc nhay Galois LFSR song song 1 chu ky (Co che Galois feedback)
+    assign lfsr_next = lfsr_state_q[0] ? ((lfsr_state_q >> 1) ^ POLY) : (lfsr_state_q >> 1);
 
     // Cap nhat thanh ghi trang thai theo xung clock
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            // Khoi tao gia tri seed mac dinh khac 0 de tranh trang thai kẹt 0
             lfsr_state_q <= 64'hACE1_CAFE_BABE_0001;
         end else if (cfg_reseed) begin
-            // Re-seed tu CSR: Neu seed nap vao la 0 thi fallback ve seed an toan
             lfsr_state_q <= (|cfg_seed) ? cfg_seed : 64'hACE1_CAFE_BABE_0001;
         end else if (cfg_scramble_en && step_en) begin
             lfsr_state_q <= lfsr_next;
         end
     end
 
-    // Tao mat na xao tron (Keystream) mo rong cho du lieu 128-bit va dia chi
-    logic [DATA_WIDTH-1:0] data_mask;
-    logic [ADDR_WIDTH-1:0] addr_mask;
+    // Tao mat na xao tron (Keystream) mo rong cho du lieu va dia chi
+    wire [127:0]          wide_lfsr = {~lfsr_state_q, lfsr_state_q};
+    wire [DATA_WIDTH-1:0] data_mask = wide_lfsr[DATA_WIDTH-1:0];
+    wire [ADDR_WIDTH-1:0] addr_mask = lfsr_state_q[ADDR_WIDTH-1:0];
 
-    always_comb begin
-        // Mo rong hoac cat 64-bit LFSR phu hop voi DATA_WIDTH tham so hoa
-        logic [127:0] wide_lfsr;
-        wide_lfsr = {~lfsr_state_q, lfsr_state_q};
-        data_mask = wide_lfsr[DATA_WIDTH-1:0];
-        addr_mask = lfsr_state_q[ADDR_WIDTH-1:0];
-
-        // Zero-latency XOR: Neu tat tinh nang scramble thi bypass truc tiep
-        if (cfg_scramble_en) begin
-            o_data = i_data ^ data_mask;
-            o_addr = i_addr ^ addr_mask;
-        end else begin
-            o_data = i_data;
-            o_addr = i_addr;
-        end
-    end
+    // Zero-latency XOR: Neu tat tinh nang scramble thi bypass truc tiep
+    assign o_data = cfg_scramble_en ? (i_data ^ data_mask) : i_data;
+    assign o_addr = cfg_scramble_en ? (i_addr ^ addr_mask) : i_addr;
 
 endmodule

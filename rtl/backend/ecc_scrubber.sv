@@ -12,7 +12,8 @@ module ecc_scrubber #(
     parameter int BANK_COUNT     = 4,
     parameter int BANK_WIDTH     = $clog2(BANK_COUNT),
     parameter int ROW_WIDTH      = 17,
-    parameter int DEFAULT_INTERVAL = 1000
+    parameter int DEFAULT_INTERVAL = 1000,
+    parameter int ZEM_ENTRIES    = 16
 )(
     input  logic                                         clk,
     input  logic                                         rst_n,
@@ -49,7 +50,16 @@ module ecc_scrubber #(
     // SOTA ECCfail Miscorrection Trap & Fallback Interface
     output logic                                         o_ecc_miscorrect_alert,
     output logic [15:0]                                  o_ecc_miscorrect_cnt,
-    output logic                                         o_chipkill_fallback_req
+    output logic                                         o_chipkill_fallback_req,
+
+    // ZEM Zero-Cycle Fault Masking Cache Interface (Le Minh Son et al., HCMUTE / NUS)
+    input  logic                                         i_zem_lookup_valid = 1'b0,
+    input  logic [BG_WIDTH-1:0]                          i_zem_lookup_bg    = '0,
+    input  logic [BANK_WIDTH-1:0]                        i_zem_lookup_bank  = '0,
+    input  logic [ROW_WIDTH-1:0]                         i_zem_lookup_row   = '0,
+    output logic                                         o_zem_hit,
+    output logic [DATA_WIDTH-1:0]                        o_zem_mask,
+    output logic [15:0]                                  o_zem_hit_cnt
 );
 
     //=========================================================================
@@ -231,6 +241,82 @@ module ecc_scrubber #(
         end
     end
 
+    //=========================================================================
+    // ZEM Zero-Cycle Asymmetric Fault-Masking Cache (Le Minh Son et al., HCMUTE/NUS)
+    // 16-entry fully associative CAM storing single-bit retention/soft fault coordinates.
+    // Enables instant 0-cycle XOR bit correction on read path without stalling for scrub.
+    //=========================================================================
+    localparam int ZEM_PTR_W = (ZEM_ENTRIES > 1) ? $clog2(ZEM_ENTRIES) : 1;
+    logic [ZEM_ENTRIES-1:0]          zem_valid;
+    logic [BG_WIDTH-1:0]             zem_bg   [ZEM_ENTRIES];
+    logic [BANK_WIDTH-1:0]           zem_bank [ZEM_ENTRIES];
+    logic [ROW_WIDTH-1:0]            zem_row  [ZEM_ENTRIES];
+    logic [5:0]                      zem_bit  [ZEM_ENTRIES];
+    logic [ZEM_PTR_W-1:0]            zem_alloc_ptr;
+    logic [15:0]                     zem_hit_counter;
+
+    assign o_zem_hit_cnt = zem_hit_counter;
+
+    // Combinational 0-cycle lookup match
+    always_comb begin
+        o_zem_hit  = 1'b0;
+        o_zem_mask = '0;
+        if (i_zem_lookup_valid) begin
+            for (int k = 0; k < ZEM_ENTRIES; k++) begin
+                if (zem_valid[k] &&
+                    (zem_bg[k]   == i_zem_lookup_bg) &&
+                    (zem_bank[k] == i_zem_lookup_bank) &&
+                    (zem_row[k]  == i_zem_lookup_row)) begin
+                    o_zem_hit = 1'b1;
+                    o_zem_mask[zem_bit[k]] = 1'b1;
+                end
+            end
+        end
+    end
+
+    // Sequential entry allocation & hit telemetry accumulation
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            zem_valid       <= '0;
+            zem_alloc_ptr   <= '0;
+            zem_hit_counter <= '0;
+            for (int k = 0; k < ZEM_ENTRIES; k++) begin
+                zem_bg[k]   <= '0;
+                zem_bank[k] <= '0;
+                zem_row[k]  <= '0;
+                zem_bit[k]  <= '0;
+            end
+        end else begin
+            if (i_zem_lookup_valid && o_zem_hit) begin
+                zem_hit_counter <= zem_hit_counter + 1'b1;
+            end
+
+            // Record single-bit error into ZEM Cache upon detection
+            if (i_data_valid && is_single_err && !o_ecc_miscorrect_alert && (syn > 7'd0) && (syn <= 7'd64)) begin
+                logic already_exists;
+                already_exists = 1'b0;
+                for (int k = 0; k < ZEM_ENTRIES; k++) begin
+                    if (zem_valid[k] &&
+                        (zem_bg[k]   == patrol_bg) &&
+                        (zem_bank[k] == patrol_bank) &&
+                        (zem_row[k]  == patrol_row)) begin
+                        already_exists = 1'b1;
+                        zem_bit[k]    <= 6'(syn - 1'b1);
+                    end
+                end
+
+                if (!already_exists) begin
+                    zem_valid[zem_alloc_ptr] <= 1'b1;
+                    zem_bg[zem_alloc_ptr]    <= patrol_bg;
+                    zem_bank[zem_alloc_ptr]  <= patrol_bank;
+                    zem_row[zem_alloc_ptr]   <= patrol_row;
+                    zem_bit[zem_alloc_ptr]   <= 6'(syn - 1'b1);
+                    zem_alloc_ptr            <= zem_alloc_ptr + 1'b1;
+                end
+            end
+        end
+    end
+
 `ifdef FORMAL
     initial assume (!rst_n);
 
@@ -313,6 +399,22 @@ module ecc_scrubber #(
         end
     end
 
+    // 7. ZEM CAM Lookup Invariant (Le Minh Son et al.)
+    // Khi toa do tra cuu khop voi entry hop le trong CAM, o_zem_hit phai assert va bit mat na tuong ung phai duoc set
+    always_comb begin
+        if (rst_n && i_zem_lookup_valid) begin
+            for (int k = 0; k < ZEM_ENTRIES; k++) begin
+                if (zem_valid[k] &&
+                    (zem_bg[k]   == i_zem_lookup_bg) &&
+                    (zem_bank[k] == i_zem_lookup_bank) &&
+                    (zem_row[k]  == i_zem_lookup_row)) begin
+                    assert (o_zem_hit);
+                    assert (o_zem_mask[zem_bit[k]]);
+                end
+            end
+        end
+    end
+
     // Cover properties
     always_ff @(posedge clk) begin
         cover (o_single_err);
@@ -321,6 +423,7 @@ module ecc_scrubber #(
         cover (o_chipkill_fallback_req);
         cover (o_scrub_req);
         cover (patrol_row > '0);
+        cover (o_zem_hit);
     end
 `endif
 
