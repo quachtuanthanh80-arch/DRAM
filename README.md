@@ -140,13 +140,7 @@ To maintain scientific integrity and fair comparison, benchmark results are divi
 
 ---
 
-## 📜 License & Citation
 
-Released under the **MIT License**. For citation:
-```bibtex
-@article{qshield2026,
-  title   = {Q-Shield: A High-Throughput, Zero-Bubble and SDC-Resilient DDR5/DDR4 Secure Memory Controller},
-  author  = {Quach Tuan Thanh and Contributors},
   journal = {IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (Under Review)},
   year    = {2026}
 }
