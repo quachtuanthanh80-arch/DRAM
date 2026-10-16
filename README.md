@@ -138,10 +138,3 @@ To maintain scientific integrity and fair comparison, benchmark results are divi
 - **What This Work Protects**: RowHammer (ZenHammer on DDR5, Phoenix, single/double/many-sided), RowPress (t_RAS prolongation), SledgeHammer cross-bank activation, multi-tenant VM memory cross-tampering (AMD SEV 16-ASID key isolation), active clock/voltage glitch injection into control registers (HOST '20 TMR hardening), and silent data corruption via autonomous scrubbing.
 - **What This Work Does NOT Protect**: Speculative execution side-channels (Spectre/Meltdown), device physical board bus interposers, or analog DRAM cell physical decapping.
 
----
-
-
-  journal = {IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (Under Review)},
-  year    = {2026}
-}
-```
