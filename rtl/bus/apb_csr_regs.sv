@@ -59,6 +59,17 @@ module apb_csr_regs #(
     output logic                 cfg_pmu_en,
     output logic                 cfg_pmu_reset,
 
+    // Two-Tier Crypto & Fault Hardening Interface (Q-Shield V4.0)
+    output logic [1:0]           cfg_crypto_profile, // 00: Bypass, 01: XTS Legacy, 10: AI CTR (Default), 11: Enterprise TEE
+    output logic [7:0]           cfg_default_key_id,
+    output logic [18:0]          cfg_epoch_nonce,
+    output logic [4:0]           sec_fault_status,
+    output logic                 sec_fault_irq,
+    input  logic [4:0]           i_sec_fault_set,    // [0]: ECC CE, [1]: ECC UE, [2]: SDC, [3]: MAC, [4]: TMR Bit-Flip
+    input  logic [31:0]          i_fault_addr_log,
+    output logic                 o_tmr_alert,
+    output logic                 o_glitch_alert,
+
     // Hardware Telemetry Inputs
     input  logic [31:0]          telem_accesses,
     input  logic [31:0]          telem_throttles,
@@ -75,8 +86,13 @@ module apb_csr_regs #(
     localparam logic [AddrWidth-1:0] AddrCtrl           = 12'h000;
     localparam logic [AddrWidth-1:0] AddrStatus         = 12'h004;
     localparam logic [AddrWidth-1:0] AddrSecLock       = 12'h008;
-    localparam logic [AddrWidth-1:0] AddrKey1Base      = 12'h010; // 0x010 .. 0x02C (8 regs)
-    localparam logic [AddrWidth-1:0] AddrKey2Base      = 12'h030; // 0x030 .. 0x04C (8 regs)
+    localparam logic [AddrWidth-1:0] AddrKey1Base      = 12'h010; // 0x010 .. 0x02C (8 regs = 256 bits)
+    localparam logic [AddrWidth-1:0] AddrKey2Base      = 12'h030; // 0x030 .. 0x03C (4 regs = 128-bit Tweak Key)
+    localparam logic [AddrWidth-1:0] AddrCryptoProfile  = 12'h040; // REG_CRYPTO_PROFILE (TMR)
+    localparam logic [AddrWidth-1:0] AddrDefaultKeyId   = 12'h044; // REG_DEFAULT_KEY_ID (TMR)
+    localparam logic [AddrWidth-1:0] AddrEpochNonce     = 12'h048; // REG_EPOCH_NONCE (TMR)
+    localparam logic [AddrWidth-1:0] AddrSecFaultStatus = 12'h04C; // REG_SEC_FAULT_STATUS (RO/W1C)
+    localparam logic [AddrWidth-1:0] AddrFaultAddrLog   = 12'h050; // REG_FAULT_ADDR_LOG (RO)
     localparam logic [AddrWidth-1:0] AddrPerfCycles    = 12'h060;
     localparam logic [AddrWidth-1:0] AddrPerfBlocks    = 12'h064;
     localparam logic [AddrWidth-1:0] AddrPerfStalls    = 12'h068;
@@ -112,6 +128,18 @@ module apb_csr_regs #(
     logic [31:0] reg_key2 [8];
     logic [7:0]  key1_loaded_mask;
     logic [7:0]  key2_loaded_mask;
+
+    // TMR Rails for Critical Security Registers (2-out-of-3 voting with continuous auto-healing)
+    logic [31:0] rail0_crypto_profile, rail1_crypto_profile, rail2_crypto_profile;
+    logic [31:0] rail0_default_key_id,  rail1_default_key_id,  rail2_default_key_id;
+    logic [31:0] rail0_epoch_nonce,     rail1_epoch_nonce,     rail2_epoch_nonce;
+    logic [31:0] voted_crypto_profile, voted_default_key_id, voted_epoch_nonce;
+    logic        tmr_profile_err, tmr_key_err, tmr_nonce_err;
+    logic        tmr_any_err;
+
+    // Security Fault Status & Address Log
+    logic [4:0]  reg_sec_fault_status;
+    logic [31:0] reg_fault_addr_log;
 
     // SDC, DRM, ATE & Security Control Registers
     logic [31:0] reg_sdc_thresh;
@@ -171,13 +199,72 @@ module apb_csr_regs #(
     assign cfg_pmu_en           = reg_pmu_ctrl[0];
     assign cfg_pmu_reset        = reg_pmu_ctrl[1];
 
-    assign keys_valid    = (&key1_loaded_mask) && (&key2_loaded_mask);
+    // Triple Modular Redundancy (TMR) Majority Voting & Self-Healing
+    assign voted_crypto_profile = (rail0_crypto_profile & rail1_crypto_profile) | 
+                                  (rail1_crypto_profile & rail2_crypto_profile) | 
+                                  (rail0_crypto_profile & rail2_crypto_profile);
+    assign voted_default_key_id  = (rail0_default_key_id & rail1_default_key_id) | 
+                                  (rail1_default_key_id & rail2_default_key_id) | 
+                                  (rail0_default_key_id & rail2_default_key_id);
+    assign voted_epoch_nonce     = (rail0_epoch_nonce & rail1_epoch_nonce) | 
+                                  (rail1_epoch_nonce & rail2_epoch_nonce) | 
+                                  (rail0_epoch_nonce & rail2_epoch_nonce);
+
+    assign tmr_profile_err = (rail0_crypto_profile != voted_crypto_profile) ||
+                             (rail1_crypto_profile != voted_crypto_profile) ||
+                             (rail2_crypto_profile != voted_crypto_profile);
+    assign tmr_key_err     = (rail0_default_key_id != voted_default_key_id) ||
+                             (rail1_default_key_id != voted_default_key_id) ||
+                             (rail2_default_key_id != voted_default_key_id);
+    assign tmr_nonce_err   = (rail0_epoch_nonce != voted_epoch_nonce) ||
+                             (rail1_epoch_nonce != voted_epoch_nonce) ||
+                             (rail2_epoch_nonce != voted_epoch_nonce);
+
+    assign tmr_any_err = tmr_profile_err || tmr_key_err || tmr_nonce_err;
+
+    // Connect Fault-Hardened CSR for RowHammer / RowPress / Scramble threshold registers
+    logic [15:0] tmr_rh_thresh;
+    logic [1:0]  tmr_rowpress_curve;
+    logic        tmr_dual_hash_en;
+    logic [1:0]  tmr_scramble_mode;
+    logic        tmr_glitch_alert;
+    logic        tmr_sec_locked;
+
+    fault_hardened_csr u_fault_hardened_csr (
+        .clk                  (pclk),
+        .rst_n                (presetn),
+        .i_cfg_we             (apb_write_req && (paddr == AddrRowPressThresh || paddr == AddrRowPressCurve || paddr == AddrExtConfig)),
+        .i_cfg_rh_threshold   (reg_rowpress_thresh[15:0]),
+        .i_cfg_rowpress_curve (reg_rowpress_curve[1:0]),
+        .i_cfg_dual_hash_en   (reg_ext_config[2]),
+        .i_cfg_scramble_mode  (reg_ext_config[6:5]),
+        .i_cfg_decoy_en       (reg_ext_config[7]),
+        .o_cfg_rh_threshold   (tmr_rh_thresh),
+        .o_cfg_rowpress_curve (tmr_rowpress_curve),
+        .o_cfg_dual_hash_en   (tmr_dual_hash_en),
+        .o_cfg_scramble_mode  (tmr_scramble_mode),
+        .o_cfg_decoy_en       (),
+        .o_glitch_alert       (tmr_glitch_alert),
+        .o_security_locked    (tmr_sec_locked)
+    );
+
+    assign o_glitch_alert     = tmr_glitch_alert;
+    assign o_tmr_alert        = tmr_any_err;
+
+    // Two-Tier Crypto and Fault Interface Outputs
+    assign cfg_crypto_profile = voted_crypto_profile[1:0];
+    assign cfg_default_key_id  = voted_default_key_id[7:0];
+    assign cfg_epoch_nonce     = voted_epoch_nonce[18:0];
+    assign sec_fault_status    = reg_sec_fault_status;
+    assign sec_fault_irq       = |reg_sec_fault_status[3:1]; // Alert Host on Uncorrectable Faults
+
+    assign keys_valid    = (&key1_loaded_mask) && (&key2_loaded_mask[3:0]);
 
     // Concatenate 32-bit registers into 256-bit keys (Big-Endian word layout)
     always_comb begin
         for (int i = 0; i < 8; i++) begin
             key1_data[(7-i)*32 +: 32] = reg_key1[i];
-            key2_data[(7-i)*32 +: 32] = reg_key2[i];
+            key2_data[(7-i)*32 +: 32] = (i < 4) ? reg_key2[i] : reg_key2[i-4];
         end
     end
 
@@ -219,6 +306,17 @@ module apb_csr_regs #(
             reg_scramble_seed_l <= 32'hBABE_0001;
             reg_scramble_seed_h <= 32'hACE1_CAFE;
             reg_pmu_ctrl        <= 32'h0000_0001; // Default: PMU enabled
+            rail0_crypto_profile <= 32'h0000_0002; // Default: Profile 2 (High-Throughput AI CTR mode)
+            rail1_crypto_profile <= 32'h0000_0002;
+            rail2_crypto_profile <= 32'h0000_0002;
+            rail0_default_key_id  <= 32'h0000_0000;
+            rail1_default_key_id  <= 32'h0000_0000;
+            rail2_default_key_id  <= 32'h0000_0000;
+            rail0_epoch_nonce     <= 32'h0005_A5A5;
+            rail1_epoch_nonce     <= 32'h0005_A5A5;
+            rail2_epoch_nonce     <= 32'h0005_A5A5;
+            reg_sec_fault_status  <= 5'b00000;
+            reg_fault_addr_log    <= 32'h0;
             for (int i = 0; i < 8; i++) begin
                 reg_key1[i] <= 32'h0;
                 reg_key2[i] <= 32'h0;
@@ -236,6 +334,31 @@ module apb_csr_regs #(
                 reg_pmu_ctrl[1] <= 1'b0;   // cfg_pmu_reset pulse
             end
 
+            // Continuous TMR Auto-Healing against Laser/Voltage Glitch bit-flips
+            if (!(apb_write_req && paddr == AddrCryptoProfile && !reg_sec_locked)) begin
+                rail0_crypto_profile <= voted_crypto_profile;
+                rail1_crypto_profile <= voted_crypto_profile;
+                rail2_crypto_profile <= voted_crypto_profile;
+            end
+            if (!(apb_write_req && paddr == AddrDefaultKeyId && !reg_sec_locked)) begin
+                rail0_default_key_id <= voted_default_key_id;
+                rail1_default_key_id <= voted_default_key_id;
+                rail2_default_key_id <= voted_default_key_id;
+            end
+            if (!(apb_write_req && paddr == AddrEpochNonce && !reg_sec_locked)) begin
+                rail0_epoch_nonce <= voted_epoch_nonce;
+                rail1_epoch_nonce <= voted_epoch_nonce;
+                rail2_epoch_nonce <= voted_epoch_nonce;
+            end
+
+            // Fault capture
+            if (!(apb_write_req && paddr == AddrSecFaultStatus)) begin
+                reg_sec_fault_status <= reg_sec_fault_status | i_sec_fault_set | {tmr_any_err, 4'b0000};
+            end
+            if (|i_sec_fault_set[3:1]) begin
+                reg_fault_addr_log <= i_fault_addr_log;
+            end
+
             if (apb_write_req) begin
                 case (paddr)
                     AddrCtrl: begin
@@ -246,6 +369,35 @@ module apb_csr_regs #(
                         if (pwdata == SecLockMagic) begin
                             reg_sec_locked <= 1'b1;
                         end
+                    end
+
+                    AddrCryptoProfile: begin
+                        if (!reg_sec_locked) begin
+                            rail0_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                            rail1_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                            rail2_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                        end
+                    end
+
+                    AddrDefaultKeyId: begin
+                        if (!reg_sec_locked) begin
+                            rail0_default_key_id <= apply_strb(voted_default_key_id, pwdata, pstrb);
+                            rail1_default_key_id <= apply_strb(voted_default_key_id, pwdata, pstrb);
+                            rail2_default_key_id <= apply_strb(voted_default_key_id, pwdata, pstrb);
+                        end
+                    end
+
+                    AddrEpochNonce: begin
+                        if (!reg_sec_locked) begin
+                            rail0_epoch_nonce <= apply_strb(voted_epoch_nonce, pwdata, pstrb);
+                            rail1_epoch_nonce <= apply_strb(voted_epoch_nonce, pwdata, pstrb);
+                            rail2_epoch_nonce <= apply_strb(voted_epoch_nonce, pwdata, pstrb);
+                        end
+                    end
+
+                    AddrSecFaultStatus: begin
+                        // W1C: clear bits written with 1, latch any concurrent fault
+                        reg_sec_fault_status <= (reg_sec_fault_status & ~pwdata[4:0]) | i_sec_fault_set | {tmr_any_err, 4'b0000};
                     end
 
                     AddrSdcThresh: begin
@@ -300,8 +452,8 @@ module apb_csr_regs #(
                                 key1_loaded_mask[key1_idx] <= 1'b1;
                             end
                         end
-                        // Key 2 registers (0x030 - 0x04C)
-                        else if (paddr >= AddrKey2Base && paddr <= 12'h04C) begin
+                        // Key 2 registers (0x030 - 0x03C): 128-bit Tweak Key
+                        else if (paddr >= AddrKey2Base && paddr <= 12'h03C) begin
                             if (!reg_sec_locked) begin
                                 reg_key2[key2_idx] <= apply_strb(reg_key2[key2_idx], pwdata, pstrb);
                                 key2_loaded_mask[key2_idx] <= 1'b1;
@@ -334,6 +486,26 @@ module apb_csr_regs #(
 
             AddrSecLock: begin
                 prdata = {31'h0, reg_sec_locked};
+            end
+
+            AddrCryptoProfile: begin
+                prdata = voted_crypto_profile;
+            end
+
+            AddrDefaultKeyId: begin
+                prdata = voted_default_key_id;
+            end
+
+            AddrEpochNonce: begin
+                prdata = voted_epoch_nonce;
+            end
+
+            AddrSecFaultStatus: begin
+                prdata = {27'h0, reg_sec_fault_status};
+            end
+
+            AddrFaultAddrLog: begin
+                prdata = reg_fault_addr_log;
             end
 
             AddrPerfCycles: begin
@@ -433,8 +605,8 @@ module apb_csr_regs #(
                 if (paddr >= AddrKey1Base && paddr <= 12'h02C) begin
                     prdata = reg_sec_locked ? 32'h0 : reg_key1[key1_idx];
                 end
-                // Read Key 2: If locked, return 32'h0
-                else if (paddr >= AddrKey2Base && paddr <= 12'h04C) begin
+                // Read Key 2: If locked, return 32'h0 (0x030 - 0x03C: 128-bit Tweak Key)
+                else if (paddr >= AddrKey2Base && paddr <= 12'h03C) begin
                     prdata = reg_sec_locked ? 32'h0 : reg_key2[key2_idx];
                 end
                 // Read 8 PMU counters (0x120 - 0x13C)

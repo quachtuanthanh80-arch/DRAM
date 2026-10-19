@@ -76,4 +76,76 @@ module axi4_skid_buffer #(
         else $error("[SVA ERROR] Downstream data altered during stall!");
 `endif
 
+    //=========================================================================
+    // Hardware Formal Verification (SymbiYosys / SVA)
+    //=========================================================================
+`ifdef FORMAL
+    initial begin
+        assume (!rst_n);
+    end
+
+    always_ff @(posedge clk) begin
+        if ($past(!rst_n))
+            assume (rst_n);
+    end
+
+    // Protocol Assumption: Upstream input stability when backpressured
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(s_valid) && !$past(s_ready)) begin
+                assume (s_valid);
+                assume (s_data == $past(s_data));
+            end
+        end
+    end
+
+    // Property 1: Reset Behavior - all valids must drop to 0
+    always_comb begin
+        if (!rst_n) begin
+            assert (!m_valid);
+            assert (!skid_valid_reg);
+            assert (s_ready);
+        end
+    end
+
+    // Property 2: Downstream Output Stability when stalled
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(m_valid) && !$past(m_ready)) begin
+                assert (m_valid);
+                assert (m_data == $past(m_data));
+            end
+        end
+    end
+
+    // Property 3: Maximum Occupancy Invariant (skid buffer holds at most 2 items)
+    wire [1:0] occupancy = {1'b0, m_valid} + {1'b0, skid_valid_reg};
+    always_comb begin
+        if (rst_n) begin
+            assert (occupancy <= 2'd2);
+        end
+    end
+
+    // Property 4: Zero-Bubble Invariant
+    always_ff @(posedge clk) begin
+        if (rst_n && $past(rst_n)) begin
+            if ($past(!m_valid && !skid_valid_reg && s_valid)) begin
+                assert (m_valid);
+                assert (m_data == $past(s_data));
+            end
+        end
+    end
+
+    // Property 5: Full Backpressure Assertion
+    always_comb begin
+        if (rst_n) begin
+            if (skid_valid_reg) begin
+                assert (!s_ready);
+            end else begin
+                assert (s_ready);
+            end
+        end
+    end
+`endif
+
 endmodule

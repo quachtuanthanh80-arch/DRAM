@@ -153,6 +153,15 @@ module sec_ddr5_controller_top #(
     logic        csr_cfg_pmu_reset;
     logic [7:0][31:0] csr_pmu_counters;
 
+    // Two-Tier Decoupled Crypto CSR & Fault Interconnect
+    logic [1:0]  csr_cfg_crypto_profile;
+    logic [7:0]  csr_cfg_default_key_id;
+    logic [18:0] csr_cfg_epoch_nonce;
+    logic [4:0]  csr_sec_fault_status;
+    logic        csr_sec_fault_irq;
+    logic [4:0]  sec_fault_set;
+    logic [31:0] fault_addr_log;
+
     assign csr_pmu_counters = '0;
 
     assign security_locked = sec_locked;
@@ -202,6 +211,15 @@ module sec_ddr5_controller_top #(
         .cfg_ecc_mode          (csr_cfg_ecc_mode),
         .cfg_pmu_en            (csr_cfg_pmu_en),
         .cfg_pmu_reset         (csr_cfg_pmu_reset),
+        .cfg_crypto_profile    (csr_cfg_crypto_profile),
+        .cfg_default_key_id    (csr_cfg_default_key_id),
+        .cfg_epoch_nonce       (csr_cfg_epoch_nonce),
+        .sec_fault_status      (csr_sec_fault_status),
+        .sec_fault_irq         (csr_sec_fault_irq),
+        .i_sec_fault_set       (sec_fault_set),
+        .i_fault_addr_log      (fault_addr_log),
+        .o_tmr_alert           (),
+        .o_glitch_alert        (),
         .telem_accesses        (32'd0),
         .telem_throttles       (32'd0),
         .ecc_single_err_cnt    (16'd0),
@@ -570,10 +588,72 @@ module sec_ddr5_controller_top #(
         .dfi_lp_wakeup   ()
     );
 
+    //-------------------------------------------------------------------------
+    // 7. Two-Tier Decoupled Cryptographic Subsystem (AES-CTR 0-Cycle Pre-computation)
+    //-------------------------------------------------------------------------
+    logic [4:0]  qshield_fault_set;
+    logic [31:0] qshield_fault_addr;
+
+    qshield_crypto_top #(
+        .ADDR_WIDTH  (AddrWidth),
+        .DATA_WIDTH  (512),
+        .TAG_WIDTH   (5),
+        .TAG_ENTRIES (16)
+    ) u_qshield_crypto (
+        .clk                  (clk_axi),
+        .rst_n                (rst_axi_n && !soft_reset),
+        .i_crypto_profile     (csr_cfg_crypto_profile),
+        .i_default_key_id     (csr_cfg_default_key_id),
+        .i_epoch_nonce        (csr_cfg_epoch_nonce),
+        .i_key1_data          (key1_cipher),
+        .i_key2_data          (key2_tweak[127:0]),
+        .i_keys_valid         (keys_valid),
+
+        .i_precomp_valid      (1'b0),
+        .o_precomp_ready      (),
+        .i_precomp_is_write   (1'b0),
+        .i_precomp_tag        (5'd0),
+        .i_precomp_addr       (34'd0),
+        .i_precomp_key_id     (8'd0),
+
+        .i_wr_valid           (1'b0),
+        .o_wr_ready           (),
+        .i_wr_tag             (5'd0),
+        .i_wr_addr            (34'd0),
+        .i_wr_data            (512'd0),
+        .i_wr_strb            (64'd0),
+        .o_wr_valid           (),
+        .i_wr_ready           (1'b1),
+        .o_wr_tag             (),
+        .o_wr_addr            (),
+        .o_wr_data            (),
+        .o_wr_mac             (),
+
+        .i_rd_valid           (1'b0),
+        .o_rd_ready           (),
+        .i_rd_tag             (5'd0),
+        .i_rd_addr            (34'd0),
+        .i_rd_data            (512'd0),
+        .i_rd_stored_mac      (64'd0),
+        .o_rd_valid           (),
+        .i_rd_ready           (1'b1),
+        .o_rd_tag             (),
+        .o_rd_addr            (),
+        .o_rd_data            (),
+        .o_rd_poison          (),
+        .o_rd_slverr          (),
+
+        .o_sec_fault_set      (qshield_fault_set),
+        .o_fault_addr_log     (qshield_fault_addr)
+    );
+
+    assign sec_fault_set  = qshield_fault_set;
+    assign fault_addr_log = qshield_fault_addr;
+
     assign controller_idle = adapter_idle && !pipe_busy && fifo_a_rempty && fifo_b_rempty;
 
     // Lint unused signals sink
     logic _unused_top;
-    assign _unused_top = &{keys_valid, auto_tweak_en, perf_cnt_en, total_transfers, key2_tweak, csr_cfg_scramble_en, csr_cfg_scramble_reseed, csr_cfg_scramble_seed, csr_cfg_bank_coloring_en, csr_cfg_mapping_mode, csr_cfg_crypto_mode, csr_cfg_ecc_mode, csr_cfg_pmu_en, csr_cfg_pmu_reset, 1'b0};
+    assign _unused_top = &{keys_valid, auto_tweak_en, perf_cnt_en, total_transfers, key2_tweak, csr_cfg_scramble_en, csr_cfg_scramble_reseed, csr_cfg_scramble_seed, csr_cfg_bank_coloring_en, csr_cfg_mapping_mode, csr_cfg_crypto_mode, csr_cfg_ecc_mode, csr_cfg_pmu_en, csr_cfg_pmu_reset, csr_sec_fault_status, csr_sec_fault_irq, 1'b0};
 
 endmodule: sec_ddr5_controller_top

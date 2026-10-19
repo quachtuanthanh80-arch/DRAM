@@ -22,6 +22,8 @@ results*.xml
 *.hier
 obj_dir/
 ci_test_summary.json
+regression_logs/
+failure_report.json
 
 
 # SymbiYosys formal verification run directories
@@ -55,6 +57,10 @@ Thumbs.db
 .idea/
 .agents/
 AGENTS.md
+.env
+.env.*
+*.key
+secrets.json
 
 # ==============================================================================
 # EXCLUDED: Academic Manuscripts, Proposals & Reference Papers (LOCAL ONLY)
@@ -77,4 +83,5 @@ scratch/
 tools/download_sota_papers.py
 tools/download_vietnamese_papers.py
 tools/download_hcmute_papers.py
+tools/generate_architecture_docx.py
 DRAM/

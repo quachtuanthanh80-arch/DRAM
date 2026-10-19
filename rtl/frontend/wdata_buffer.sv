@@ -55,7 +55,11 @@ module wdata_buffer #(
     input  logic                          i_data_ready,
     output logic [AXI_DATA_WIDTH-1:0]     o_data,
     output logic [AXI_DATA_WIDTH/8-1:0]   o_strb,
-    output logic                          o_last
+    output logic                          o_last,
+
+    // RAW Hazard CAM tracking interface (to ROB / Dispatch)
+    output logic [CMD_FIFO_DEPTH-1:0]                 o_wr_active_valid,
+    output logic [CMD_FIFO_DEPTH*AXI_ADDR_WIDTH-1:0]  o_wr_active_addr
 );
 
     //=========================================================================
@@ -112,6 +116,18 @@ module wdata_buffer #(
             cmd_rd_ptr <= '0;
         end else if (o_cmd_valid && i_cmd_ready) begin
             cmd_rd_ptr <= cmd_rd_ptr + 1'b1;
+        end
+    end
+
+    // Broadcast toàn bộ các địa chỉ ghi đang chờ xử lý trong FIFO cho CAM RAW Hazard Detector
+    wire [CMD_PTR_W:0] fifo_occupancy = cmd_wr_ptr - cmd_rd_ptr;
+    always_comb begin
+        for (int k = 0; k < CMD_FIFO_DEPTH; k++) begin
+            logic [CMD_PTR_W-1:0] rel_slot;
+            rel_slot = (CMD_PTR_W)'(k) - cmd_rd_ptr[CMD_PTR_W-1:0];
+            o_wr_active_valid[k] = ({1'b0, rel_slot} < fifo_occupancy);
+            o_wr_active_addr[k*AXI_ADDR_WIDTH +: AXI_ADDR_WIDTH] =
+                cmd_mem[k][CMD_W - AXI_ID_WIDTH - 1 -: AXI_ADDR_WIDTH];
         end
     end
 

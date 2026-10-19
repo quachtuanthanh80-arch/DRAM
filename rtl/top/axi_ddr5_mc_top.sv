@@ -303,6 +303,8 @@ module axi_ddr5_mc_top #(
     logic                      wbuf_data_valid;
     logic [AXI_DATA_WIDTH-1:0] wbuf_data;
     logic                      wbuf_data_last;
+    logic [7:0]                wbuf_wr_active_valid;
+    logic [8*AXI_ADDR_WIDTH-1:0] wbuf_wr_active_addr;
 
     wdata_buffer #(
         .AXI_ID_WIDTH   (AXI_ID_WIDTH),
@@ -345,7 +347,10 @@ module axi_ddr5_mc_top #(
         .i_data_ready        (1'b1),
         .o_data              (wbuf_data),
         .o_strb              (),
-        .o_last              (wbuf_data_last)
+        .o_last              (wbuf_data_last),
+
+        .o_wr_active_valid   (wbuf_wr_active_valid),
+        .o_wr_active_addr    (wbuf_wr_active_addr)
     );
 
     //=========================================================================
@@ -561,8 +566,8 @@ module axi_ddr5_mc_top #(
         .o_alloc_ready      (rob_alloc_ready),
         .o_alloc_tag        (rob_alloc_tag),
 
-        .i_wr_active_valid  ({7'b0, wbuf_cmd_valid}),
-        .i_wr_active_addr   ({(7*AXI_ADDR_WIDTH)'(0), wbuf_cmd_addr}),
+        .i_wr_active_valid  (wbuf_wr_active_valid),
+        .i_wr_active_addr   (wbuf_wr_active_addr),
         .o_raw_hazard       (rob_raw_hazard),
         .o_raw_match_mask   (),
 
@@ -945,7 +950,13 @@ module axi_ddr5_mc_top #(
         .o_wb_tag            (dram_wb_tag),
         .o_wb_data           (dram_wb_data),
         .o_wb_resp           (dram_wb_resp),
-        .o_wb_last           (dram_wb_last)
+        .o_wb_last           (dram_wb_last),
+
+        .o_precomp_valid     (),
+        .o_precomp_is_write  (),
+        .o_precomp_tag       (),
+        .o_precomp_addr      (),
+        .o_precomp_key_id    ()
     );
 
     //=========================================================================

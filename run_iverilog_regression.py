@@ -137,6 +137,7 @@ def main():
             "module_covered": "rtl/bus/apb_csr_regs.sv",
             "behavior_verified": "APB4 read/write handshake, security mode locks, and telemetry registers",
             "sources": [
+                os.path.join(root, "rtl", "core", "fault_hardened_csr.sv"),
                 os.path.join(root, "rtl", "bus", "apb_csr_regs.sv"),
                 os.path.join(root, "tb", "bus", "tb_apb_csr_regs.sv"),
             ]
@@ -224,7 +225,7 @@ def main():
             "behavior_verified": "Full top-level pipeline: AXI slave -> Skid buffer -> SDC filter -> ROB -> DFI",
             "sources": [
                 os.path.join(root, "rtl", "cdc", "rst_sync.sv"),
-                os.path.join(root, "rtl", "frontend", "axi4_skid_buffer.sv"),
+                os.path.join(root, "rtl", "bus", "axi4_skid_buffer.sv"),
                 os.path.join(root, "rtl", "frontend", "axi_slave_frontend.sv"),
                 os.path.join(root, "rtl", "frontend", "wdata_buffer.sv"),
                 os.path.join(root, "rtl", "frontend", "domain_bank_coloring.sv"),
@@ -300,11 +301,16 @@ def main():
                 os.path.join(root, "rtl", "crypto", "aes_round_pipe.sv"),
                 os.path.join(root, "rtl", "crypto", "subchannel_aes_xts_pipe.sv"),
                 os.path.join(root, "rtl", "bus", "axi4_skid_buffer.sv"),
+                os.path.join(root, "rtl", "core", "fault_hardened_csr.sv"),
                 os.path.join(root, "rtl", "bus", "apb_csr_regs.sv"),
                 os.path.join(root, "rtl", "bus", "axi4_slave_adapter.sv"),
-                os.path.join(root, "rtl", "memory", "async_fifo_cdc.sv"),
+                os.path.join(root, "rtl", "cdc", "async_fifo_cdc.sv"),
                 os.path.join(root, "rtl", "memory", "ddr5_subchannel_scheduler.sv"),
                 os.path.join(root, "rtl", "memory", "dfi_phy_adapter.sv"),
+                os.path.join(root, "rtl", "crypto", "split_counter_table.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_ctr_keystream.sv"),
+                os.path.join(root, "rtl", "crypto", "integrity_mac_gen.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_crypto_top.sv"),
                 os.path.join(root, "rtl", "top", "sec_ddr5_controller_top.sv"),
                 os.path.join(root, "tb", "top", "tb_sec_ddr5_controller_top.sv"),
             ]
@@ -346,9 +352,26 @@ def main():
             "module_covered": "rtl/frontend/axi_slave_frontend.sv",
             "behavior_verified": "AW/AR/W/R parity error detection and AXI poison signal propagation",
             "sources": [
-                os.path.join(root, "rtl", "frontend", "axi4_skid_buffer.sv"),
+                os.path.join(root, "rtl", "bus", "axi4_skid_buffer.sv"),
                 os.path.join(root, "rtl", "frontend", "axi_slave_frontend.sv"),
                 os.path.join(root, "tb", "frontend", "tb_axi5_compliance.sv"),
+            ]
+        },
+        {
+            "name": "Security V3.1: Two-Tier Decoupled AES-CTR Pre-computation Engine",
+            "top": "tb_qshield_crypto_top",
+            "module_covered": "rtl/crypto/qshield_crypto_top.sv",
+            "behavior_verified": "Profiles 0-3, 0-cycle CTR pre-computation, MAC integrity, and ASIL-D poisoning",
+            "sources": [
+                os.path.join(root, "rtl", "crypto", "aes_pkg.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_sbox.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_sbox_composite.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_round_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "split_counter_table.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_ctr_keystream.sv"),
+                os.path.join(root, "rtl", "crypto", "integrity_mac_gen.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_crypto_top.sv"),
+                os.path.join(root, "tb", "crypto", "tb_qshield_crypto_top.sv"),
             ]
         }
     ]
@@ -407,7 +430,7 @@ def main():
         json.dump(summary_payload, f, indent=2)
 
     # 2. Save Failure Diagnostics JSON
-    failure_json_path = os.path.join(root, "failure_report.json")
+    failure_json_path = os.path.join(log_dir, "failure_report.json")
     failure_payload = {
         "total_failures": total_failed,
         "failures": failed_records,

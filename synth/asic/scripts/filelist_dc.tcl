@@ -19,6 +19,7 @@ set CDC_FILES [list \
 set BUS_FILES [list \
     "$RTL_ROOT/bus/axi4_skid_buffer.sv" \
     "$RTL_ROOT/bus/axi4_slave_adapter.sv" \
+    "$RTL_ROOT/core/fault_hardened_csr.sv" \
     "$RTL_ROOT/bus/apb_csr_regs.sv" \
 ]
 
@@ -26,8 +27,6 @@ set BUS_FILES [list \
 # 2. Q-Shield Primary Architecture Modules (axi_ddr5_mc_top target)
 #-----------------------------------------------------------------------------
 set FRONTEND_FILES [list \
-    "$RTL_ROOT/frontend/axi4_skid_buffer.sv" \
-    "$RTL_ROOT/frontend/axi_address_decoder.sv" \
     "$RTL_ROOT/frontend/wdata_buffer.sv" \
     "$RTL_ROOT/frontend/addr_mapper_ddr5.sv" \
     "$RTL_ROOT/frontend/axi_slave_frontend.sv" \
@@ -74,6 +73,10 @@ set CRYPTO_FILES [list \
     "$RTL_ROOT/crypto/aes_tweak_gen.sv" \
     "$RTL_ROOT/crypto/aes_round_pipe.sv" \
     "$RTL_ROOT/crypto/subchannel_aes_xts_pipe.sv" \
+    "$RTL_ROOT/crypto/split_counter_table.sv" \
+    "$RTL_ROOT/crypto/aes_ctr_keystream.sv" \
+    "$RTL_ROOT/crypto/integrity_mac_gen.sv" \
+    "$RTL_ROOT/crypto/qshield_crypto_top.sv" \
 ]
 
 # Full Secure Top Module: Inline AES-256-XTS + Dual Subchannel Controller

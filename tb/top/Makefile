@@ -6,7 +6,7 @@ WAVES ?= 1
 ROOT_DIR ?= $(abspath $(CURDIR)/../..)
 
 VERILOG_SOURCES = \
-    $(ROOT_DIR)/rtl/frontend/axi4_skid_buffer.sv \
+    $(ROOT_DIR)/rtl/bus/axi4_skid_buffer.sv \
     $(ROOT_DIR)/rtl/frontend/axi_slave_frontend.sv \
     $(ROOT_DIR)/rtl/frontend/wdata_buffer.sv \
     $(ROOT_DIR)/rtl/frontend/domain_bank_coloring.sv \

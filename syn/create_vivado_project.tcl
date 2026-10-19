@@ -32,10 +32,15 @@ add_files -norecurse {
     D:/RAM/rtl/crypto/aes_tweak_gen.sv
     D:/RAM/rtl/crypto/aes_round_pipe.sv
     D:/RAM/rtl/crypto/subchannel_aes_xts_pipe.sv
+    D:/RAM/rtl/crypto/split_counter_table.sv
+    D:/RAM/rtl/crypto/aes_ctr_keystream.sv
+    D:/RAM/rtl/crypto/integrity_mac_gen.sv
+    D:/RAM/rtl/crypto/qshield_crypto_top.sv
     D:/RAM/rtl/bus/axi4_skid_buffer.sv
+    D:/RAM/rtl/core/fault_hardened_csr.sv
     D:/RAM/rtl/bus/apb_csr_regs.sv
     D:/RAM/rtl/bus/axi4_slave_adapter.sv
-    D:/RAM/rtl/memory/async_fifo_cdc.sv
+    D:/RAM/rtl/cdc/async_fifo_cdc.sv
     D:/RAM/rtl/memory/ddr5_subchannel_scheduler.sv
     D:/RAM/rtl/memory/dfi_phy_adapter.sv
     D:/RAM/rtl/top/sec_ddr5_controller_top.sv

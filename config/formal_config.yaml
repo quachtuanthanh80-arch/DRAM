@@ -26,7 +26,7 @@ proof_profiles:
         target_rtl: "rtl/core/reorder_buffer_rob.sv"
         bound: 25
       - name: "formal_skid_buffer"
-        target_rtl: "rtl/frontend/axi4_skid_buffer.sv"
+        target_rtl: "rtl/bus/axi4_skid_buffer.sv"
         bound: 30
       - name: "formal_ecc_scrubber"
         target_rtl: "rtl/backend/ecc_scrubber.sv"

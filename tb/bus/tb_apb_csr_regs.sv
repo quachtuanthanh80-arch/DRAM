@@ -41,7 +41,7 @@ module tb_apb_csr_regs;
     logic                 auto_tweak_en;
     logic                 sec_locked;
     logic [255:0]         key1_data;
-    logic [255:0]         key2_data;
+    logic [127:0]         key2_data;
     logic                 keys_valid;
 
     logic                 pipe_busy;
@@ -68,6 +68,17 @@ module tb_apb_csr_regs;
     logic [15:0]          ate_dynamic_thresh;
     logic [15:0]          abo_alert_cnt;
     logic [15:0]          ecc_miscorrect_cnt;
+
+    // Two-Tier Crypto & Fault Hardening Signals
+    logic [1:0]           cfg_crypto_profile;
+    logic [7:0]           cfg_default_key_id;
+    logic [18:0]          cfg_epoch_nonce;
+    logic [4:0]           sec_fault_status;
+    logic                 sec_fault_irq;
+    logic [4:0]           i_sec_fault_set = 5'b00000;
+    logic [31:0]          i_fault_addr_log = 32'h0;
+    logic                 o_tmr_alert;
+    logic                 o_glitch_alert;
 
     // Instantiate DUT
     apb_csr_regs #(
@@ -107,12 +118,31 @@ module tb_apb_csr_regs;
         .cfg_drm_victim2_en    (cfg_drm_victim2_en),
         .cfg_ate_en            (cfg_ate_en),
         .cfg_ate_alpha_shift   (cfg_ate_alpha_shift),
+        .cfg_scramble_en       (),
+        .cfg_scramble_reseed   (),
+        .cfg_scramble_seed     (),
+        .cfg_bank_coloring_en  (),
+        .cfg_mapping_mode      (),
+        .cfg_crypto_mode       (),
+        .cfg_ecc_mode          (),
+        .cfg_pmu_en            (),
+        .cfg_pmu_reset         (),
+        .cfg_crypto_profile    (cfg_crypto_profile),
+        .cfg_default_key_id    (cfg_default_key_id),
+        .cfg_epoch_nonce       (cfg_epoch_nonce),
+        .sec_fault_status      (sec_fault_status),
+        .sec_fault_irq         (sec_fault_irq),
+        .i_sec_fault_set       (i_sec_fault_set),
+        .i_fault_addr_log      (i_fault_addr_log),
+        .o_tmr_alert           (o_tmr_alert),
+        .o_glitch_alert        (o_glitch_alert),
         .telem_accesses        (telem_accesses),
         .telem_throttles       (telem_throttles),
         .ecc_single_err_cnt    (ecc_single_err_cnt),
         .ecc_double_err_cnt    (ecc_double_err_cnt),
         .rowpress_alert_cnt    (rowpress_alert_cnt),
         .ate_dynamic_thresh    (ate_dynamic_thresh),
+        .pmu_counters          ('0),
         .abo_alert_cnt         (abo_alert_cnt),
         .ecc_miscorrect_cnt    (ecc_miscorrect_cnt)
     );
@@ -215,21 +245,54 @@ module tb_apb_csr_regs;
             tests_failed++;
         end
 
-        // TEST 3: Load Key 2 (256-bit AES Tweak Key)
+        // TEST 3: Load Key 2 (128-bit AES Tweak Key)
         tests_run++;
-        for (int i = 0; i < 8; i++) begin
+        for (int i = 0; i < 4; i++) begin
             apb_write(12'h030 + (i * 4), 32'h2000_0000 + i);
         end
         @(posedge pclk);
         if (keys_valid &&
             key1_data == {32'h10000000, 32'h10000001, 32'h10000002, 32'h10000003,
                           32'h10000004, 32'h10000005, 32'h10000006, 32'h10000007} &&
-            key2_data == {32'h20000000, 32'h20000001, 32'h20000002, 32'h20000003,
-                          32'h20000004, 32'h20000005, 32'h20000006, 32'h20000007}) begin
-            $display("[PASS] Test 3: Keys loaded and validated with exact 256-bit concatenation.");
+            key2_data == {32'h20000000, 32'h20000001, 32'h20000002, 32'h20000003}) begin
+            $display("[PASS] Test 3: Keys loaded and validated with exact 256b Key1 and 128b Key2.");
             tests_passed++;
         end else begin
-            $display("[FAIL] Test 3: Keys mismatch. key1=%064h, key2=%064h", key1_data, key2_data);
+            $display("[FAIL] Test 3: Keys mismatch. key1=%064h, key2=%032h", key1_data, key2_data);
+            tests_failed++;
+        end
+
+        // TEST 3b: Two-Tier Security & TMR CSRs (Profile, KeyID, Nonce Configuration)
+        tests_run++;
+        apb_read(12'h040, rdata); // REG_CRYPTO_PROFILE default check
+        if (rdata == 32'd2 && cfg_crypto_profile == 2'b10) begin
+            apb_read(12'h044, rdata); // REG_DEFAULT_KEY_ID default check
+            if (rdata == 32'd0 && cfg_default_key_id == 8'd0) begin
+                apb_read(12'h048, rdata); // REG_EPOCH_NONCE default check
+                if (rdata == 32'h0005_A5A5 && cfg_epoch_nonce == 19'h5A5A5) begin
+                    // Write new values
+                    apb_write(12'h040, 32'd1); // Profile 1: Legacy XTS
+                    apb_write(12'h044, 32'h5A); // Key ID 0x5A
+                    apb_write(12'h048, 32'h7_ABCD); // Epoch Nonce
+                    @(posedge pclk);
+                    if (cfg_crypto_profile == 2'b01 && cfg_default_key_id == 8'h5A && cfg_epoch_nonce == 19'h7ABCD) begin
+                        $display("[PASS] Test 3b: Two-Tier TMR CSRs configured before lockdown.");
+                        tests_passed++;
+                    end else begin
+                        $display("[FAIL] Test 3b: TMR CSR write mismatch. Prof=%b, KeyID=%h, Nonce=%h",
+                                 cfg_crypto_profile, cfg_default_key_id, cfg_epoch_nonce);
+                        tests_failed++;
+                    end
+                end else begin
+                    $display("[FAIL] Test 3b: Epoch Nonce default mismatch: %h", rdata);
+                    tests_failed++;
+                end
+            end else begin
+                $display("[FAIL] Test 3b: Key ID default mismatch: %h", rdata);
+                tests_failed++;
+            end
+        end else begin
+            $display("[FAIL] Test 3b: Crypto Profile default mismatch: %h", rdata);
             tests_failed++;
         end
 
@@ -253,8 +316,10 @@ module tb_apb_csr_regs;
             for (int i = 0; i < 8; i++) begin
                 apb_read(12'h010 + (i * 4), rdata);
                 if (rdata != 32'h0) key_read_zero = 1'b0;
-                apb_read(12'h030 + (i * 4), rdata);
-                if (rdata != 32'h0) key_read_zero = 1'b0;
+                if (i < 4) begin
+                    apb_read(12'h030 + (i * 4), rdata);
+                    if (rdata != 32'h0) key_read_zero = 1'b0;
+                end
             end
             if (key_read_zero) begin
                 $display("[PASS] Test 5: Key readback zeroized! Sniffing attacks thwarted.");
@@ -379,6 +444,46 @@ module tb_apb_csr_regs;
             end
         end else begin
             $display("[FAIL] Test 11: RowPress curve mismatch. Got %h", rdata);
+            tests_failed++;
+        end
+
+        // TEST 12: Two-Tier Security & TMR CSRs (Lockdown Protection & W1C Fault Status)
+        tests_run++;
+        // 1. Verify lockdown prevents modifying TMR crypto profile
+        apb_write(12'h040, 32'd2);
+        @(posedge pclk);
+        if (cfg_crypto_profile == 2'b01) begin
+            // 2. Test Fault Status set and interrupt
+            i_sec_fault_set <= 5'b00101; // SDC fault + Major counter roll fault
+            i_fault_addr_log <= 32'hDEAD_1234;
+            @(posedge pclk);
+            i_sec_fault_set <= 5'b00000;
+            @(posedge pclk);
+            apb_read(12'h04C, rdata);
+            if (rdata[4:0] == 5'b00101 && sec_fault_status == 5'b00101 && sec_fault_irq == 1'b1) begin
+                apb_read(12'h050, rdata);
+                if (rdata == 32'hDEAD_1234) begin
+                    // 3. W1C bit 0
+                    apb_write(12'h04C, 32'h0000_0001);
+                    @(posedge pclk);
+                    apb_read(12'h04C, rdata);
+                    if (rdata[4:0] == 5'b00100 && sec_fault_status == 5'b00100) begin
+                        $display("[PASS] Test 12: Two-Tier TMR CSR lockdown protection and W1C Fault Status verified.");
+                        tests_passed++;
+                    end else begin
+                        $display("[FAIL] Test 12: W1C clear failed. Got %h", rdata);
+                        tests_failed++;
+                    end
+                end else begin
+                    $display("[FAIL] Test 12: Fault Addr Log mismatch. Got %h", rdata);
+                    tests_failed++;
+                end
+            end else begin
+                $display("[FAIL] Test 12: Fault Status set mismatch. Got %h, IRQ=%b", rdata, sec_fault_irq);
+                tests_failed++;
+            end
+        end else begin
+            $display("[FAIL] Test 12: Lockdown overwrite protection failed! Profile modified to %b", cfg_crypto_profile);
             tests_failed++;
         end
 

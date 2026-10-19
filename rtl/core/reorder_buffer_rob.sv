@@ -86,7 +86,7 @@ module reorder_buffer_rob #(
     assign o_rob_empty   = (occupancy_count == '0);
     assign o_rob_full    = (occupancy_count >= ROB_DEPTH[ROB_PTR_WIDTH:0]);
     assign o_rob_count   = occupancy_count;
-    assign o_alloc_ready = !o_rob_full;
+    assign o_alloc_ready = !o_rob_full && !o_raw_hazard;
     assign o_alloc_tag   = alloc_ptr;
 
     //=========================================================================

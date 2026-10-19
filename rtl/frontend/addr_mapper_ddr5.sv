@@ -113,8 +113,10 @@ module addr_mapper_ddr5 #(
         .o_scrambled_bank  (scarf_bank)
     );
 
+    // Khi Bank Coloring kích hoạt, ngân hàng Bank được bảo toàn tuyệt đối để phân vùng QoS xác định; SCARF chỉ hoán vị Row
     wire [ROW_WIDTH-1:0]  final_row  = (cfg_scramble_en && cfg_scramble_mode == 2'b10) ? scarf_row  : dec_row;
-    wire [BANK_WIDTH-1:0] final_bank = (cfg_scramble_en && cfg_scramble_mode == 2'b10) ? scarf_bank : dec_bank;
+    wire [BANK_WIDTH-1:0] final_bank = (cfg_bank_coloring_en) ? dec_bank :
+                                       ((cfg_scramble_en && cfg_scramble_mode == 2'b10) ? scarf_bank : dec_bank);
 
     // Pipeline Register
     always_ff @(posedge clk or negedge rst_n) begin

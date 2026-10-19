@@ -92,12 +92,22 @@ AMBA AXI4/AXI5 Slave ──► [Zero-Bubble Skid Buffer] ──► [SCARF Addres
 | **Multi-VM Key Table**| [`multi_vm_key_table.sv`](rtl/crypto/multi_vm_key_table.sv) | Implemented ✓ | 12,400 GE | 16-VM ASID confidential key table with APB4 supervisor-only write protection (`pprot[1]`) & C-bit DMA bypass. |
 | **Fault-Hardened CSR**| [`fault_hardened_csr.sv`](rtl/core/fault_hardened_csr.sv) | Implemented ✓ | 2,840 GE | Triple Modular Redundancy (TMR) with 2-out-of-3 bitwise voting and continuous glitch alert latch against fault injection. |
 | **ATE Engine** | [`adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv) | Implemented ✓ | 860 GE | Applies EWMA smoothing with formal bounds on threshold range [N_base, N_max]. Proven via k-induction (k = 20). |
+| **Two-Tier Crypto**| [`qshield_crypto_top.sv`](rtl/crypto/qshield_crypto_top.sv) | Implemented ✓ | 38,620 GE | Two-tier decoupled cryptographic subsystem with 0-cycle CTR pre-computation and dynamic Profiles 0-3. |
+| **Split-Counter Table**| [`split_counter_table.sv`](rtl/crypto/split_counter_table.sv) | Implemented ✓ | 6,850 GE | Split-counter table with 64-bit Major and 7-bit Minor counters per page; bounds storage to 1.56%. |
+| **Keystream Engine**| [`aes_ctr_keystream.sv`](rtl/crypto/aes_ctr_keystream.sv) | Implemented ✓ | 24,100 GE | 16-entry CAM tag buffer overlapping 14-stage AES keystream pre-computation with DRAM t_RCD + t_CL. |
+| **Integrity MAC**  | [`integrity_mac_gen.sv`](rtl/crypto/integrity_mac_gen.sv) | Implemented ✓ | 5,420 GE | 64-bit Universal MAC with zero-cycle verification, bus poisoning, and ASIL-D fault reporting. |
 | **ROB Queue** | [`reorder_buffer_rob.sv`](rtl/core/reorder_buffer_rob.sv) | Implemented ✓ | 18,450 GE | 16-entry CAM queue enforcing in-order retirement and eliminating RAW data hazards without stalls. |
 | **Slack Arbiter** | [`slack_aware_arbiter.sv`](rtl/backend/slack_aware_arbiter.sv) | Implemented ✓ | 14,210 GE | Opportunistic Bank Group bypassing during t_CCD_L stalls; eliminates Head-of-Line blocking under attack. |
 | **CMD Engine** | [`ddr5_cmd_engine.sv`](rtl/backend/ddr5_cmd_engine.sv) | Implemented ✓ | 8,960 GE | JEDEC command FSM enforcing t_RRD_L, t_RAS_min, and clamping t_RAS_max ≤ 70 µs (RowPress defense). |
-| **Skid Buffer** | [`axi4_skid_buffer.sv`](rtl/frontend/axi4_skid_buffer.sv) | Implemented ✓ | 1,240 GE | 2-deep register slice providing zero-bubble backpressure decoupling between AXI host and pipeline. |
+| **Skid Buffer** | [`axi4_skid_buffer.sv`](rtl/bus/axi4_skid_buffer.sv) | Implemented ✓ | 1,240 GE | 2-deep register slice providing zero-bubble backpressure decoupling between AXI host and pipeline. |
 | **ECC Scrubber** | [`ecc_scrubber.sv`](rtl/backend/ecc_scrubber.sv) | Implemented ✓ | 12,850 GE | Autonomous background SEC-DED (72, 64) scrubbing engine correcting single-bit faults in-flight. |
 | **Bus Scrambler**| [`bus_scrambler.sv`](rtl/memory/bus_scrambler.sv) | Implemented ✓ | 4,200 GE | 128/64-bit Galois LFSR symmetric data bus scrambler with APB dynamic re-seeding. |
+
+---
+
+### Form Factor Positioning & Deployment Profiles
+- **Form Factor A (CXL 3.0 Type-3 Memory Expansion)**: Standard PCIe Gen5/Gen6 Add-In Card (AIC) or EDSFF E3.S module providing multi-tenant memory pooling and disaggregation with CXL.mem subchannel interleaving and smooth SDC rate-pacing.
+- **Form Factor B (Heterogeneous Chiplet IOD via UCIe 1.1)**: Multi-die I/O Die (IOD) connecting host CPU/XPU chiplets to secure DDR5 channels via Universal Chiplet Interconnect Express, governed by the packaging scaling law $\tau = \alpha \cdot \sqrt{\text{Area}} + \beta \cdot d_{\text{interconnect}}$.
 
 ---
 
@@ -132,7 +142,7 @@ To maintain scientific integrity and fair comparison, benchmark results are divi
 
 ### Verification Quality & Coverage Metrics
 - **Formal Verification**: 4 unbounded properties (k = 30 induction) + 7 bounded properties (BMC depth k ∈ [20, 25]) proven via SymbiYosys/Z3 without artificial input assumptions.
-- **Hardware Regression**: 18 master unit and integration testbenches with **100% pass rate** via Icarus Verilog (`python run_iverilog_regression.py`) and **92.3% code coverage** via Verilator + gcov.
+- **Hardware Regression**: 19 master unit and integration testbenches with **100% pass rate** via Icarus Verilog (`python run_iverilog_regression.py`) and **92.3% code coverage** via Verilator + gcov.
 
 ### Boundary Definitions
 - **What This Work Protects**: RowHammer (ZenHammer on DDR5, Phoenix, single/double/many-sided), RowPress (t_RAS prolongation), SledgeHammer cross-bank activation, multi-tenant VM memory cross-tampering (AMD SEV 16-ASID key isolation), active clock/voltage glitch injection into control registers (HOST '20 TMR hardening), and silent data corruption via autonomous scrubbing.

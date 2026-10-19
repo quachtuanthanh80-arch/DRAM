@@ -1,138 +1,265 @@
 // aes_ctr_keystream.sv
-// Bo tinh toan truoc keystream che do AES-CTR triet tieu do tre doc cho bo nho DRAM
+// Dong co tinh toan truoc Keystream AES-256-CTR 512-bit voi bo nho dem Tag Buffer 16 entry triet tieu do tre 0-cycle
 
 `timescale 1ns / 1ps
 
 module aes_ctr_keystream
     import aes_pkg::*;
 #(
-    parameter int ADDR_WIDTH  = 32,
-    parameter int DATA_WIDTH  = 128,
-    parameter int FIFO_DEPTH  = 4
+    parameter int TAG_WIDTH   = 5,
+    parameter int TAG_ENTRIES = 16,
+    parameter int NumRounds   = 14
 )(
-    input  logic                   clk,
-    input  logic                   rst_n,
+    input  logic                         clk,
+    input  logic                         rst_n,
 
-    // Giao tiep khoi tao khoa tu APB CSR
-    input  logic                   cfg_ctr_en,
-    input  logic [255:0]           cfg_aes_key,
-    input  logic [63:0]            cfg_nonce,
+    // Che do va Khoa ma hoa
+    input  logic                         cfg_ctr_en,
+    input  logic [127:0]                 round_keys [NumRounds + 1],
 
-    // Kich hoat tinh toan truoc keystream ngay khi nhan duoc dia chi (AR/AW phase)
-    input  logic                   i_req_valid,
-    output logic                   o_req_ready,
-    input  logic [ADDR_WIDTH-1:0]  i_req_addr,
-    input  logic [31:0]            i_req_counter,
+    // Giao dien Yeu cau Tinh toan truoc Keystream (Kich hoat tu Address Decoder hoac Scheduler)
+    input  logic                         i_precomp_valid,
+    output logic                         o_precomp_ready,
+    input  logic [TAG_WIDTH-1:0]         i_precomp_tag,
+    input  logic [127:0]                 i_precomp_ctr_blocks [4],
 
-    // Giao tiep phat keystream san sang cho khoi doc/ghi du lieu
-    output logic                   o_keystream_valid,
-    input  logic                   i_keystream_ready,
-    output logic [DATA_WIDTH-1:0]  o_keystream,
+    // Giao dien Tra cuu & Khum ma Doc 0-cycle (Read Data XOR Path)
+    input  logic                         i_rd_valid,
+    output logic                         o_rd_ready,
+    input  logic [TAG_WIDTH-1:0]         i_rd_tag,
+    input  logic [511:0]                 i_rd_data,
+    output logic                         o_rd_valid,
+    input  logic                         i_rd_pop,
+    output logic [511:0]                 o_rd_data,
+    output logic                         o_rd_hit,
 
-    // Giao dien xu ly truc tiep du lieu XOR 0-cycle
-    input  logic                   i_data_valid,
-    output logic                   o_data_valid,
-    input  logic [DATA_WIDTH-1:0]  i_data,
-    output logic [DATA_WIDTH-1:0]  o_data
+    // Giao dien Tra cuu & Ma hoa Ghi 0-cycle (Write Data XOR Path)
+    input  logic                         i_wr_valid,
+    output logic                         o_wr_ready,
+    input  logic [TAG_WIDTH-1:0]         i_wr_tag,
+    input  logic [511:0]                 i_wr_data,
+    output logic                         o_wr_valid,
+    input  logic                         i_wr_pop,
+    output logic [511:0]                 o_wr_data,
+    output logic                         o_wr_hit
 );
 
-    // Dinh dang khoi Counter 128-bit: {Nonce[63:0], Addr[31:0], Counter[31:0]}
-    logic [127:0] ctr_block;
-    assign ctr_block = {cfg_nonce, i_req_addr, i_req_counter};
+    // Bo nho dem Keystream theo Tag (CAM / Dual-port RAM 16 entry)
+    logic [511:0]         tag_keystream_mem [TAG_ENTRIES];
+    logic [TAG_ENTRIES-1:0] tag_valid_q;
+    logic [TAG_ENTRIES-1:0] tag_pending_q;
 
-    // Co che pipeline/iterative tao keystream tu khoi CTR
-    // Tinh toan truoc keystream trong thoi gian cho DRAM latency (tRCD + tCL)
-    logic [127:0] generated_keystream;
-    logic         keystream_computed_valid;
+    // FSM dua 4 khoi subblock vao duong ong AES
+    typedef enum logic [1:0] {
+        ST_FEED_IDLE = 2'b00,
+        ST_FEED_BURST = 2'b01
+    } feed_state_e;
 
-    // FSM don gian gia lap pipeline tinh toan keystream voi khoa 256-bit
-    logic [3:0]   round_cnt_q;
-    logic         computing_q;
-    logic [127:0] state_q;
+    feed_state_e          feed_state;
+    logic [1:0]           feed_sub_idx;
+    logic [TAG_WIDTH-1:0] feed_tag_q;
+    logic [127:0]         feed_blocks_q [4];
+
+    // Pipeline wire declarations cho 14 vong AES
+    logic [127:0]         pipe_state [NumRounds + 1];
+    logic                 pipe_valid [NumRounds + 1];
+    logic                 pipe_ready [NumRounds + 1];
+    logic [TAG_WIDTH-1:0] pipe_tag_pipe [1:NumRounds];
+    logic [1:0]           pipe_sub_pipe [1:NumRounds];
+
+    assign o_precomp_ready = (feed_state == ST_FEED_IDLE) && pipe_ready[0];
+
+    // Initial whitening: State 0 = CTR_Block ^ RoundKey[0]
+    logic [127:0] cur_feed_block;
+    assign cur_feed_block = (feed_state == ST_FEED_BURST) ? feed_blocks_q[feed_sub_idx] : i_precomp_ctr_blocks[0];
+
+    wire [TAG_WIDTH-1:0] pipe_tag_in = (feed_state == ST_FEED_BURST) ? feed_tag_q : i_precomp_tag;
+    wire [1:0]           pipe_sub_in = (feed_state == ST_FEED_BURST) ? feed_sub_idx : 2'b00;
+
+    assign pipe_state[0] = cur_feed_block ^ round_keys[0];
+    assign pipe_valid[0] = (feed_state == ST_FEED_BURST) || (i_precomp_valid && o_precomp_ready);
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            round_cnt_q              <= '0;
-            computing_q              <= 1'b0;
-            state_q                  <= '0;
-            keystream_computed_valid <= 1'b0;
-            generated_keystream      <= '0;
+            feed_state   <= ST_FEED_IDLE;
+            feed_sub_idx <= 2'b00;
+            feed_tag_q   <= '0;
+            for (int i = 0; i < 4; i++) feed_blocks_q[i] <= '0;
         end else if (cfg_ctr_en) begin
-            keystream_computed_valid <= 1'b0;
-            if (!computing_q && i_req_valid && o_req_ready) begin
-                computing_q <= 1'b1;
-                round_cnt_q <= 4'd14; // 14 vong cho AES-256
-                // Khoi tao state bang phep AddRoundKey dau tien
-                state_q     <= ctr_block ^ cfg_aes_key[127:0];
-            end else if (computing_q) begin
-                if (round_cnt_q > 4'd1) begin
-                    round_cnt_q <= round_cnt_q - 1'b1;
-                    // Bien doi vong thu gon bang phep quay va XOR khoa
-                    state_q     <= {state_q[119:0], state_q[127:120]} ^ cfg_aes_key[255:128];
-                end else begin
-                    computing_q              <= 1'b0;
-                    keystream_computed_valid <= 1'b1;
-                    generated_keystream      <= state_q ^ cfg_aes_key[127:0];
+            case (feed_state)
+                ST_FEED_IDLE: begin
+                    if (i_precomp_valid && o_precomp_ready) begin
+                        feed_tag_q       <= i_precomp_tag;
+                        feed_blocks_q[0] <= i_precomp_ctr_blocks[0];
+                        feed_blocks_q[1] <= i_precomp_ctr_blocks[1];
+                        feed_blocks_q[2] <= i_precomp_ctr_blocks[2];
+                        feed_blocks_q[3] <= i_precomp_ctr_blocks[3];
+                        feed_sub_idx     <= 2'b01; // Block 0 da duoc dua vao pipe_state[0] ngay chu ky nay
+                        feed_state       <= ST_FEED_BURST;
+                    end
                 end
-            end
-        end else begin
-            computing_q              <= 1'b0;
-            keystream_computed_valid <= 1'b0;
-        end
-    end
 
-    // Keystream Buffer FIFO (Do sau 4-entry giu san keystream da tinh truoc)
-    logic [DATA_WIDTH-1:0] fifo_mem [FIFO_DEPTH];
-    logic [1:0]            fifo_wr_ptr;
-    logic [1:0]            fifo_rd_ptr;
-    logic [2:0]            fifo_count;
-
-    wire fifo_full  = (fifo_count == 3'(unsigned'(FIFO_DEPTH)));
-    wire fifo_empty = (fifo_count == 3'd0);
-
-    assign o_req_ready       = !fifo_full && !computing_q;
-    assign o_keystream_valid = !fifo_empty;
-    assign o_keystream       = fifo_mem[fifo_rd_ptr];
-
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            fifo_wr_ptr <= '0;
-            fifo_rd_ptr <= '0;
-            fifo_count  <= '0;
-            for (int i = 0; i < FIFO_DEPTH; i++) begin
-                fifo_mem[i] <= '0;
-            end
-        end else if (cfg_ctr_en) begin
-            // Day keystream moi tinh duoc vao FIFO
-            if (keystream_computed_valid && !fifo_full) begin
-                fifo_mem[fifo_wr_ptr] <= generated_keystream;
-                fifo_wr_ptr           <= fifo_wr_ptr + 1'b1;
-            end
-
-            // Lay keystream ra khi duoc tieu thu boi pipeline du lieu
-            if (i_keystream_ready && !fifo_empty) begin
-                fifo_rd_ptr <= fifo_rd_ptr + 1'b1;
-            end
-
-            // Cap nhat so luong entry trong FIFO
-            case ({keystream_computed_valid && !fifo_full, i_keystream_ready && !fifo_empty})
-                2'b10: fifo_count <= fifo_count + 1'b1;
-                2'b01: fifo_count <= fifo_count - 1'b1;
-                default: ; // Khong doi khi ca hai cung xay ra hoac khong co gi
+                ST_FEED_BURST: begin
+                    if (pipe_ready[0]) begin
+                        if (feed_sub_idx == 2'b11) begin
+                            feed_state   <= ST_FEED_IDLE;
+                            feed_sub_idx <= 2'b00;
+                        end else begin
+                            feed_sub_idx <= feed_sub_idx + 1'b1;
+                        end
+                    end
+                end
             endcase
         end else begin
-            fifo_count <= '0;
+            feed_state <= ST_FEED_IDLE;
         end
     end
 
-    // Phep XOR du lieu tuc thoi 0-cycle khi du lieu DRAM ve
-    always_comb begin
-        if (cfg_ctr_en) begin
-            o_data_valid = i_data_valid && o_keystream_valid;
-            o_data       = i_data ^ o_keystream;
+    // Khoi tao 14 vong duong ong bien doi AES
+    genvar r;
+    generate
+        for (r = 1; r <= NumRounds; r++) begin : gen_ctr_rounds
+            localparam bit IsFinal = (r == NumRounds);
+
+            aes_round_pipe u_round (
+                .clk           (clk),
+                .rst_n         (rst_n),
+                .in_valid      (pipe_valid[r-1]),
+                .in_ready      (pipe_ready[r-1]),
+                .is_final_round(IsFinal),
+                .state_in      (pipe_state[r-1]),
+                .round_key     (round_keys[r]),
+                .out_valid     (pipe_valid[r]),
+                .out_ready     (pipe_ready[r]),
+                .state_out     (pipe_state[r])
+            );
+
+            if (r == 1) begin : gen_stage1
+                always_ff @(posedge clk or negedge rst_n) begin
+                    if (!rst_n) begin
+                        pipe_tag_pipe[1] <= '0;
+                        pipe_sub_pipe[1] <= '0;
+                    end else if (pipe_ready[0]) begin
+                        pipe_tag_pipe[1] <= pipe_tag_in;
+                        pipe_sub_pipe[1] <= pipe_sub_in;
+                    end
+                end
+            end else begin : gen_stage_later
+                always_ff @(posedge clk or negedge rst_n) begin
+                    if (!rst_n) begin
+                        pipe_tag_pipe[r] <= '0;
+                        pipe_sub_pipe[r] <= '0;
+                    end else if (pipe_ready[r-1]) begin
+                        pipe_tag_pipe[r] <= pipe_tag_pipe[r-1];
+                        pipe_sub_pipe[r] <= pipe_sub_pipe[r-1];
+                    end
+                end
+            end
+        end
+    endgenerate
+
+    // Dau ra pipeline luon san sang tiep nhan
+    assign pipe_ready[NumRounds] = 1'b1;
+
+    // Tap hop 4 subblock 128-bit thanh Keystream 512-bit
+    logic [127:0]         asm_blocks [TAG_ENTRIES][4];
+    logic [3:0]           asm_mask   [TAG_ENTRIES];
+    wire [TAG_WIDTH-1:0]  out_tag    = pipe_tag_pipe[NumRounds];
+    wire [1:0]            out_sub    = pipe_sub_pipe[NumRounds];
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            tag_valid_q   <= '0;
+            tag_pending_q <= '0;
+            for (int e = 0; e < TAG_ENTRIES; e++) begin
+                tag_keystream_mem[e] <= '0;
+                asm_mask[e]          <= '0;
+                for (int s = 0; s < 4; s++) asm_blocks[e][s] <= '0;
+            end
         end else begin
-            o_data_valid = i_data_valid;
-            o_data       = i_data;
+            // Danh dau tag pending khi nhan yeu cau precomputation
+            if (i_precomp_valid && o_precomp_ready) begin
+                if (i_precomp_tag < TAG_ENTRIES) begin
+                    tag_pending_q[i_precomp_tag] <= 1'b1;
+                    asm_mask[i_precomp_tag]      <= 4'b0000;
+                end
+            end
+
+            // Thu thap tung subblock khi ra khoi duong ong AES
+            if (pipe_valid[NumRounds]) begin
+                if (out_tag < TAG_ENTRIES) begin
+                    asm_blocks[out_tag][out_sub] <= pipe_state[NumRounds];
+                    asm_mask[out_tag][out_sub]   <= 1'b1;
+
+                    // Neu ca 4 subblock deu da hoan thanh, lap rap thanh 512-bit Keystream
+                    if ((asm_mask[out_tag] | (4'b0001 << out_sub)) == 4'b1111) begin
+                        tag_keystream_mem[out_tag] <= {
+                            (out_sub == 2'b11) ? pipe_state[NumRounds] : asm_blocks[out_tag][3],
+                            (out_sub == 2'b10) ? pipe_state[NumRounds] : asm_blocks[out_tag][2],
+                            (out_sub == 2'b01) ? pipe_state[NumRounds] : asm_blocks[out_tag][1],
+                            (out_sub == 2'b00) ? pipe_state[NumRounds] : asm_blocks[out_tag][0]
+                        };
+                        tag_valid_q[out_tag]   <= 1'b1;
+                        tag_pending_q[out_tag] <= 1'b0;
+                    end
+                end
+            end
+
+            // Xoa tag khi du lieu doc/ghi pop khoi buffer
+            if (i_rd_valid && i_rd_pop && (i_rd_tag < TAG_ENTRIES)) begin
+                tag_valid_q[i_rd_tag] <= 1'b0;
+            end
+            if (i_wr_valid && i_wr_pop && (i_wr_tag < TAG_ENTRIES)) begin
+                tag_valid_q[i_wr_tag] <= 1'b0;
+            end
+        end
+    end
+
+    // Giao dien Doc 0-Cycle XOR Tra cuu
+    assign o_rd_ready = 1'b1;
+    always_comb begin
+        if (!cfg_ctr_en) begin
+            o_rd_valid = i_rd_valid;
+            o_rd_data  = i_rd_data;
+            o_rd_hit   = 1'b1;
+        end else if (i_rd_valid) begin
+            if (i_rd_tag < TAG_ENTRIES && tag_valid_q[i_rd_tag]) begin
+                o_rd_valid = 1'b1;
+                o_rd_data  = i_rd_data ^ tag_keystream_mem[i_rd_tag];
+                o_rd_hit   = 1'b1;
+            end else begin
+                o_rd_valid = 1'b0;
+                o_rd_data  = i_rd_data;
+                o_rd_hit   = 1'b0; // Keystream chua tinh xong (Page Hit corner case)
+            end
+        end else begin
+            o_rd_valid = 1'b0;
+            o_rd_data  = '0;
+            o_rd_hit   = 1'b0;
+        end
+    end
+
+    // Giao dien Ghi 0-Cycle XOR Tra cuu
+    assign o_wr_ready = 1'b1;
+    always_comb begin
+        if (!cfg_ctr_en) begin
+            o_wr_valid = i_wr_valid;
+            o_wr_data  = i_wr_data;
+            o_wr_hit   = 1'b1;
+        end else if (i_wr_valid) begin
+            if (i_wr_tag < TAG_ENTRIES && tag_valid_q[i_wr_tag]) begin
+                o_wr_valid = 1'b1;
+                o_wr_data  = i_wr_data ^ tag_keystream_mem[i_wr_tag];
+                o_wr_hit   = 1'b1;
+            end else begin
+                o_wr_valid = 1'b0;
+                o_wr_data  = i_wr_data;
+                o_wr_hit   = 1'b0;
+            end
+        end else begin
+            o_wr_valid = 1'b0;
+            o_wr_data  = '0;
+            o_wr_hit   = 1'b0;
         end
     end
 

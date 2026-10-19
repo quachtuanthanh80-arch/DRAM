@@ -4,7 +4,7 @@ TOPLEVEL_LANG ?= verilog
 
 ROOT_DIR ?= $(abspath $(CURDIR)/../..)
 
-VERILOG_SOURCES += $(ROOT_DIR)/rtl/frontend/axi4_skid_buffer.sv
+VERILOG_SOURCES += $(ROOT_DIR)/rtl/bus/axi4_skid_buffer.sv
 VERILOG_SOURCES += $(ROOT_DIR)/rtl/frontend/axi_slave_frontend.sv
 
 TOPLEVEL = axi_slave_frontend

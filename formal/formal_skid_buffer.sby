@@ -10,4 +10,4 @@ read -formal -sv axi4_skid_buffer.sv
 prep -top axi4_skid_buffer
 
 [files]
-/mnt/d/RAM/rtl/frontend/axi4_skid_buffer.sv
+/mnt/d/RAM/rtl/bus/axi4_skid_buffer.sv

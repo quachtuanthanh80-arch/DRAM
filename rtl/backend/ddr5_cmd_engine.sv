@@ -103,7 +103,16 @@ module ddr5_cmd_engine #(
     output logic [ROB_PTR_WIDTH-1:0]                     o_wb_tag,
     output logic [AXI_DATA_WIDTH-1:0]                    o_wb_data,
     output logic [1:0]                                   o_wb_resp,
-    output logic                                         o_wb_last
+    output logic                                         o_wb_last,
+
+    //-------------------------------------------------------------------------
+    // Two-Tier Decoupled Cryptographic Pre-computation Trigger Interface
+    //-------------------------------------------------------------------------
+    output logic                                         o_precomp_valid,
+    output logic                                         o_precomp_is_write,
+    output logic [ROB_PTR_WIDTH-1:0]                     o_precomp_tag,
+    output logic [33:0]                                  o_precomp_addr,
+    output logic [7:0]                                   o_precomp_key_id
 );
 
     // DFI Command Encodings
@@ -199,6 +208,15 @@ module ddr5_cmd_engine #(
 
     assign o_engine_ready = !busy && !o_abo_active && !i_dram_abo_alert;
     assign o_slack_cycle  = !busy && (o_dfi_cmd == CMD_NOP);
+
+    // Kích hoạt Pre-computation cho Mật mã Hai Tầng:
+    // Triệt tiêu kích hoạt khi đang khử nhiễu Rowhammer/RowPress, ABO hoặc làm tươi tự động RFM
+    assign o_precomp_valid    = i_cmd_valid && !busy && !i_cmd_is_mitigation &&
+                                !o_abo_active && !i_dram_abo_alert && !o_rfm_active;
+    assign o_precomp_is_write = i_cmd_is_write;
+    assign o_precomp_tag      = i_cmd_tag;
+    assign o_precomp_addr     = 34'({i_cmd_row, i_cmd_bg, i_cmd_bank, i_cmd_col, 2'b00});
+    assign o_precomp_key_id   = 8'h01;
 
     //=========================================================================
     // Read Return Latency Simulation Pipeline

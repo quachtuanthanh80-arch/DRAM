@@ -37,14 +37,8 @@ module integrity_mac_gen #(
 
     // K1 subkey generation cho CMAC tren GF(2^128)
     // Neu bit 127 = 0: K1 = L << 1; Neu bit 127 = 1: K1 = (L << 1) ^ 128'h87
-    logic [127:0] k1_subkey;
-    always_comb begin
-        if (cfg_mac_key[127]) begin
-            k1_subkey = {cfg_mac_key[126:0], 1'b0} ^ 128'h0000_0000_0000_0000_0000_0000_0000_0087;
-        end else begin
-            k1_subkey = {cfg_mac_key[126:0], 1'b0};
-        end
-    end
+    wire [127:0] k1_shifted = {cfg_mac_key[126:0], 1'b0};
+    wire [127:0] k1_subkey  = cfg_mac_key[127] ? (k1_shifted ^ 128'h0000_0000_0000_0000_0000_0000_0000_0087) : k1_shifted;
 
     // Ghép khối dữ liệu đầu vào xác thực:
     // Message Block 1: Dữ liệu (128-bit)
@@ -105,16 +99,18 @@ module integrity_mac_gen #(
         end
     end
 
-    // 2. Luồng xử lý kiểm tra MAC chiều đọc
+    // Tinh toan MAC toan ven truc tiep (Combinational MAC Verification cho 0-cycle Poisoning)
+    wire [127:0] rd_direct_mac = (rd_msg_blk1 ^ cfg_mac_key) ^ rd_msg_blk2 ^ cfg_mac_key;
+    assign o_integrity_violation = cfg_mac_en && i_rd_valid && (rd_direct_mac[MAC_WIDTH-1:0] != i_rd_stored_mac);
+
+    // 2. Luồng xử lý kiểm tra MAC chiều đọc (Pipeline status)
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rd_state_q            <= 2'b00;
             rd_mac_acc_q          <= '0;
             o_rd_mac_valid        <= 1'b0;
-            o_integrity_violation <= 1'b0;
         end else if (cfg_mac_en) begin
             o_rd_mac_valid        <= 1'b0;
-            o_integrity_violation <= 1'b0;
             case (rd_state_q)
                 2'b00: begin
                     if (i_rd_valid) begin
@@ -125,17 +121,12 @@ module integrity_mac_gen #(
                 2'b01: begin
                     rd_state_q     <= 2'b00;
                     o_rd_mac_valid <= 1'b1;
-                    // So sanh MAC tinh duoc voi MAC luu tru trong metadata
-                    if (rd_final_block[MAC_WIDTH-1:0] != i_rd_stored_mac) begin
-                        o_integrity_violation <= 1'b1; // Phat hien sai lech toan ven du lieu!
-                    end
                 end
                 default: rd_state_q <= 2'b00;
             endcase
         end else begin
             rd_state_q            <= 2'b00;
             o_rd_mac_valid        <= 1'b0;
-            o_integrity_violation <= 1'b0;
         end
     end
 
