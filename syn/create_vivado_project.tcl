@@ -43,6 +43,9 @@ add_files -norecurse {
     D:/RAM/rtl/cdc/async_fifo_cdc.sv
     D:/RAM/rtl/memory/ddr5_subchannel_scheduler.sv
     D:/RAM/rtl/memory/dfi_phy_adapter.sv
+    D:/RAM/rtl/interfaces/pcie_cxl_io_apb_shim.sv
+    D:/RAM/rtl/interfaces/cxl_mem_axi_shim.sv
+    D:/RAM/rtl/interfaces/ucie_fdi_axi_shim.sv
     D:/RAM/rtl/top/sec_ddr5_controller_top.sv
 }
 

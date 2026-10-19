@@ -373,6 +373,38 @@ def main():
                 os.path.join(root, "rtl", "crypto", "qshield_crypto_top.sv"),
                 os.path.join(root, "tb", "crypto", "tb_qshield_crypto_top.sv"),
             ]
+        },
+        {
+            "name": "Interconnect: PCIe Gen5 / CXL.io APB CSR Shim & DVSEC Header",
+            "top": "tb_pcie_cxl_io_shim",
+            "module_covered": "rtl/interfaces/pcie_cxl_io_apb_shim.sv",
+            "behavior_verified": "PCIe TLP to APB4 bridge, CXL 3.0 DVSEC header readback, and TMR CSR programming",
+            "sources": [
+                os.path.join(root, "rtl", "core", "fault_hardened_csr.sv"),
+                os.path.join(root, "rtl", "bus", "apb_csr_regs.sv"),
+                os.path.join(root, "rtl", "interfaces", "pcie_cxl_io_apb_shim.sv"),
+                os.path.join(root, "tb", "interfaces", "pcie", "tb_pcie_cxl_io_shim.sv"),
+            ]
+        },
+        {
+            "name": "Form Factor A: CXL.mem 3.0 Flit Expander & Multi-VM Isolation",
+            "top": "tb_cxl_mem_axi_shim",
+            "module_covered": "rtl/interfaces/cxl_mem_axi_shim.sv",
+            "behavior_verified": "M2S/S2M 68B/256B Flit unpacking/packing, SPID to AXI mapping, and poison reflection",
+            "sources": [
+                os.path.join(root, "rtl", "interfaces", "cxl_mem_axi_shim.sv"),
+                os.path.join(root, "tb", "interfaces", "cxl", "tb_cxl_mem_axi_shim.sv"),
+            ]
+        },
+        {
+            "name": "Form Factor B: UCIe 1.1 FDI Bring-Up & AoU Streaming",
+            "top": "tb_ucie_fdi_axi_shim",
+            "module_covered": "rtl/interfaces/ucie_fdi_axi_shim.sv",
+            "behavior_verified": "UCIe 1.1 FDI bring-up state machine, AoU streaming flits, and Tau-scaling delay",
+            "sources": [
+                os.path.join(root, "rtl", "interfaces", "ucie_fdi_axi_shim.sv"),
+                os.path.join(root, "tb", "interfaces", "ucie", "tb_ucie_fdi_axi_shim.sv"),
+            ]
         }
     ]
 

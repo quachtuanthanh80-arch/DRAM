@@ -88,6 +88,16 @@ set QSHIELD_SEC_FILES [concat \
     [list "$RTL_ROOT/top/sec_ddr5_controller_top.sv"] \
 ]
 
+#-----------------------------------------------------------------------------
+# 4. Form Factor Interconnect Shims (CXL 3.0 & UCIe 1.1)
+#-----------------------------------------------------------------------------
+set INTERFACE_FILES [list \
+    "$RTL_ROOT/interfaces/pcie_cxl_io_apb_shim.sv" \
+    "$RTL_ROOT/interfaces/cxl_mem_axi_shim.sv" \
+    "$RTL_ROOT/interfaces/ucie_fdi_axi_shim.sv" \
+]
+
 puts "\[INFO\] Q-Shield Filelist loaded successfully."
 puts "       - Target 1 (axi_ddr5_mc_top): [llength $QSHIELD_MC_FILES] RTL files"
 puts "       - Target 2 (sec_ddr5_controller_top): [llength $QSHIELD_SEC_FILES] RTL files"
+puts "       - Interconnect Shims (CXL/UCIe): [llength $INTERFACE_FILES] RTL files"

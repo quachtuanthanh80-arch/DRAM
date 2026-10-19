@@ -192,6 +192,29 @@ def main():
             "makefile": "Makefile",
             "env_overrides": {"MODULE": "test_semiconductor_lifecycle", "SIM_BUILD": "sim_build_lifecycle"},
         },
+
+        # Stage 5: External Interconnect & Protocol VIP (PCIe, CXL, UCIe)
+        {
+            "name": "Interconnect: PCIe Gen5 / CXL.io APB CSR Shim & DVSEC Header",
+            "stage": "Interconnect",
+            "cwd": os.path.join(root_dir, "tb", "interfaces", "pcie"),
+            "makefile": "Makefile",
+            "env_overrides": {},
+        },
+        {
+            "name": "Form Factor A: CXL.mem 3.0 Flit Expander & Multi-VM Isolation",
+            "stage": "Interconnect",
+            "cwd": os.path.join(root_dir, "tb", "interfaces", "cxl"),
+            "makefile": "Makefile",
+            "env_overrides": {},
+        },
+        {
+            "name": "Form Factor B: UCIe 1.1 FDI Bring-Up & AoU Streaming",
+            "stage": "Interconnect",
+            "cwd": os.path.join(root_dir, "tb", "interfaces", "ucie"),
+            "makefile": "Makefile",
+            "env_overrides": {},
+        },
     ]
 
     # Check execution environment
@@ -205,7 +228,7 @@ def main():
     print(f"  Python     : {platform.python_version()}")
     print(f"  Native Make: {'Available' if has_make else 'Not found'}")
     print(f"  WSL Engine : {'Available' if has_wsl else 'Not found'}")
-    print(f"  Total Tests: {len(suites)} suites across 4 stages (Functional, Crypto, Integration, Stress)")
+    print(f"  Total Tests: {len(suites)} suites across 5 stages (Functional, Crypto, Integration, Stress, Interconnect)")
     print("=" * 96)
 
     # If running on Windows host without native make, check WSL dispatch
