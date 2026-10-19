@@ -15,7 +15,7 @@ VERILOG_SOURCES ?= \
 TOPLEVEL ?= aes_ctr_keystream
 MODULE ?= test_aes_ctr_keystream
 
-EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -I$(ROOT_DIR)/rtl/crypto
+EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNOPTFLAT -I$(ROOT_DIR)/rtl/crypto
 
 COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
 include $(COCOTB_SHARE_DIR)/Makefile.sim

@@ -63,7 +63,9 @@ module aes_ctr_keystream
     // Pipeline wire declarations cho 14 vong AES
     logic [127:0]         pipe_state [NumRounds + 1];
     logic                 pipe_valid [NumRounds + 1];
+    /* verilator lint_off UNOPTFLAT */
     logic                 pipe_ready [NumRounds + 1];
+    /* verilator lint_on UNOPTFLAT */
     logic [TAG_WIDTH-1:0] pipe_tag_pipe [1:NumRounds];
     logic [1:0]           pipe_sub_pipe [1:NumRounds];
 
