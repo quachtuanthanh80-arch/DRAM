@@ -53,10 +53,13 @@ module integrity_mac_gen #(
     assign rd_msg_blk2 = {i_rd_addr, i_rd_counter, 64'h8000_0000_0000_0000} ^ k1_subkey;
 
     // Pipeline tính toán AES-CMAC (2 chu kỳ cho 2 khối CBC-MAC)
-    logic [1:0] wr_state_q;
-    logic [1:0] rd_state_q;
-    logic [127:0] wr_mac_acc_q;
-    logic [127:0] rd_mac_acc_q;
+    logic [1:0]           wr_state_q;
+    logic [1:0]           rd_state_q;
+    logic [127:0]         wr_mac_acc_q;
+    logic [127:0]         rd_mac_acc_q;
+    logic [127:0]         wr_msg_blk2_q;
+    logic [127:0]         rd_msg_blk2_q;
+    logic [MAC_WIDTH-1:0] rd_stored_mac_q;
 
     assign o_wr_ready = (wr_state_q == 2'b00);
     assign o_rd_ready = (rd_state_q == 2'b00);
@@ -65,14 +68,15 @@ module integrity_mac_gen #(
     logic [127:0] wr_final_block;
     logic [127:0] rd_final_block;
 
-    assign wr_final_block = wr_mac_acc_q ^ wr_msg_blk2 ^ cfg_mac_key;
-    assign rd_final_block = rd_mac_acc_q ^ rd_msg_blk2 ^ cfg_mac_key;
+    assign wr_final_block = wr_mac_acc_q ^ wr_msg_blk2_q ^ cfg_mac_key;
+    assign rd_final_block = rd_mac_acc_q ^ rd_msg_blk2_q ^ cfg_mac_key;
 
     // 1. Luồng xử lý sinh MAC chiều ghi
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             wr_state_q     <= 2'b00;
             wr_mac_acc_q   <= '0;
+            wr_msg_blk2_q  <= '0;
             o_wr_mac_valid <= 1'b0;
             o_wr_mac       <= '0;
         end else if (cfg_mac_en) begin
@@ -80,15 +84,14 @@ module integrity_mac_gen #(
             case (wr_state_q)
                 2'b00: begin
                     if (i_wr_valid) begin
-                        wr_state_q   <= 2'b01;
-                        // CBC Block 1: State1 = Encrypt(IV ^ Blk1)
-                        wr_mac_acc_q <= wr_msg_blk1 ^ cfg_mac_key;
+                        wr_state_q    <= 2'b01;
+                        wr_mac_acc_q  <= wr_msg_blk1 ^ cfg_mac_key;
+                        wr_msg_blk2_q <= wr_msg_blk2;
                     end
                 end
                 2'b01: begin
                     wr_state_q     <= 2'b00;
                     o_wr_mac_valid <= 1'b1;
-                    // CBC Block 2: Tag = Encrypt(State1 ^ Blk2)
                     o_wr_mac       <= wr_final_block[MAC_WIDTH-1:0];
                 end
                 default: wr_state_q <= 2'b00;
@@ -101,32 +104,43 @@ module integrity_mac_gen #(
 
     // Tinh toan MAC toan ven truc tiep (Combinational MAC Verification cho 0-cycle Poisoning)
     wire [127:0] rd_direct_mac = (rd_msg_blk1 ^ cfg_mac_key) ^ rd_msg_blk2 ^ cfg_mac_key;
-    assign o_integrity_violation = cfg_mac_en && i_rd_valid && (rd_direct_mac[MAC_WIDTH-1:0] != i_rd_stored_mac);
+    wire         comb_violation = cfg_mac_en && i_rd_valid && (rd_direct_mac[MAC_WIDTH-1:0] != i_rd_stored_mac);
 
-    // 2. Luồng xử lý kiểm tra MAC chiều đọc (Pipeline status)
+    logic        pipe_violation_q;
+    assign o_integrity_violation = comb_violation || (o_rd_mac_valid && pipe_violation_q);
+
+    // 2. Luồng xử lý kiểm tra MAC chiều đọc (Pipeline status & Violation detection)
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            rd_state_q            <= 2'b00;
-            rd_mac_acc_q          <= '0;
-            o_rd_mac_valid        <= 1'b0;
+            rd_state_q       <= 2'b00;
+            rd_mac_acc_q     <= '0;
+            rd_msg_blk2_q    <= '0;
+            rd_stored_mac_q  <= '0;
+            o_rd_mac_valid   <= 1'b0;
+            pipe_violation_q <= 1'b0;
         end else if (cfg_mac_en) begin
-            o_rd_mac_valid        <= 1'b0;
+            o_rd_mac_valid   <= 1'b0;
+            pipe_violation_q <= 1'b0;
             case (rd_state_q)
                 2'b00: begin
                     if (i_rd_valid) begin
-                        rd_state_q   <= 2'b01;
-                        rd_mac_acc_q <= rd_msg_blk1 ^ cfg_mac_key;
+                        rd_state_q      <= 2'b01;
+                        rd_mac_acc_q    <= rd_msg_blk1 ^ cfg_mac_key;
+                        rd_msg_blk2_q   <= rd_msg_blk2;
+                        rd_stored_mac_q <= i_rd_stored_mac;
                     end
                 end
                 2'b01: begin
-                    rd_state_q     <= 2'b00;
-                    o_rd_mac_valid <= 1'b1;
+                    rd_state_q       <= 2'b00;
+                    o_rd_mac_valid   <= 1'b1;
+                    pipe_violation_q <= (rd_final_block[MAC_WIDTH-1:0] != rd_stored_mac_q);
                 end
                 default: rd_state_q <= 2'b00;
             endcase
         end else begin
-            rd_state_q            <= 2'b00;
-            o_rd_mac_valid        <= 1'b0;
+            rd_state_q       <= 2'b00;
+            o_rd_mac_valid   <= 1'b0;
+            pipe_violation_q <= 1'b0;
         end
     end
 

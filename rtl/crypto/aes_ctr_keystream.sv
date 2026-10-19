@@ -109,6 +109,11 @@ module aes_ctr_keystream
                         end
                     end
                 end
+
+                default: begin
+                    feed_state   <= ST_FEED_IDLE;
+                    feed_sub_idx <= 2'b00;
+                end
             endcase
         end else begin
             feed_state <= ST_FEED_IDLE;
@@ -167,6 +172,12 @@ module aes_ctr_keystream
     wire [TAG_WIDTH-1:0]  out_tag    = pipe_tag_pipe[NumRounds];
     wire [1:0]            out_sub    = pipe_sub_pipe[NumRounds];
 
+    localparam int TAG_IDX_WIDTH = (TAG_ENTRIES > 1) ? $clog2(TAG_ENTRIES) : 1;
+    wire [TAG_IDX_WIDTH-1:0] precomp_tag_idx = i_precomp_tag[TAG_IDX_WIDTH-1:0];
+    wire [TAG_IDX_WIDTH-1:0] out_tag_idx     = out_tag[TAG_IDX_WIDTH-1:0];
+    wire [TAG_IDX_WIDTH-1:0] rd_tag_idx      = i_rd_tag[TAG_IDX_WIDTH-1:0];
+    wire [TAG_IDX_WIDTH-1:0] wr_tag_idx      = i_wr_tag[TAG_IDX_WIDTH-1:0];
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             tag_valid_q   <= '0;
@@ -179,38 +190,38 @@ module aes_ctr_keystream
         end else begin
             // Danh dau tag pending khi nhan yeu cau precomputation
             if (i_precomp_valid && o_precomp_ready) begin
-                if (i_precomp_tag < TAG_ENTRIES) begin
-                    tag_pending_q[i_precomp_tag] <= 1'b1;
-                    asm_mask[i_precomp_tag]      <= 4'b0000;
+                if (i_precomp_tag < TAG_WIDTH'(TAG_ENTRIES)) begin
+                    tag_pending_q[precomp_tag_idx] <= 1'b1;
+                    asm_mask[precomp_tag_idx]      <= 4'b0000;
                 end
             end
 
             // Thu thap tung subblock khi ra khoi duong ong AES
             if (pipe_valid[NumRounds]) begin
-                if (out_tag < TAG_ENTRIES) begin
-                    asm_blocks[out_tag][out_sub] <= pipe_state[NumRounds];
-                    asm_mask[out_tag][out_sub]   <= 1'b1;
+                if (out_tag < TAG_WIDTH'(TAG_ENTRIES)) begin
+                    asm_blocks[out_tag_idx][out_sub] <= pipe_state[NumRounds];
+                    asm_mask[out_tag_idx][out_sub]   <= 1'b1;
 
                     // Neu ca 4 subblock deu da hoan thanh, lap rap thanh 512-bit Keystream
-                    if ((asm_mask[out_tag] | (4'b0001 << out_sub)) == 4'b1111) begin
-                        tag_keystream_mem[out_tag] <= {
-                            (out_sub == 2'b11) ? pipe_state[NumRounds] : asm_blocks[out_tag][3],
-                            (out_sub == 2'b10) ? pipe_state[NumRounds] : asm_blocks[out_tag][2],
-                            (out_sub == 2'b01) ? pipe_state[NumRounds] : asm_blocks[out_tag][1],
-                            (out_sub == 2'b00) ? pipe_state[NumRounds] : asm_blocks[out_tag][0]
+                    if ((asm_mask[out_tag_idx] | (4'b0001 << out_sub)) == 4'b1111) begin
+                        tag_keystream_mem[out_tag_idx] <= {
+                            (out_sub == 2'b11) ? pipe_state[NumRounds] : asm_blocks[out_tag_idx][3],
+                            (out_sub == 2'b10) ? pipe_state[NumRounds] : asm_blocks[out_tag_idx][2],
+                            (out_sub == 2'b01) ? pipe_state[NumRounds] : asm_blocks[out_tag_idx][1],
+                            (out_sub == 2'b00) ? pipe_state[NumRounds] : asm_blocks[out_tag_idx][0]
                         };
-                        tag_valid_q[out_tag]   <= 1'b1;
-                        tag_pending_q[out_tag] <= 1'b0;
+                        tag_valid_q[out_tag_idx]   <= 1'b1;
+                        tag_pending_q[out_tag_idx] <= 1'b0;
                     end
                 end
             end
 
             // Xoa tag khi du lieu doc/ghi pop khoi buffer
-            if (i_rd_valid && i_rd_pop && (i_rd_tag < TAG_ENTRIES)) begin
-                tag_valid_q[i_rd_tag] <= 1'b0;
+            if (i_rd_valid && i_rd_pop && (i_rd_tag < TAG_WIDTH'(TAG_ENTRIES))) begin
+                tag_valid_q[rd_tag_idx] <= 1'b0;
             end
-            if (i_wr_valid && i_wr_pop && (i_wr_tag < TAG_ENTRIES)) begin
-                tag_valid_q[i_wr_tag] <= 1'b0;
+            if (i_wr_valid && i_wr_pop && (i_wr_tag < TAG_WIDTH'(TAG_ENTRIES))) begin
+                tag_valid_q[wr_tag_idx] <= 1'b0;
             end
         end
     end
@@ -223,9 +234,9 @@ module aes_ctr_keystream
             o_rd_data  = i_rd_data;
             o_rd_hit   = 1'b1;
         end else if (i_rd_valid) begin
-            if (i_rd_tag < TAG_ENTRIES && tag_valid_q[i_rd_tag]) begin
+            if (i_rd_tag < TAG_WIDTH'(TAG_ENTRIES) && tag_valid_q[rd_tag_idx]) begin
                 o_rd_valid = 1'b1;
-                o_rd_data  = i_rd_data ^ tag_keystream_mem[i_rd_tag];
+                o_rd_data  = i_rd_data ^ tag_keystream_mem[rd_tag_idx];
                 o_rd_hit   = 1'b1;
             end else begin
                 o_rd_valid = 1'b0;
@@ -247,9 +258,9 @@ module aes_ctr_keystream
             o_wr_data  = i_wr_data;
             o_wr_hit   = 1'b1;
         end else if (i_wr_valid) begin
-            if (i_wr_tag < TAG_ENTRIES && tag_valid_q[i_wr_tag]) begin
+            if (i_wr_tag < TAG_WIDTH'(TAG_ENTRIES) && tag_valid_q[wr_tag_idx]) begin
                 o_wr_valid = 1'b1;
-                o_wr_data  = i_wr_data ^ tag_keystream_mem[i_wr_tag];
+                o_wr_data  = i_wr_data ^ tag_keystream_mem[wr_tag_idx];
                 o_wr_hit   = 1'b1;
             end else begin
                 o_wr_valid = 1'b0;
