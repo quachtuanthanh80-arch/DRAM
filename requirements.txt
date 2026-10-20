@@ -2,11 +2,13 @@
 # Target Platforms: Windows 11 (Host) / Ubuntu 22.04 LTS (WSL2)
 # Python >= 3.10
 
-# Hardware Verification Frameworks (Cocotb 2.x)
+# Hardware Verification Frameworks (Cocotb 2.x & UVM)
 cocotb>=2.0.0,<2.2.0
 cocotb-bus>=0.2.1
 cocotb-coverage>=1.2.0
+cocotbext-axi>=0.1.24
 cocotbext-pcie>=0.2.0
+pyuvm>=3.0.0
 
 # Scientific & Plotting Libraries (Publication Grade Figures)
 numpy>=1.24.0,<2.3.0

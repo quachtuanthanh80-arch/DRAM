@@ -1,0 +1,19 @@
+[options]
+mode prove
+depth 25
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -sv axi4_skid_buffer.sv
+read -formal -sv axi_slave_frontend.sv
+read -formal -sv faxi_slave_assertions.sv
+read -formal -sv axi_frontend_formal.sv
+prep -top axi_frontend_formal
+
+[files]
+/mnt/d/RAM/rtl/bus/axi4_skid_buffer.sv
+/mnt/d/RAM/rtl/frontend/axi_slave_frontend.sv
+/mnt/d/RAM/formal/faxi_slave_assertions.sv
+/mnt/d/RAM/formal/axi_frontend_formal.sv

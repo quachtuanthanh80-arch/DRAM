@@ -15,7 +15,7 @@ tb/
 │   └── Makefile                  # Cocotb runner cho khối frontend
 │
 ├── core/                         # 2. Core Security & Scheduling Engine Suite
-│   ├── test_sdc_filter.py        # Cocotb: Bộ lọc băm đôi O(1) Dual-Hash, chống tràn và reset epoch tức thời
+│   ├── test_sdc_filter.py        # Cocotb: Bộ lọc băm đôi O(1) Dual-Hash, chống tràn và reset epoch tức thời kèm CoMeT (HPCA '24) Golden Model
 │   ├── test_qos_queue.py         # Cocotb: Hàng đợi QoS 8 Bank Group, ưu tiên lệnh và chống bỏ đói (Aging)
 │   ├── test_rob.py               # Cocotb: Reorder Buffer 16-entry, khóa nguy cơ RAW và hoàn trả đúng thứ tự
 │   └── Makefile                  # Cocotb runner cho khối core
@@ -33,6 +33,7 @@ tb/
 │   └── Makefile                  # Cocotb runner cho khối top-level
 │
 ├── memory/                       # 5. Physical Interface & Subchannel Suite (SV/Verilog)
+│   ├── jedec_timing_checker.sv   # Bộ giám sát thời gian thực vi phạm định thời JEDEC DDR5/DDR4 (tRCD, tRP, tRAS, tCCD, tRRD, tRFC)
 │   ├── tb_dfi_phy_adapter.sv     # Kiểm chứng giao diện DFI 5.0 PHY timing và cơ chế bắt tay
 │   ├── tb_ddr5_subchannel_scheduler.sv # Kiểm chứng bộ điều phối hai kênh con độc lập 32-bit (Dual Subchannel)
 │   └── tb_async_fifo_cdc.sv      # Kiểm chứng FIFO vượt miền xung nhịp bất đồng bộ (CDC Gray-code pointers)
