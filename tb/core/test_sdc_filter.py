@@ -197,6 +197,7 @@ async def test_sdc_filter_comet_golden_model_cross_verification(dut):
     dut.cfg_sdc_thresh.value = threshold
     dut.cfg_window_size.value = window_size
     dut.cfg_hash_mode.value = 1  # Dual-hash
+    dut.cfg_multibank_thresh.value = 7  # Disable multi-bank lock for pure sketch equivalence
 
     golden = CountMinSketchGoldenModel(threshold=threshold, window_size=window_size)
 
