@@ -98,6 +98,7 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
             "command": " ".join(sim_cmd),
             "log_path": log_file,
             "error_snippet": None,
+            "stdout": res_sim.stdout,
         }
     else:
         return {
@@ -109,6 +110,7 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
             "command": " ".join(sim_cmd),
             "log_path": log_file,
             "error_snippet": "\n".join(output.splitlines()[-20:]),
+            "stdout": res_sim.stdout,
         }
 
 def main():
@@ -413,6 +415,7 @@ def main():
     test_records = []
     failed_records = []
     start_time = time.time()
+    verbose = "-v" in sys.argv or "--verbose" in sys.argv
 
     for idx, t in enumerate(tests, 1):
         print(f"[{idx:02d}/{len(tests):02d}] Running: {t['name']} (Top: {t['top']}) ...", end=" ", flush=True)
@@ -432,6 +435,9 @@ def main():
         if record["status"] == "PASS":
             total_passed += 1
             print(f"[PASS] in {record['runtime_seconds']:.2f}s")
+            if verbose and record.get("stdout"):
+                for line in record["stdout"].strip().splitlines():
+                    print(f"       | {line}")
         else:
             total_failed += 1
             failed_records.append(record)
