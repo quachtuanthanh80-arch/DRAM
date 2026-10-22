@@ -51,6 +51,15 @@ module slack_aware_arbiter #(
     output logic                                         o_mitigation_grant,
 
     //-------------------------------------------------------------------------
+    // In-Flight Blacklist Checking (PROQ from MORDOR MICRO 2026)
+    //-------------------------------------------------------------------------
+    output logic                                         o_check_cand_valid,
+    output logic [BG_WIDTH-1:0]                          o_check_cand_bg,
+    output logic [BANK_WIDTH-1:0]                        o_check_cand_bank,
+    output logic [ROW_WIDTH-1:0]                         o_check_cand_row,
+    input  logic                                         i_proq_row_hit = 1'b0,
+
+    //-------------------------------------------------------------------------
     // Arbitration Issue Grant to qos_scheduler_queue
     //-------------------------------------------------------------------------
     output logic                                         o_issue_grant_valid,
@@ -223,9 +232,19 @@ module slack_aware_arbiter #(
         end
     end
 
-    // Tier 4: Opportunity Slack Injection
-    wire can_issue_user_cmd = winner_found && i_engine_ready;
-    wire can_issue_mitigation = !winner_found && i_slack_cycle && i_mitigation_req && i_engine_ready;
+    // Candidate broadcast to PROQ CAM in directed_refresh_manager
+    assign o_check_cand_valid = winner_found;
+    assign o_check_cand_bg    = winner_bg;
+    assign o_check_cand_bank  = cand_bank[winner_bg];
+    assign o_check_cand_row   = cand_row[winner_bg];
+
+    // Tier 4: MORDOR (MICRO 2026) Elastic Scheduling & In-Flight PROQ Invariant:
+    // If the winning candidate targets a row currently in PROQ waiting for preventive refresh,
+    // it is blacklisted from issuing normal demand command until PRO completes!
+    wire cand_proq_blocked    = winner_found && i_proq_row_hit;
+    wire can_issue_user_cmd   = winner_found && !cand_proq_blocked && i_engine_ready;
+    wire can_issue_mitigation = (cand_proq_blocked && i_mitigation_req && i_engine_ready) ||
+                                (!winner_found && i_slack_cycle && i_mitigation_req && i_engine_ready);
 
     // Grant back to mitigation source
     assign o_mitigation_grant = can_issue_mitigation;

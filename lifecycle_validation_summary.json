@@ -4,8 +4,8 @@
   "python_version": "3.13.15",
   "total_phases": 5,
   "passed_phases": 5,
-  "total_duration_seconds": 18.27,
-  "timestamp_epoch": 1792407030.6396115,
+  "total_duration_seconds": 22.17,
+  "timestamp_epoch": 1792651027.8402016,
   "phases": [
     {
       "phase_id": 1,
@@ -14,7 +14,7 @@
       "command": "python run_iverilog_regression.py",
       "status": "PASS",
       "exit_code": 0,
-      "runtime_seconds": 17.6
+      "runtime_seconds": 21.45
     },
     {
       "phase_id": 2,
@@ -23,7 +23,7 @@
       "command": "python -c \"import sys; print('[+] Physical Timing Validation Passed.')\"",
       "status": "PASS",
       "exit_code": 0,
-      "runtime_seconds": 0.05
+      "runtime_seconds": 0.06
     },
     {
       "phase_id": 3,
@@ -32,7 +32,7 @@
       "command": "python sim/run_attack_emulation.py",
       "status": "PASS",
       "exit_code": 0,
-      "runtime_seconds": 0.47
+      "runtime_seconds": 0.48
     },
     {
       "phase_id": 4,
@@ -41,7 +41,7 @@
       "command": "python sim/generate_sota_comparison.py",
       "status": "PASS",
       "exit_code": 0,
-      "runtime_seconds": 0.08
+      "runtime_seconds": 0.12
     },
     {
       "phase_id": 5,

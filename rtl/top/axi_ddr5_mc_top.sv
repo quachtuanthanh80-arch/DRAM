@@ -662,6 +662,7 @@ module axi_ddr5_mc_top #(
         .i_cmd_col           (mapped_cmd_col),
         .i_cmd_len           (mapped_cmd_len),
         .i_cmd_qos           (mapped_cmd_qos),
+        .i_rowpress_weight   (8'd0),
 
         .o_cmd_valid         (sdc_cmd_valid),
         .i_cmd_ready         (sdc_cmd_ready && !drm_stall),
@@ -703,6 +704,7 @@ module axi_ddr5_mc_top #(
         .cfg_max_thresh       (16'd8192),
         .i_telemetry_accesses (telemetry_accesses),
         .i_telemetry_throttles(telemetry_throttles),
+        .i_rowpress_clamp_alert(ddr_rowpress_alert),
         .o_dynamic_thresh     (ate_dynamic_thresh),
         .o_sample_epochs      ()
     );
@@ -717,11 +719,18 @@ module axi_ddr5_mc_top #(
     logic                  ecc_chipkill_fallback_req;
     logic [ROW_WIDTH-1:0]  raw_dfi_row;
 
+    // PROQ CAM Interconnect to Arbiter (MORDOR MICRO 2026)
+    logic                  arb_check_cand_valid;
+    logic [BG_WIDTH-1:0]   arb_check_cand_bg;
+    logic [BANK_WIDTH-1:0] arb_check_cand_bank;
+    logic [ROW_WIDTH-1:0]  arb_check_cand_row;
+    logic                  proq_row_hit;
+
     directed_refresh_manager #(
         .BG_WIDTH    (BG_WIDTH),
         .BANK_WIDTH  (BANK_WIDTH),
         .ROW_WIDTH   (ROW_WIDTH),
-        .QUEUE_DEPTH (8)
+        .QUEUE_DEPTH (32) // PROQ 32-entry CAM from MORDOR MICRO 2026
     ) u_drm (
         .clk                 (clk_axi),
         .rst_n               (rst_n_axi),
@@ -756,6 +765,12 @@ module axi_ddr5_mc_top #(
         .o_mitigation_bank   (drm_mitigation_bank),
         .o_mitigation_row    (drm_mitigation_row),
         .i_mitigation_grant  (drm_mitigation_grant),
+
+        .i_check_cand_valid  (arb_check_cand_valid),
+        .i_check_cand_bg     (arb_check_cand_bg),
+        .i_check_cand_bank   (arb_check_cand_bank),
+        .i_check_cand_row    (arb_check_cand_row),
+        .o_proq_row_hit      (proq_row_hit),
 
         .o_drm_ref_count     (drm_ref_count),
         .o_queue_full        (),
@@ -873,6 +888,12 @@ module axi_ddr5_mc_top #(
         .i_mitigation_bank   (drm_mitigation_bank),
         .i_mitigation_row    (drm_mitigation_row),
         .o_mitigation_grant  (drm_mitigation_grant),
+
+        .o_check_cand_valid  (arb_check_cand_valid),
+        .o_check_cand_bg     (arb_check_cand_bg),
+        .o_check_cand_bank   (arb_check_cand_bank),
+        .o_check_cand_row    (arb_check_cand_row),
+        .i_proq_row_hit      (proq_row_hit),
 
         .o_issue_grant_valid (arb_grant_valid),
         .o_issue_grant_bg    (arb_grant_bg),

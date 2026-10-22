@@ -35,6 +35,7 @@ module sdc_resilient_filter #(
     input  logic [COL_WIDTH-1:0]      i_cmd_col,
     input  logic [7:0]                i_cmd_len,
     input  logic [AXI_QOS_WIDTH-1:0]  i_cmd_qos,
+    input  logic [7:0]                i_rowpress_weight = 8'd0,
 
     // Filtered Output to qos_scheduler_queue
     output logic                      o_cmd_valid,
@@ -181,6 +182,8 @@ module sdc_resilient_filter #(
     assign o_cmd_ready = !o_cmd_valid || i_cmd_ready;
 
     // Table Update on Handshake
+    wire [COUNT_WIDTH-1:0] inc_val = 1'b1 + COUNT_WIDTH'(i_rowpress_weight);
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             table_a_epoch <= '0;
@@ -190,17 +193,22 @@ module sdc_resilient_filter #(
                 table_b_count[i] <= '0;
             end
         end else if (i_cmd_valid && o_cmd_ready) begin
-            // Increment Table A
-            if (cur_cnt_a != {COUNT_WIDTH{1'b1}}) begin
-                table_a_count[eff_hash_a] <= cur_cnt_a + 1'b1;
-                table_a_epoch[eff_hash_a] <= current_epoch;
+            // Increment Table A with RowPress equivalent weight
+            if (cur_cnt_a <= ({COUNT_WIDTH{1'b1}} - inc_val)) begin
+                table_a_count[eff_hash_a] <= cur_cnt_a + inc_val;
+            end else begin
+                table_a_count[eff_hash_a] <= {COUNT_WIDTH{1'b1}};
             end
+            table_a_epoch[eff_hash_a] <= current_epoch;
+
             // Increment Table B (in Dual-Hash mode)
             if (cfg_hash_mode == 1'b1) begin
-                if (cur_cnt_b != {COUNT_WIDTH{1'b1}}) begin
-                    table_b_count[eff_hash_b] <= cur_cnt_b + 1'b1;
-                    table_b_epoch[eff_hash_b] <= current_epoch;
+                if (cur_cnt_b <= ({COUNT_WIDTH{1'b1}} - inc_val)) begin
+                    table_b_count[eff_hash_b] <= cur_cnt_b + inc_val;
+                end else begin
+                    table_b_count[eff_hash_b] <= {COUNT_WIDTH{1'b1}};
                 end
+                table_b_epoch[eff_hash_b] <= current_epoch;
             end
         end
     end

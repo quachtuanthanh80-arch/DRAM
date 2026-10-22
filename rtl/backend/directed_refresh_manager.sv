@@ -8,7 +8,7 @@ module directed_refresh_manager #(
     parameter int BG_WIDTH    = 3,
     parameter int BANK_WIDTH  = 2,
     parameter int ROW_WIDTH   = 17,
-    parameter int QUEUE_DEPTH = 8
+    parameter int QUEUE_DEPTH = 32 // PROQ 32-entry CAM from MORDOR MICRO 2026
 )(
     input  logic                   clk,
     input  logic                   rst_n,
@@ -49,6 +49,13 @@ module directed_refresh_manager #(
     output logic [BANK_WIDTH-1:0]  o_mitigation_bank,
     output logic [ROW_WIDTH-1:0]   o_mitigation_row,
     input  logic                   i_mitigation_grant,
+
+    // In-Flight Blacklist Check Interface (PROQ CAM from MORDOR MICRO 2026)
+    input  logic                   i_check_cand_valid = 1'b0,
+    input  logic [BG_WIDTH-1:0]    i_check_cand_bg    = '0,
+    input  logic [BANK_WIDTH-1:0]  i_check_cand_bank  = '0,
+    input  logic [ROW_WIDTH-1:0]   i_check_cand_row   = '0,
+    output logic                   o_proq_row_hit,
 
     // Telemetry & Flow Control
     output logic [15:0]            o_drm_ref_count,
@@ -115,6 +122,33 @@ module directed_refresh_manager #(
 
     // Flow control stall asserted to upstream when queue cannot accept all victim rows
     assign o_drm_stall = queue_full || ((count + max_victims) > QUEUE_DEPTH[PTR_W:0]) || pending_aggr_valid;
+
+    // PROQ In-Flight Blacklist CAM Match Logic (MORDOR MICRO 2026)
+    logic [QUEUE_DEPTH-1:0] cam_match;
+    always_comb begin
+        for (int i = 0; i < QUEUE_DEPTH; i++) begin
+            logic is_valid_entry;
+            if (queue_empty) begin
+                is_valid_entry = 1'b0;
+            end else if (wr_ptr[PTR_W] == rd_ptr[PTR_W]) begin
+                is_valid_entry = (PTR_W'(i) >= rd_idx) && (PTR_W'(i) < wr_idx);
+            end else begin
+                is_valid_entry = (PTR_W'(i) >= rd_idx) || (PTR_W'(i) < wr_idx);
+            end
+
+            cam_match[i] = is_valid_entry &&
+                           (q_bg[i]   == i_check_cand_bg) &&
+                           (q_bank[i] == i_check_cand_bank) &&
+                           (q_row[i]  == i_check_cand_row);
+        end
+    end
+
+    wire pending_match = pending_aggr_valid &&
+                         (pending_aggr_bg   == i_check_cand_bg) &&
+                         (pending_aggr_bank == i_check_cand_bank) &&
+                         (pending_aggr_row  == i_check_cand_row);
+
+    assign o_proq_row_hit = i_check_cand_valid && ((|cam_match) || pending_match);
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

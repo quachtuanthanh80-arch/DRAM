@@ -112,22 +112,29 @@ To ensure scientific honesty and avoid conflating different simulation framework
 | Scheme | Primary Publication | Reported Simulator | Evaluated DRAM Tech | Reported Benign Slowdown | Reported Attack Throughput Loss |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **BlockHammer** | HPCA 2021 | USIMM | DDR4-2400 | ~0.7% | 40% – 70% |
+| **CoMeT** | IEEE TC 2023 | Ramulator 1.0 | DDR4-3200 | ~0.6% | 35% – 60% |
 | **AQUA** | MICRO 2022 | ChampSim + DRAMsim3 | DDR4-3200 | ~1.2% | 35% – 55% |
 | **PRAC** | ISCA 2024 | Gem5 + Custom DRAM | LPDDR5-6400 | ~0.5% | 15% – 30% |
 | **PrISM** | ISCA 2026 | Ramulator 1.0 | DDR5-4800 | ~0.4% | 20% – 45% |
+| **MORDOR** | MICRO 2026 | Ramulator 2.0 | DDR5-4800 | ~0.4% | 18% – 35% |
 | **Q-Shield (Ours)** | This Work | Ramulator2 v2.0.1 | DDR5-4800 | **≤ 0.42%** | **55% – 59% (Attacker Throttled)** |
 
 *Methodological Caveats:*
 1. **BlockHammer**: USIMM employs a simplified memory bus model with static bank contention models that do not capture DDR5 dual 32-bit subchannels.
-2. **PRAC**: Includes in-DRAM hardware counters modifying DRAM die area (+4.5% die cost), whereas Q-Shield is 100% pure memory-controller logic (0% DRAM die cost).
-3. **PrISM**: Employs probabilistic sampling with a non-zero theoretical false-negative probability, whereas Q-Shield employs a deterministic dual-hash filter.
+2. **CoMeT**: Evaluates rate-limiting allocation table on Ramulator 1.0; does not handle RowPress $t_{RAS}$ saturation or SDC corruption.
+3. **PRAC**: Includes in-DRAM hardware counters modifying DRAM die area (+4.5% die cost), whereas Q-Shield is 100% pure memory-controller logic (0% DRAM die cost).
+4. **PrISM**: Employs probabilistic sampling with a non-zero theoretical false-negative probability, whereas Q-Shield employs a deterministic dual-hash filter.
+5. **MORDOR**: Employs elastic proactive refresh queuing (PROQ) and CAM aggressor tracking; Q-Shield integrates the PROQ CAM invariant with autonomous SEC-DED SDC protection and zero-bubble skid buffers.
 
 ### Tier 3: Qualitative Architectural Taxonomy
 
-| Defense Scheme | Implementation Domain | Hardware Tracking Mechanism | Reset Complexity | In-DRAM Die Area Cost | RAW Hazard Handling |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **BlockHammer (2021)** | Memory Controller | Bloom Filter + History Table | $O(N)$ Serial Sweep | 0% | Relies on Core LSQ |
-| **AQUA (2022)** | Memory Controller | Quasi-Exact Counter Table | $O(N)$ Invalidation | 0% | Stall-on-Hazard |
-| **PRAC (2024)** | Hybrid (DRAM + MC) | In-DRAM Per-Bank Alert Logic | Periodic Reset | **+4.5% DRAM Die** | N/A (Alert-only) |
-| **PrISM (2026)** | Memory Controller | Probabilistic Reservoir Sampling | Time-Windowed | 0% | Core Pipeline Stall |
-| **Q-Shield (Ours)** | **Pure Controller** | **Dual-Hash Count-Min Sketch** | **$O(1)$ Single-Cycle** | **0%** | **16-Entry Hazard ROB** |
+| Defense Scheme | Implementation Domain | Hardware Tracking Mechanism | Reset Complexity | In-DRAM Die Area Cost | RAW Hazard Handling | RowPress Clamping |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **BlockHammer (2021)** | Memory Controller | Bloom Filter + History Table | $O(N)$ Serial Sweep | 0% | Relies on Core LSQ | No |
+| **CoMeT (2023)** | Memory Controller | Counter Table + RAT | $O(N)$ Counter Decoupling | 0% | Stall-on-Hazard | No |
+| **AQUA (2022)** | Memory Controller | Quasi-Exact Counter Table | $O(N)$ Invalidation | 0% | Stall-on-Hazard | No |
+| **PRAC (2024)** | Hybrid (DRAM + MC) | In-DRAM Per-Bank Alert Logic | Periodic Reset | **+4.5% DRAM Die** | N/A (Alert-only) | Partial (ABO) |
+| **PrISM (2026)** | Memory Controller | Probabilistic Reservoir Sampling | Time-Windowed | 0% | Core Pipeline Stall | No |
+| **MORDOR (2026)** | Memory Controller | Aggressor CAM + PROQ Queue | Periodic Epoch Reset | 0% | Stall In-Flight Row | Partial (PROQ) |
+| **Q-Shield (Ours)** | **Pure Controller** | **Dual-Hash Count-Min Sketch** | **$O(1)$ Single-Cycle** | **0%** | **16-Entry Hazard ROB** | **Yes ($t_{RAS}$ Clamping)** |
+

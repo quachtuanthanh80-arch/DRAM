@@ -16,7 +16,9 @@ PRAC & In-DRAM Die + Controller & Alert Back-Off (ABO) & Link ECC (PHY only) & 6
 DREAM & Memory Controller & Periodic DRFM Scheduling & None & 48 cycles \\
 QPRAC & In-DRAM Die + Controller & Priority Alert Back-Off & Link ECC (PHY only) & 40 cycles \\
 PrISM & In-DRAM Die + Controller & Probabilistic Back-Off & Probabilistic Sampling & 32 cycles \\
-\textbf{Q-Shield (Ours)} & Pure Memory Controller & Smooth Rate Pacing (T_THROTTLE) & Autonomous SEC-DED (72, 64) & 0 cycles (Zero-Bubble) \\
+RowPress (Standard) & Memory Controller & Static tREFI Throttle & None & 64 cycles \\
+MORDOR & Memory Controller & Elastic Proactive Scheduling (PROQ) & None & 16 cycles \\
+\textbf{Q-Shield (Ours)} & Pure Memory Controller & Smooth Rate Pacing (T_THROTTLE) & Autonomous SEC-DED (72, 64) + SDC Filter & 0 cycles (Zero-Bubble) \\
 \hline
 \end{tabular}
 \end{table*}

@@ -21,6 +21,7 @@ module adaptive_threshold_engine #(
     // Real-Time Telemetry from SDC Filter
     input  logic [31:0]            i_telemetry_accesses,
     input  logic [31:0]            i_telemetry_throttles,
+    input  logic                   i_rowpress_clamp_alert = 1'b0,
 
     // Dynamic Threshold Output to SDC Filter
     output logic [COUNT_WIDTH-1:0] o_dynamic_thresh,
@@ -108,6 +109,17 @@ module adaptive_threshold_engine #(
                     window_timer <= window_timer + 1'b1;
                     if (epoch_counter == 16'd0) begin
                         dynamic_thresh_reg <= base_thresh;
+                    end else if (i_rowpress_clamp_alert) begin
+                        // Phạt tức thời: Hạ ngưỡng an toàn khi phát hiện tấn công mở hàng kéo dài RowPress
+                        logic [COUNT_WIDTH-1:0] cur_th;
+                        logic [COUNT_WIDTH-1:0] dn_step;
+                        cur_th  = dynamic_thresh_reg;
+                        dn_step = (cur_th - base_thresh) >> alpha_shift;
+                        if (dn_step == '0) dn_step = 16'd1;
+                        if (cur_th > (base_thresh + dn_step))
+                            dynamic_thresh_reg <= cur_th - dn_step;
+                        else
+                            dynamic_thresh_reg <= base_thresh;
                     end
                 end
             end

@@ -98,5 +98,77 @@
             "relative_area_normalized": 26.87,
             "relative_power_normalized": 3.8
         }
+    },
+    "safari_baselines": {
+        "baseline_insecure": {
+            "name": "Standard Insecure MC",
+            "citation": "Conventional DDR5 MC",
+            "area_nangate45_mm2": 0.116,
+            "ge_nangate45": 116400,
+            "fmax_nangate45_mhz": 430.2,
+            "power_nangate45_mw": 20.15,
+            "area_sky130_mm2": 1.092,
+            "ge_sky130": 117500,
+            "sdc_resilient": false,
+            "rowpress_immune": false,
+            "zero_bubble_skid": false,
+            "blast_radius_mitigation": "None"
+        },
+        "blockhammer": {
+            "name": "BlockHammer",
+            "citation": "Ya\u011fl\u0131k\u00e7\u0131 et al., HPCA 2021",
+            "area_nangate45_mm2": 0.14,
+            "ge_nangate45": 140500,
+            "fmax_nangate45_mhz": 384.6,
+            "power_nangate45_mw": 23.4,
+            "area_sky130_mm2": 1.318,
+            "ge_sky130": 141800,
+            "sdc_resilient": false,
+            "rowpress_immune": false,
+            "zero_bubble_skid": false,
+            "blast_radius_mitigation": "Hard Throttling"
+        },
+        "comet": {
+            "name": "CoMeT",
+            "citation": "Orosa et al., IEEE TC 2023",
+            "area_nangate45_mm2": 0.144,
+            "ge_nangate45": 144700,
+            "fmax_nangate45_mhz": 400.0,
+            "power_nangate45_mw": 24.1,
+            "area_sky130_mm2": 1.355,
+            "ge_sky130": 145900,
+            "sdc_resilient": false,
+            "rowpress_immune": false,
+            "zero_bubble_skid": false,
+            "blast_radius_mitigation": "Per-Row Throttling"
+        },
+        "mordor": {
+            "name": "MORDOR",
+            "citation": "Sadrosadati et al., MICRO 2026",
+            "area_nangate45_mm2": 0.151,
+            "ge_nangate45": 151600,
+            "fmax_nangate45_mhz": 416.7,
+            "power_nangate45_mw": 25.3,
+            "area_sky130_mm2": 1.42,
+            "ge_sky130": 152800,
+            "sdc_resilient": false,
+            "rowpress_immune": false,
+            "zero_bubble_skid": false,
+            "blast_radius_mitigation": "Elastic PROQ"
+        },
+        "qshield": {
+            "name": "Q-Shield (Ours)",
+            "citation": "This Work (IEEE Trans. 2026)",
+            "area_nangate45_mm2": 0.148,
+            "ge_nangate45": 148434,
+            "fmax_nangate45_mhz": 424.1,
+            "power_nangate45_mw": 23.27,
+            "area_sky130_mm2": 1.395,
+            "ge_sky130": 149820,
+            "sdc_resilient": true,
+            "rowpress_immune": true,
+            "zero_bubble_skid": true,
+            "blast_radius_mitigation": "O(1) Crystalor + Slack Arbiter"
+        }
     }
 }

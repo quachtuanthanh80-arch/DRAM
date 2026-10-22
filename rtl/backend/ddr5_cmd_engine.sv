@@ -132,6 +132,7 @@ module ddr5_cmd_engine #(
     logic [4:0]           rp_timer   [BG_COUNT][BANK_COUNT];
     logic [4:0]           ras_timer  [BG_COUNT][BANK_COUNT];
     logic [15:0]          act_duration [BG_COUNT][BANK_COUNT];
+    logic                 tras_clamp_pending [BG_COUNT][BANK_COUNT];
     wire  [15:0]          effective_rp_thresh = (cfg_rowpress_thresh != 16'd0) ? cfg_rowpress_thresh : 16'(ROWPRESS_THRESH_DEFAULT);
 
     // RowPress Non-Linear Dynamic Threshold Function (ISCA'23 & Chronus HPCA'25 model)
@@ -269,11 +270,12 @@ module ddr5_cmd_engine #(
             for (int bg = 0; bg < BG_COUNT; bg++) begin
                 ccd_timer[bg] <= '0;
                 for (int bk = 0; bk < BANK_COUNT; bk++) begin
-                    bank_open[bg][bk] <= 1'b0;
-                    open_row[bg][bk]  <= '0;
-                    rcd_timer[bg][bk] <= '0;
-                    rp_timer[bg][bk]  <= '0;
-                    ras_timer[bg][bk] <= '0;
+                    bank_open[bg][bk]          <= 1'b0;
+                    tras_clamp_pending[bg][bk] <= 1'b0;
+                    open_row[bg][bk]           <= '0;
+                    rcd_timer[bg][bk]          <= '0;
+                    rp_timer[bg][bk]           <= '0;
+                    ras_timer[bg][bk]          <= '0;
                 end
             end
 
@@ -368,6 +370,9 @@ module ddr5_cmd_engine #(
                         if (act_duration[bg][bk] < 16'hFFFF) begin
                             act_duration[bg][bk] <= act_duration[bg][bk] + 1'b1;
                         end
+                        if (cfg_tras_max_thresh != 16'd0 && (act_duration[bg][bk] >= cfg_tras_max_thresh)) begin
+                            tras_clamp_pending[bg][bk] <= 1'b1;
+                        end
                         if (act_duration[bg][bk] == current_dyn_thresh) begin
                             o_rowpress_alert     <= 1'b1;
                             o_rowpress_bg        <= bg[BG_WIDTH-1:0];
@@ -376,7 +381,8 @@ module ddr5_cmd_engine #(
                             o_rowpress_alert_cnt <= o_rowpress_alert_cnt + 1'b1;
                         end
                     end else begin
-                        act_duration[bg][bk] <= 16'd0;
+                        act_duration[bg][bk]       <= 16'd0;
+                        tras_clamp_pending[bg][bk] <= 1'b0;
                     end
                 end
             end
@@ -413,8 +419,8 @@ module ddr5_cmd_engine #(
                         o_dfi_bank        <= i_cmd_bank;
                         o_dfi_row         <= i_cmd_row;
                         busy              <= 1'b0;
-                    end else if (bank_open[i_cmd_bg][i_cmd_bank] && (open_row[i_cmd_bg][i_cmd_bank] == i_cmd_row)) begin
-                        // ROW HIT: Bank is already open to desired row!
+                    end else if (bank_open[i_cmd_bg][i_cmd_bank] && (open_row[i_cmd_bg][i_cmd_bank] == i_cmd_row) && !tras_clamp_pending[i_cmd_bg][i_cmd_bank]) begin
+                        // ROW HIT: Bank is already open to desired row and no clamp pending!
                         // Issue RD/WR immediately if CCD timers expired
                         o_dfi_cmd         <= i_cmd_is_write ? CMD_WR : CMD_RD;
                         o_dfi_bg          <= i_cmd_bg;
@@ -477,7 +483,8 @@ module ddr5_cmd_engine #(
                     if (cfg_tras_max_thresh != 16'd0) begin
                         for (int bg = 0; bg < BG_COUNT; bg++) begin
                             for (int bk = 0; bk < BANK_COUNT; bk++) begin
-                                if (bank_open[bg][bk] && (act_duration[bg][bk] >= cfg_tras_max_thresh) && !found_clamp) begin
+                                if (bank_open[bg][bk] && (act_duration[bg][bk] >= cfg_tras_max_thresh || tras_clamp_pending[bg][bk]) &&
+                                    (rcd_timer[bg][bk] == '0) && (ccd_timer[bg] == '0) && (ras_timer[bg][bk] == '0) && !found_clamp) begin
                                     found_clamp       = 1'b1;
                                     clamp_target_bg   = bg[BG_WIDTH-1:0];
                                     clamp_target_bank = bk[BANK_WIDTH-1:0];
@@ -498,10 +505,18 @@ module ddr5_cmd_engine #(
                         o_dfi_bg                                         <= clamp_target_bg;
                         o_dfi_bank                                       <= clamp_target_bank;
                         bank_open[clamp_target_bg][clamp_target_bank]    <= 1'b0;
+                        tras_clamp_pending[clamp_target_bg][clamp_target_bank] <= 1'b0;
                         rp_timer[clamp_target_bg][clamp_target_bank]     <= 5'(T_RP);
                         act_duration[clamp_target_bg][clamp_target_bank] <= 16'd0;
                         o_tras_clamped_alert                             <= 1'b1;
                         o_tras_clamped_cnt                               <= o_tras_clamped_cnt + 1'b1;
+
+                        // Đồng thời gửi cảnh báo sang directed_refresh_manager để làm mới hàng lân cận
+                        o_rowpress_alert                                 <= 1'b1;
+                        o_rowpress_bg                                    <= clamp_target_bg;
+                        o_rowpress_bank                                  <= clamp_target_bank;
+                        o_rowpress_row                                   <= open_row[clamp_target_bg][clamp_target_bank];
+                        o_rowpress_alert_cnt                             <= o_rowpress_alert_cnt + 1'b1;
                     end else if (found_rfm) begin
                         o_dfi_cmd                      <= CMD_REF;
                         o_dfi_bg                       <= rfm_target_bg;

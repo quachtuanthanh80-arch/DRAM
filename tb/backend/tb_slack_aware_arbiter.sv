@@ -62,7 +62,11 @@ module tb_slack_aware_arbiter;
     logic [COL_WIDTH-1:0]                o_cmd_col;
     logic [AXI_LEN_WIDTH-1:0]            o_cmd_len;
     logic                                o_cmd_is_mitigation;
-    logic                                o_drain_mode;
+    logic                                i_proq_row_hit;
+    logic                                o_check_cand_valid;
+    logic [BG_WIDTH-1:0]                 o_check_cand_bg;
+    logic [BANK_WIDTH-1:0]               o_check_cand_bank;
+    logic [ROW_WIDTH-1:0]                o_check_cand_row;
 
     // Instantiate DUT
     slack_aware_arbiter #(
@@ -97,6 +101,11 @@ module tb_slack_aware_arbiter;
         .i_mitigation_bank   (i_mitigation_bank),
         .i_mitigation_row    (i_mitigation_row),
         .o_mitigation_grant  (o_mitigation_grant),
+        .o_check_cand_valid  (o_check_cand_valid),
+        .o_check_cand_bg     (o_check_cand_bg),
+        .o_check_cand_bank   (o_check_cand_bank),
+        .o_check_cand_row    (o_check_cand_row),
+        .i_proq_row_hit      (i_proq_row_hit),
         .o_issue_grant_valid (o_issue_grant_valid),
         .o_issue_grant_bg    (o_issue_grant_bg),
         .o_issue_grant_idx   (o_issue_grant_idx),
@@ -141,6 +150,7 @@ module tb_slack_aware_arbiter;
         i_mitigation_bg = '0;
         i_mitigation_bank = '0;
         i_mitigation_row = '0;
+        i_proq_row_hit = 1'b0;
 
         #(ClkPeriod * 2);
         rst_n = 1;
@@ -231,6 +241,26 @@ module tb_slack_aware_arbiter;
             $display("[FAIL] Test 5: Write-Drain exit failed. drain_mode=%0d, is_write=%0d", o_drain_mode, o_cmd_is_write);
             tests_failed++;
         end
+
+        // TEST 6: MORDOR PROQ Invariant (Blocked Demand Cmd + Prioritized Mitigation)
+        tests_run++;
+        i_cand_valid = 8'b0000_0001; // BG0 has demand request
+        i_cand_qos   = (4'd10 << 0);
+        i_cand_starved = 8'b0;
+        i_cand_throttled = 8'b0;
+        i_proq_row_hit = 1'b1;       // Target row is pending preventive refresh in PROQ!
+        i_mitigation_req = 1'b1;     // DRM needs to issue mitigation
+        #1;
+        if (o_issue_grant_valid == 1'b0 && o_mitigation_grant == 1'b1 && o_cmd_valid == 1'b1 && o_cmd_is_mitigation == 1'b1) begin
+            $display("[PASS] Test 6: MORDOR PROQ Invariant enforced (Demand blocked, Mitigation granted & dispatched).");
+            tests_passed++;
+        end else begin
+            $display("[FAIL] Test 6: MORDOR PROQ Invariant failed. issue_grant=%0d, mit_grant=%0d, cmd_valid=%0d, is_mit=%0d",
+                     o_issue_grant_valid, o_mitigation_grant, o_cmd_valid, o_cmd_is_mitigation);
+            tests_failed++;
+        end
+        i_proq_row_hit = 1'b0;
+        i_mitigation_req = 1'b0;
 
         #(ClkPeriod * 4);
         $display("================================================================");

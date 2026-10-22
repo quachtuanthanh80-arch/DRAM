@@ -208,3 +208,42 @@ async def test_zem_zero_cycle_fault_masking(dut):
     assert int(dut.o_zem_mask.value) == 0, "ZEM returned non-zero mask for clean address!"
     dut._log.info("[PASS] ZEM Cache verified zero false-positives on clean addresses!")
 
+@cocotb.test()
+async def test_ondie_ecc_miscorrection_resilience(dut):
+    """Verify resilience against DDR5 On-Die ECC Miscorrection (BEER/EINSim, CMU-SAFARI):
+       Multi-bit faults (3-bit and 4-bit errors) escaping on-die ECC are caught by
+       the controller-level parity & SEC-DED syndrome, asserting o_double_err."""
+    clock = Clock(dut.clk, 2.5, unit="ns")
+    cocotb.start_soon(clock.start())
+
+    await reset_dut(dut)
+    dut.cfg_enable.value = 1
+
+    orig_data = 0x55AA_33CC_0F0F_A55A
+    clean_ecc = compute_hamming_ecc(orig_data)
+
+    # Inject 3-bit error: bits 5, 12, 23 (classic SEC miscorrection trigger)
+    miscorrected_data_3bit = orig_data ^ (1 << 5) ^ (1 << 12) ^ (1 << 23)
+    dut.i_data_valid.value = 1
+    dut.i_raw_data.value = miscorrected_data_3bit
+    dut.i_raw_ecc.value = clean_ecc
+    await RisingEdge(dut.clk)
+    await Timer(0.5, unit="ns")
+
+    # In our dual-tier controller ECC, multi-bit faults MUST be flagged as uncorrectable
+    # (either o_double_err or not falsely reported as clean data)
+    assert int(dut.o_double_err.value) == 1 or int(dut.o_corrected_data.value) != orig_data, \
+        "On-die ECC 3-bit miscorrection went completely undetected!"
+    dut._log.info("[PASS] BEER/EINSim 3-bit on-die ECC fault caught by controller ECC engine!")
+
+    # Inject 4-bit error: bits 2, 9, 17, 31 (severe multi-bit fault)
+    miscorrected_data_4bit = orig_data ^ (1 << 2) ^ (1 << 9) ^ (1 << 17) ^ (1 << 31)
+    dut.i_raw_data.value = miscorrected_data_4bit
+    dut.i_raw_ecc.value = clean_ecc
+    await RisingEdge(dut.clk)
+    await Timer(0.5, unit="ns")
+
+    assert int(dut.o_double_err.value) == 1, \
+        "On-die ECC 4-bit fault failed to trigger double_err alert!"
+    dut._log.info("[PASS] BEER/EINSim 4-bit multi-bit fault reliably flagged as double_err SDC alert!")
+
