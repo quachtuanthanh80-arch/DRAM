@@ -17,6 +17,5 @@ dependencies:
   - z3>=4.12.0
   - pip:
       - cocotb>=2.0.0,<2.2.0
-      - cocotb-bus>=0.2.1
-      - cocotb-coverage>=1.2.0
+      - cocotb-bus>=0.3.0
       - sby>=0.38
