@@ -60,5 +60,5 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
     make -C /tmp/sby install && \
     rm -rf /tmp/sby
 
-# Set default command to bash
-CMD ["/bin/bash"]
+# Set default command to keep container alive for interactive Exec sessions
+CMD ["sleep", "infinity"]
