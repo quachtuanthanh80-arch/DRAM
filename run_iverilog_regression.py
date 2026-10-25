@@ -407,6 +407,36 @@ def main():
                 os.path.join(root, "rtl", "interfaces", "ucie_fdi_axi_shim.sv"),
                 os.path.join(root, "tb", "interfaces", "ucie", "tb_ucie_fdi_axi_shim.sv"),
             ]
+        },
+        {
+            "name": "Security Attack Validation: Master 11-Vector Suite & VCD Generation",
+            "top": "tb_security_attacks_vcd",
+            "module_covered": "rtl/top/axi_ddr5_mc_top.sv",
+            "behavior_verified": "11 hardware security attack vectors, cross-epoch split hammer, and VCD GTKWave dump",
+            "sources": [
+                os.path.join(root, "rtl", "cdc", "rst_sync.sv"),
+                os.path.join(root, "rtl", "bus", "axi4_skid_buffer.sv"),
+                os.path.join(root, "rtl", "frontend", "axi_slave_frontend.sv"),
+                os.path.join(root, "rtl", "frontend", "wdata_buffer.sv"),
+                os.path.join(root, "rtl", "frontend", "domain_bank_coloring.sv"),
+                os.path.join(root, "rtl", "core", "scarf_dram_randomizer.sv"),
+                os.path.join(root, "rtl", "frontend", "addr_mapper_ddr5.sv"),
+                os.path.join(root, "rtl", "core", "reorder_buffer_rob.sv"),
+                os.path.join(root, "rtl", "core", "fault_hardened_csr.sv"),
+                os.path.join(root, "rtl", "crypto", "multi_vm_key_table.sv"),
+                os.path.join(root, "rtl", "core", "pxor_hash_engine.sv"),
+                os.path.join(root, "rtl", "core", "sdc_resilient_filter.sv"),
+                os.path.join(root, "rtl", "core", "adaptive_threshold_engine.sv"),
+                os.path.join(root, "rtl", "backend", "directed_refresh_manager.sv"),
+                os.path.join(root, "rtl", "core", "qos_scheduler_queue.sv"),
+                os.path.join(root, "rtl", "backend", "slack_aware_arbiter.sv"),
+                os.path.join(root, "rtl", "backend", "ddr5_cmd_engine.sv"),
+                os.path.join(root, "rtl", "backend", "ecc_scrubber.sv"),
+                os.path.join(root, "rtl", "memory", "bus_scrambler.sv"),
+                os.path.join(root, "rtl", "bus", "perf_monitor_unit.sv"),
+                os.path.join(root, "rtl", "top", "axi_ddr5_mc_top.sv"),
+                os.path.join(root, "tb", "top", "tb_security_attacks_vcd.sv"),
+            ]
         }
     ]
 

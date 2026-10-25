@@ -254,7 +254,7 @@ def main():
         cocotb_share = str(cocotb_tools.config.makefiles_dir)
     except Exception:
         try:
-            import cocotb.config
+            import cocotb.config  # type: ignore
             cocotb_share = str(cocotb.config.makefiles_dir)
         except Exception:
             pass

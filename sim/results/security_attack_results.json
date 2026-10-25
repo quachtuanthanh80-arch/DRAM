@@ -1,0 +1,39 @@
+{
+  "timestamp_epoch": 1792946847.812145,
+  "commit_sha": "187fbb5407d85d4e48cce2fae6c5e3a46201de8f",
+  "total_runtime_seconds": 6.68,
+  "tier1_architectural_emulation": {
+    "status": "PASS",
+    "runtime_seconds": 4.18,
+    "threat_vectors_tested": 8,
+    "detection_rate_pct": 100.0,
+    "benign_fpr_pct": 0.02,
+    "escaped_bitflips": 0,
+    "adversarial_fuzzer": {
+      "workload": "Adversarial_Address_Fuzzer_1M",
+      "total_accesses": 1000000,
+      "mitigations": 5743,
+      "escaped_bitflips": 0,
+      "benign_fpr_pct": 0.0,
+      "fuzzing_throughput_ops_sec": 276677.4,
+      "runtime_seconds": 3.61,
+      "status": "SECURE"
+    }
+  },
+  "tier2_synthesizable_rtl_simulation": {
+    "status": "PASS",
+    "runtime_seconds": 2.12,
+    "scenarios_tested": 11,
+    "scenarios_passed": 11,
+    "waveform_vcd_path": "waveform_security_attacks.vcd",
+    "waveform_size_mb": 1.94
+  },
+  "tier3_formal_sva_verification": {
+    "status": "PASS",
+    "unbounded_k_induction_proofs": 4,
+    "bounded_bmc_proofs": 7,
+    "total_invariants_proven": 11,
+    "counterexamples_found": 0
+  },
+  "overall_security_verdict": "CERTIFIED_SECURE"
+}

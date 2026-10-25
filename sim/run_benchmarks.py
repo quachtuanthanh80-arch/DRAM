@@ -163,7 +163,7 @@ def run_single_simulation(dram_name, dram_info, workload_name, workload_info, tr
     # Check if native ramulator2 Python module is accessible
     has_ramulator = False
     try:
-        import ramulator
+        import ramulator  # type: ignore
         has_ramulator = True
     except ImportError:
         pass
