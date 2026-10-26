@@ -1,0 +1,18 @@
+# Strictly exclude local-only manuscripts, reference literature, and build caches
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+paper/
+tailieuthamkhao/
+DRAM/
+*.zip
+*.tar.gz
+*.vcd
+*.fst
+*.vvp
+**/sim_build*/
+**/results.xml
+.harness/
+scratch/

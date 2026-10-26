@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 run_minimal_example.py
-Fast Minimal Reproduction Script (< 60s) for Reviewers and CI/CD.
-Validates RTL unit tests, attack mitigation emulation, and golden outputs.
+Fast End-to-End Reproduction Script for Reviewers, Docker Artifact Evaluation, and CI/CD.
+Validates 30 RTL testbenches (incl. 8 Global Benchmarks & 13 Attack Vectors),
+Attack Emulation, SOTA Comparison Matrices, and Golden Reference Outputs.
 """
 
 import os
@@ -26,37 +27,39 @@ def run_command(cmd, desc):
 def main():
     total_start = time.time()
     print("======================================================================")
-    print("           Q-SHIELD FAST REPRODUCIBILITY VALIDATION                   ")
+    print("      Q-SHIELD ARTIFACT EVALUATION & REPRODUCIBILITY VALIDATION       ")
     print("======================================================================")
 
-    # 1. RTL Unit Test Filter
+    # 1. RTL Master Regression (30 Testbenches including 8 Global Benchmarks & 13 Security Vectors)
     run_command(
         f"{sys.executable} run_iverilog_regression.py",
-        "Phase 1: RTL Master Regression (18 Synthesizable Modules)"
+        "Phase 1: RTL Master Regression (30 Testbenches + 8 Global Benchmarks)"
     )
 
     # 2. Attack Emulation
     run_command(
         f"{sys.executable} sim/run_attack_emulation.py",
-        "Phase 2: Security Attack Emulation on Memory Traces"
+        "Phase 2: Security Attack Emulation on Memory Traces (8 Workloads)"
     )
 
-    # 3. Golden Reference Check
-    print("\n=== Phase 3: Golden Consistency Verification ===")
-    with open("sim/results/attack_emulation_summary.json") as f1, open("GOLDEN_OUTPUTS/attack_emulation_summary.json") as f2:
-        cur_list = json.load(f1)
-        gold_list = json.load(f2)
-        assert len(cur_list) == len(gold_list), "Trace count mismatch"
-        total_escaped = sum(item["escaped_bitflips"] for item in cur_list)
-        assert total_escaped == 0, f"Security failure: {total_escaped} escaped bit-flips detected"
-        print("  [PASS] Attack Emulation: 0 escaped bit-flips verified against golden reference.")
+    # 3. SOTA Architectural Comparison Matrix Generation
+    run_command(
+        f"{sys.executable} sim/generate_sota_comparison.py",
+        "Phase 3: SOTA Architectural & Performance Comparison Matrices"
+    )
+
+    # 4. Golden Reference Check
+    run_command(
+        f"{sys.executable} tools/verify_golden_outputs.py",
+        "Phase 4: Golden Reference Artifact Verification"
+    )
 
     with open("regression_summary.json") as f1, open("GOLDEN_OUTPUTS/regression_summary.json") as f2:
         cur = json.load(f1)
         gold = json.load(f2)
         assert cur["failed"] == 0, f"RTL regression failed with {cur['failed']} failures"
         assert cur["passed"] == gold["passed"], "Passed test count mismatch with golden"
-        print(f"  [PASS] RTL Master Regression: {cur['passed']}/{cur['total_tests']} tests verified.")
+        print(f"  [PASS] RTL Master Regression: {cur['passed']}/{cur['total_tests']} testbenches verified.")
 
     total_elapsed = time.time() - total_start
     print("\n======================================================================")

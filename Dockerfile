@@ -1,65 +1,41 @@
-# Dockerfile for Q-Shield Memory Controller Evaluation Environment
-# Base Image: Ubuntu 22.04 LTS (x86_64)
+# Dockerfile for Q-Shield Memory Controller Artifact Evaluation & Reproducibility
+# Base Image: Ubuntu 24.04 LTS (x86_64) with Icarus Verilog 12.0, Verilator 5.x, Yosys & Z3
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
+ENV PYTHONUNBUFFERED=1
 
-# Install base build tools and hardware verification dependencies
+# Install hardware verification, simulation, and synthesis dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    autoconf \
-    gperf \
-    bison \
-    flex \
-    libbz2-dev \
-    zlib1g-dev \
-    libreadline-dev \
-    cmake \
-    ccache \
-    mold \
+    iverilog \
+    verilator \
+    yosys \
+    z3 \
     git \
     python3 \
     python-is-python3 \
     python3-pip \
     python3-dev \
     python3-venv \
-    yosys \
-    z3 \
+    make \
     help2man \
     perl \
     ca-certificates \
     curl \
-    unzip \
     && rm -rf /var/lib/apt/lists/*
-
-# Install modern Verilator (v5.052)
-RUN curl -fsSL https://github.com/veryl-lang/verilator-package/releases/download/v5.052/verilator-ubuntu-22.04.zip -o /tmp/verilator.zip && \
-    unzip -q -o /tmp/verilator.zip -d /usr/local && \
-    rm /tmp/verilator.zip
-
-# Build and install modern Icarus Verilog (v12) from source
-RUN git clone --depth 1 -b v12-branch https://github.com/steveicarus/iverilog.git /tmp/iverilog && \
-    cd /tmp/iverilog && \
-    sh autoconf.sh && \
-    ./configure && \
-    make -j$(nproc) && \
-    make install && \
-    rm -rf /tmp/iverilog
 
 # Set working directory
 WORKDIR /workspace
 
-# Copy dependency requirements
+# Install Python verification dependencies (Cocotb 2.x, NumPy, Matplotlib, SciPy, Pytest)
 COPY requirements.txt /workspace/requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt pytest
 
-# Install Python packages and SymbiYosys
-RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir -r requirements.txt && \
-    git clone https://github.com/YosysHQ/sby.git /tmp/sby && \
-    make -C /tmp/sby install && \
-    rm -rf /tmp/sby
+# Copy repository source code (filtered via .dockerignore)
+COPY . /workspace
 
-# Set default command to keep container alive for interactive Exec sessions
-CMD ["sleep", "infinity"]
+# Default entrypoint reproduces all RTL regressions, attack emulations, SOTA matrices, and golden checks
+CMD ["python3", "run_minimal_example.py"]
