@@ -16,7 +16,7 @@ cd DRAM
 # 1. Install Python prerequisites
 pip install -r requirements.txt
 
-# 2. Run Master Hardware Regression Suite (14 testbenches)
+# 2. Run Master Hardware Regression Suite (30 testbenches incl. 8 Global Benchmarks & 13 Security Vectors)
 python run_iverilog_regression.py
 
 # 3. Run Attack Emulation & Defense Verification
@@ -72,14 +72,14 @@ Every figure and table in the manuscript maps 1-to-1 to an execution script and 
 ```bash
 python run_iverilog_regression.py
 ```
-- **Expected Outcome**: 14/14 testbenches pass with zero fatal assertion errors.
+- **Expected Outcome**: 30/30 testbenches (including 13 hardware attack vectors and 8 global academic/industrial benchmarks) pass with zero fatal assertion errors.
 - **Verification Log**: Inspect `regression_summary.json` and `regression_logs/`.
 
 ### Step 2: Full End-to-End Cocotb Verification
 ```bash
 python run_all_tests.py
 ```
-- **Expected Outcome**: All 20 Cocotb test suites complete successfully.
+- **Expected Outcome**: All 23 Cocotb test suites complete successfully.
 - **Verification Log**: Inspect `ci_test_summary.json`.
 
 ### Step 3: Formal Mathematical Invariant Proofs

@@ -101,4 +101,4 @@ Run the regression self-check script to confirm complete environment readiness:
 ```bash
 python3 run_iverilog_regression.py
 ```
-If all 14 testbenches report `[PASS]`, the installation is complete and verified.
+If all 30 testbenches report `[PASS]`, the installation is complete and verified.
