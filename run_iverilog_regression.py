@@ -409,10 +409,73 @@ def main():
             ]
         },
         {
-            "name": "Security Attack Validation: Master 11-Vector Suite & VCD Generation",
+            "name": "CDC Stage: Dual-Clock Gray-Code Async FIFO (250->400MHz)",
+            "top": "tb_async_fifo_cdc",
+            "module_covered": "rtl/cdc/async_fifo_cdc.sv",
+            "behavior_verified": "Dual-clock Gray-code pointer synchronization, full backpressure, and 100-block streaming",
+            "sources": [
+                os.path.join(root, "rtl", "cdc", "async_fifo_cdc.sv"),
+                os.path.join(root, "tb", "memory", "tb_async_fifo_cdc.sv"),
+            ]
+        },
+        {
+            "name": "Memory Stage 1: DDR5 Dual-Subchannel Command Scheduler",
+            "top": "tb_ddr5_subchannel_scheduler",
+            "module_covered": "rtl/memory/ddr5_subchannel_scheduler.sv",
+            "behavior_verified": "Cold-start ACT->tRCD->WR, zero-penalty Page Hit RD, and Page Conflict PRE->tRP->ACT",
+            "sources": [
+                os.path.join(root, "rtl", "memory", "ddr5_subchannel_scheduler.sv"),
+                os.path.join(root, "tb", "memory", "tb_ddr5_subchannel_scheduler.sv"),
+            ]
+        },
+        {
+            "name": "Memory Stage 2: Industrial DFI 5.0 Physical Layer Adapter",
+            "top": "tb_dfi_phy_adapter",
+            "module_covered": "rtl/memory/dfi_phy_adapter.sv",
+            "behavior_verified": "DFI 5.0 init handshake, ACT/PRE/WR/RD pin encoding, CL=14 pipeline, and PHY update interlock",
+            "sources": [
+                os.path.join(root, "rtl", "memory", "dfi_phy_adapter.sv"),
+                os.path.join(root, "tb", "memory", "tb_dfi_phy_adapter.sv"),
+            ]
+        },
+        {
+            "name": "Backend SOTA 1: JEDEC PRAC ABO, Phoenix (CVE-2025-6202) & Decoy",
+            "top": "tb_prac_abo_phoenix",
+            "module_covered": "rtl/backend/ddr5_cmd_engine.sv",
+            "behavior_verified": "JEDEC PRAC Alert-Back-Off recovery, Phoenix CVE-2025-6202 RFM defense, and S3ORAM Decoy access",
+            "sources": [
+                os.path.join(root, "rtl", "backend", "ddr5_cmd_engine.sv"),
+                os.path.join(root, "tb", "backend", "tb_prac_abo_phoenix.sv"),
+            ]
+        },
+        {
+            "name": "Backend SOTA 2: SEC-DED, USENIX '25 ECCfail Trap & ZEM Cache",
+            "top": "tb_eccfail_zem_scrubber",
+            "module_covered": "rtl/backend/ecc_scrubber.sv",
+            "behavior_verified": "SEC-DED (72,64) scrubbing, 3-bit cluster ECCfail miscorrection trap, and 0-cycle ZEM CAM",
+            "sources": [
+                os.path.join(root, "rtl", "backend", "ecc_scrubber.sv"),
+                os.path.join(root, "tb", "backend", "tb_eccfail_zem_scrubber.sv"),
+            ]
+        },
+        {
+            "name": "Backend SOTA 3: RS(18,16) GF(2^4) Chipkill x4 Die Failure ECC",
+            "top": "tb_rs_chipkill_selfcheck",
+            "module_covered": "rtl/backend/rs_chipkill_decoder.sv",
+            "behavior_verified": "Reed-Solomon RS(18,16) single x4 symbol correction (SSC) and double symbol detection (DSD)",
+            "sources": [
+                os.path.join(root, "rtl", "backend", "gf16_arith_pkg.sv"),
+                os.path.join(root, "rtl", "backend", "rs_chipkill_encoder.sv"),
+                os.path.join(root, "rtl", "backend", "rs_chipkill_decoder.sv"),
+                os.path.join(root, "tb", "backend", "tb_rs_chipkill.sv"),
+                os.path.join(root, "tb", "backend", "tb_rs_chipkill_selfcheck.sv"),
+            ]
+        },
+        {
+            "name": "Security Attack Validation: Master 13-Vector Suite & VCD Generation",
             "top": "tb_security_attacks_vcd",
             "module_covered": "rtl/top/axi_ddr5_mc_top.sv",
-            "behavior_verified": "11 hardware security attack vectors, cross-epoch split hammer, and VCD GTKWave dump",
+            "behavior_verified": "13 hardware security attack vectors (incl. Phoenix & Half-Double) and VCD GTKWave dump",
             "sources": [
                 os.path.join(root, "rtl", "cdc", "rst_sync.sv"),
                 os.path.join(root, "rtl", "bus", "axi4_skid_buffer.sv"),
@@ -436,6 +499,36 @@ def main():
                 os.path.join(root, "rtl", "bus", "perf_monitor_unit.sv"),
                 os.path.join(root, "rtl", "top", "axi_ddr5_mc_top.sv"),
                 os.path.join(root, "tb", "top", "tb_security_attacks_vcd.sv"),
+            ]
+        },
+        {
+            "name": "Industry Benchmarks: STREAM, SPEC2017, GAPBS & YCSB-A",
+            "top": "tb_standard_benchmarks",
+            "module_covered": "rtl/top/axi_ddr5_mc_top.sv",
+            "behavior_verified": "McCalpin STREAM Triad, SPEC CPU2017 505.mcf_r, UC Berkeley GAPBS bfs, and Yahoo! YCSB-A",
+            "sources": [
+                os.path.join(root, "rtl", "cdc", "rst_sync.sv"),
+                os.path.join(root, "rtl", "bus", "axi4_skid_buffer.sv"),
+                os.path.join(root, "rtl", "frontend", "axi_slave_frontend.sv"),
+                os.path.join(root, "rtl", "frontend", "wdata_buffer.sv"),
+                os.path.join(root, "rtl", "frontend", "domain_bank_coloring.sv"),
+                os.path.join(root, "rtl", "core", "scarf_dram_randomizer.sv"),
+                os.path.join(root, "rtl", "frontend", "addr_mapper_ddr5.sv"),
+                os.path.join(root, "rtl", "core", "reorder_buffer_rob.sv"),
+                os.path.join(root, "rtl", "core", "fault_hardened_csr.sv"),
+                os.path.join(root, "rtl", "crypto", "multi_vm_key_table.sv"),
+                os.path.join(root, "rtl", "core", "pxor_hash_engine.sv"),
+                os.path.join(root, "rtl", "core", "sdc_resilient_filter.sv"),
+                os.path.join(root, "rtl", "core", "adaptive_threshold_engine.sv"),
+                os.path.join(root, "rtl", "backend", "directed_refresh_manager.sv"),
+                os.path.join(root, "rtl", "core", "qos_scheduler_queue.sv"),
+                os.path.join(root, "rtl", "backend", "slack_aware_arbiter.sv"),
+                os.path.join(root, "rtl", "backend", "ddr5_cmd_engine.sv"),
+                os.path.join(root, "rtl", "backend", "ecc_scrubber.sv"),
+                os.path.join(root, "rtl", "memory", "bus_scrambler.sv"),
+                os.path.join(root, "rtl", "bus", "perf_monitor_unit.sv"),
+                os.path.join(root, "rtl", "top", "axi_ddr5_mc_top.sv"),
+                os.path.join(root, "tb", "top", "tb_standard_benchmarks.sv"),
             ]
         }
     ]

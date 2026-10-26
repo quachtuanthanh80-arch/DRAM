@@ -1,12 +1,5 @@
-//=============================================================================
-// Testbench:   tb_ddr5_subchannel_scheduler
-// Description: Comprehensive Self-Checking Testbench for ddr5_subchannel_scheduler.
-//              Verifies:
-//              1. Cold start bank activation (ACTIVATE -> tRCD -> READ/WRITE)
-//              2. Page Hit detection (direct READ without PRE/ACT penalty)
-//              3. Page Conflict resolution (PRECHARGE -> tRP -> ACTIVATE -> tRCD -> ACCESS)
-// Standard:    JEDEC DDR5 (JESD79-5) / SystemVerilog IEEE 1800-2017
-//=============================================================================
+// File: tb_ddr5_subchannel_scheduler.sv
+// Chức năng: Kiểm thử tự động bộ lập lịch kênh con DDR5 (Cold Start ACT, Page Hit và Page Conflict).
 
 `timescale 1ns / 1ps
 
@@ -23,7 +16,6 @@ module tb_ddr5_subchannel_scheduler;
 
     logic                rst_n;
 
-    // Request Interface
     logic                req_valid;
     logic                req_ready;
     logic                req_is_write;
@@ -34,7 +26,6 @@ module tb_ddr5_subchannel_scheduler;
     logic [127:0]        req_wdata;
     logic [15:0]         req_tag;
 
-    // Command Interface
     logic                cmd_valid;
     logic                cmd_ready;
     logic [2:0]          cmd_type;
@@ -48,7 +39,6 @@ module tb_ddr5_subchannel_scheduler;
     logic [31:0]         page_misses;
     logic [31:0]         total_cmds;
 
-    // DUT Instance
     ddr5_subchannel_scheduler #(
         .NumBanks   (NumBanks),
         .NumBankGrps(NumBankGrps),
@@ -86,25 +76,25 @@ module tb_ddr5_subchannel_scheduler;
     int tests_passed = 0;
     int tests_failed = 0;
 
-    // Helper task to wait for command during active valid cycle
     task automatic wait_for_cmd(
         output logic [2:0]          type_out,
         output logic [2:0]          ba_out,
         output logic [RowWidth-1:0] addr_out
     );
-        forever begin
+        logic done;
+        done = 1'b0;
+        while (!done) begin
             @(posedge clk);
-            #1ps; // Allow Non-Blocking Assignment (NBA) to settle
+            #1ps;
             if (cmd_valid) begin
                 type_out = cmd_type;
                 ba_out   = cmd_ba;
                 addr_out = cmd_addr;
-                break;
+                done     = 1'b1;
             end
         end
     endtask
 
-    // Helper task to submit request
     task automatic submit_request(
         input logic                 is_write,
         input logic [2:0]           bank,
@@ -133,7 +123,6 @@ module tb_ddr5_subchannel_scheduler;
     logic [RowWidth-1:0] sampled_addr;
 
     initial begin
-        // Reset initialization
         rst_n        = 1'b0;
         req_valid    = 1'b0;
         req_is_write = 1'b0;
@@ -153,11 +142,10 @@ module tb_ddr5_subchannel_scheduler;
         $display("[TB_DDR5_SCHED] STARTING DDR5 SUBCHANNEL SCHEDULER VERIFICATION");
         $display("================================================================");
 
-        // TEST 1: Cold Start Bank Activation (Bank 0, Row 0x1234, Col 0x050)
+        // TEST 1: Mở dòng từ trạng thái Bank đóng (ACTIVATE -> tRCD -> WRITE)
         tests_run++;
         submit_request(1'b1, 3'd0, 2'd0, 16'h1234, 10'h050, 128'hBEEF, 16'h0001);
 
-        // Expect CmdAct first
         wait_for_cmd(sampled_type, sampled_ba, sampled_addr);
         if (sampled_type == 3'b001 && sampled_ba == 3'd0 && sampled_addr == 16'h1234) begin
             $display("[PASS] Test 1a: CmdAct issued correctly for cold bank.");
@@ -168,7 +156,6 @@ module tb_ddr5_subchannel_scheduler;
             tests_failed++;
         end
 
-        // Wait for tRCD and expect CmdWr
         wait_for_cmd(sampled_type, sampled_ba, sampled_addr);
         if (sampled_type == 3'b100 && sampled_ba == 3'd0 && sampled_addr[9:0] == 10'h050) begin
             $display("[PASS] Test 1b: CmdWr issued following tRCD activation latency.");
@@ -181,11 +168,10 @@ module tb_ddr5_subchannel_scheduler;
 
         #(ClkPeriod * 4);
 
-        // TEST 2: Page Hit (Same Bank 0, Same Row 0x1234, New Col 0x0A0)
+        // TEST 2: Trúng trang đang mở (Page Hit: phát trực tiếp READ không tốn tRCD)
         tests_run++;
         submit_request(1'b0, 3'd0, 2'd0, 16'h1234, 10'h0A0, '0, 16'h0002);
 
-        // Expect DIRECT CmdRd without any CmdAct/CmdPre!
         wait_for_cmd(sampled_type, sampled_ba, sampled_addr);
         if (sampled_type == 3'b011 && sampled_ba == 3'd0 && sampled_addr[9:0] == 10'h0A0) begin
             $display("[PASS] Test 2: PAGE HIT! Direct CmdRd issued with zero ACT penalty.");
@@ -197,11 +183,10 @@ module tb_ddr5_subchannel_scheduler;
 
         #(ClkPeriod * 4);
 
-        // TEST 3: Page Conflict (Same Bank 0, Different Row 0x5678)
+        // TEST 3: Xung đột dòng trong cùng Bank (Page Conflict: PRE -> tRP -> ACT -> tRCD -> RD)
         tests_run++;
         submit_request(1'b0, 3'd0, 2'd0, 16'h5678, 10'h0F0, '0, 16'h0003);
 
-        // Expect CmdPre first
         wait_for_cmd(sampled_type, sampled_ba, sampled_addr);
         if (sampled_type == 3'b010 && sampled_ba == 3'd0) begin
             $display("[PASS] Test 3a: Row conflict detected -> CmdPre issued to close row.");
@@ -211,7 +196,6 @@ module tb_ddr5_subchannel_scheduler;
             tests_failed++;
         end
 
-        // Expect CmdAct after tRP
         wait_for_cmd(sampled_type, sampled_ba, sampled_addr);
         if (sampled_type == 3'b001 && sampled_ba == 3'd0 && sampled_addr == 16'h5678) begin
             $display("[PASS] Test 3b: CmdAct issued for new row 0x5678 after tRP precharge.");
@@ -221,7 +205,6 @@ module tb_ddr5_subchannel_scheduler;
             tests_failed++;
         end
 
-        // Expect CmdRd after tRCD
         wait_for_cmd(sampled_type, sampled_ba, sampled_addr);
         if (sampled_type == 3'b011 && sampled_ba == 3'd0 && sampled_addr[9:0] == 10'h0F0) begin
             $display("[PASS] Test 3c: CmdRd completed for conflicting access.");
@@ -234,7 +217,7 @@ module tb_ddr5_subchannel_scheduler;
         #(ClkPeriod * 8);
         $display("================================================================");
         $display("[TB_DDR5_SCHED] SUMMARY: %0d/%0d TESTS PASSED, %0d FAILED",
-                 tests_passed, tests_run + 2, tests_failed);
+                 tests_passed, tests_run + 3, tests_failed);
         $display("================================================================");
 
         if (tests_failed == 0) begin
@@ -245,4 +228,4 @@ module tb_ddr5_subchannel_scheduler;
         end
     end
 
-endmodule: tb_ddr5_subchannel_scheduler
+endmodule

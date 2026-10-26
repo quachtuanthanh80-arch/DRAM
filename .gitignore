@@ -81,8 +81,11 @@ walkthrough.md
 *.zip
 ~$*
 scratch/
+tools/ai_harness.py
+tools/inspect_github_dom.py
 tools/download_sota_papers.py
 tools/download_vietnamese_papers.py
 tools/download_hcmute_papers.py
 tools/generate_architecture_docx.py
+synth/asic/baselines/
 DRAM/

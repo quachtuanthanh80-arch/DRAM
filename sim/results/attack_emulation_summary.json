@@ -119,8 +119,8 @@
     "mitigations": 5743,
     "escaped_bitflips": 0,
     "benign_fpr_pct": 0.0,
-    "fuzzing_throughput_ops_sec": 276677.4,
-    "runtime_seconds": 3.61,
+    "fuzzing_throughput_ops_sec": 301927.0,
+    "runtime_seconds": 3.31,
     "status": "SECURE"
   }
 }

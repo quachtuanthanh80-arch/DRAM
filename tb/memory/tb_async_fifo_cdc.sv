@@ -1,17 +1,5 @@
-//=============================================================================
-// Testbench:   tb_async_fifo_cdc
-// Description: Comprehensive Self-Checking Testbench for async_fifo_cdc.
-//              Simulates realistic asynchronous Clock Domain Crossing (CDC):
-//              - Write Clock: 250 MHz (4.0 ns period)
-//              - Read Clock:  400 MHz (2.5 ns period)
-//              Verifies:
-//              1. Reset behavior (rempty=1, wfull=0)
-//              2. FIFO fill until full flag assertion
-//              3. Safe backpressure during full condition
-//              4. Dual-clock asynchronous concurrent streaming (100 blocks)
-//              5. Exact FIFO order preservation (0 bit errors, 0 dropped words)
-// Standard:    SystemVerilog (IEEE 1800-2017)
-//=============================================================================
+// File: tb_async_fifo_cdc.sv
+// Chức năng: Kiểm thử tự động bộ đệm chuyển miền xung nhịp bất đồng bộ (Async FIFO CDC 250 MHz -> 400 MHz).
 
 `timescale 1ns / 1ps
 
@@ -22,7 +10,6 @@ module tb_async_fifo_cdc;
     localparam time WClkPeriod = 4.0ns; // 250 MHz
     localparam time RClkPeriod = 2.5ns; // 400 MHz
 
-    // Asynchronous Clocks
     logic wclk = 0;
     always #(WClkPeriod/2) wclk = ~wclk;
 
@@ -32,19 +19,16 @@ module tb_async_fifo_cdc;
     logic wrst_n;
     logic rrst_n;
 
-    // Write Interface
     logic                 winc;
     logic [DataWidth-1:0] wdata;
     logic                 wfull;
     logic                 walmost_full;
 
-    // Read Interface
     logic                 rinc;
     logic [DataWidth-1:0] rdata;
     logic                 rempty;
     logic                 ralmost_empty;
 
-    // DUT Instance
     async_fifo_cdc #(
         .DataWidth(DataWidth),
         .Depth    (Depth)
@@ -67,13 +51,14 @@ module tb_async_fifo_cdc;
     int tests_passed = 0;
     int tests_failed = 0;
 
-    // Scoreboard for verification
-    logic [DataWidth-1:0] expected_queue [$];
+    // Bảng đối chiếu dữ liệu (Scoreboard) kiểm tra bảo toàn thứ tự FIFO qua 2 miền xung nhịp
+    logic [DataWidth-1:0] expected_mem [0:127];
+    logic [DataWidth-1:0] val;
+    logic [DataWidth-1:0] exp;
     int write_count = 0;
     int read_count  = 0;
 
     initial begin
-        // Reset initialization
         wrst_n = 1'b0;
         rrst_n = 1'b0;
         winc   = 1'b0;
@@ -89,7 +74,7 @@ module tb_async_fifo_cdc;
         $display("[TB_ASYNC_FIFO] STARTING DUAL-CLOCK CDC FIFO VERIFICATION");
         $display("================================================================");
 
-        // TEST 1: Reset State
+        // TEST 1: Kiểm tra trạng thái sau Reset
         tests_run++;
         #(WClkPeriod * 2);
         if (rempty && !wfull) begin
@@ -100,7 +85,7 @@ module tb_async_fifo_cdc;
             tests_failed++;
         end
 
-        // TEST 2: Fill FIFO completely until full flag asserts
+        // TEST 2: Ghi đầy FIFO và kiểm tra cờ báo đầy (wfull)
         tests_run++;
         for (int i = 0; i < Depth; i++) begin
             @(posedge wclk);
@@ -110,7 +95,7 @@ module tb_async_fifo_cdc;
         @(posedge wclk);
         winc <= 1'b0;
 
-        // Allow 2 cycles for Gray sync
+        // Chờ 2 chu kỳ đồng bộ con trỏ mã Gray
         repeat (3) @(posedge wclk);
 
         if (wfull) begin
@@ -121,7 +106,7 @@ module tb_async_fifo_cdc;
             tests_failed++;
         end
 
-        // Drain FIFO completely
+        // Xả sạch FIFO trước khi chạy bài test truyền song song
         while (!rempty) begin
             @(posedge rclk);
             rinc <= 1'b1;
@@ -130,25 +115,23 @@ module tb_async_fifo_cdc;
         rinc <= 1'b0;
         repeat (4) @(posedge wclk);
 
-        // TEST 3: Concurrent Asynchronous Streaming (100 words)
+        // TEST 3: Truyền nhận bất đồng bộ song song 100 khối dữ liệu (250 MHz -> 400 MHz)
         tests_run++;
         $display("[INFO] Running Test 3: Concurrent CDC Streaming of 100 blocks...");
         write_count = 0;
         read_count  = 0;
-        expected_queue.delete();
 
         fork
-            // Write domain producer (250 MHz)
             begin
                 while (write_count < 100) begin
                     @(posedge wclk);
                     if (!wfull) begin
-                        automatic logic [DataWidth-1:0] val = {16'hD000 | write_count[7:0],
-                                                               64'hFEED_FACE_1111_2222,
-                                                               64'h3333_4444_5555_0000 | write_count};
+                        val = {16'hD000 | write_count[7:0],
+                               64'hFEED_FACE_1111_2222,
+                               64'h3333_4444_5555_0000 | write_count};
                         wdata <= val;
                         winc  <= 1'b1;
-                        expected_queue.push_back(val);
+                        expected_mem[write_count] = val;
                         write_count++;
                     end else begin
                         winc <= 1'b0;
@@ -158,20 +141,17 @@ module tb_async_fifo_cdc;
                 winc <= 1'b0;
             end
 
-            // Read domain consumer (400 MHz)
             begin
                 while (read_count < 100) begin
                     @(posedge rclk);
                     #1;
                     if (!rempty) begin
                         rinc <= 1'b1;
-                        if (expected_queue.size() > 0) begin
-                            automatic logic [DataWidth-1:0] exp = expected_queue.pop_front();
-                            if (rdata !== exp) begin
-                                $display("[FAIL] Data mismatch at item %0d! Got %036h, Expected %036h",
-                                         read_count, rdata, exp);
-                                tests_failed++;
-                            end
+                        exp = expected_mem[read_count];
+                        if (rdata !== exp) begin
+                            $display("[FAIL] Data mismatch at item %0d! Got %036h, Expected %036h",
+                                     read_count, rdata, exp);
+                            tests_failed++;
                         end
                         read_count++;
                     end else begin
@@ -183,12 +163,12 @@ module tb_async_fifo_cdc;
             end
         join
 
-        if (write_count == 100 && read_count == 100 && expected_queue.size() == 0) begin
+        if (write_count == 100 && read_count == 100 && tests_failed == 0) begin
             $display("[PASS] Test 3: Concurrent CDC stream passed (100 blocks, 0 data errors).");
             tests_passed++;
         end else begin
-            $display("[FAIL] Test 3: Count mismatch. Wr=%0d, Rd=%0d, Queue Remaining=%0d",
-                     write_count, read_count, expected_queue.size());
+            $display("[FAIL] Test 3: Count or data mismatch. Wr=%0d, Rd=%0d",
+                     write_count, read_count);
             tests_failed++;
         end
 
@@ -206,4 +186,4 @@ module tb_async_fifo_cdc;
         end
     end
 
-endmodule: tb_async_fifo_cdc
+endmodule

@@ -99,7 +99,7 @@ def run_tier2_rtl(dump_vcd=True):
         return False, 0.0, None
     print(f"  [OK] Compilation succeeded in {time.time() - t0:.2f}s")
     
-    print(f"[*] Executing 11 Hardware Security Vectors & Fuzzing via vvp...")
+    print(f"[*] Executing 13 Hardware Security Vectors & Fuzzing via vvp...")
     t1 = time.time()
     res_sim = subprocess.run([vvp_bin, vvp_out], cwd=REPO_ROOT, capture_output=True, text=True)
     sim_elapsed = time.time() - t1
@@ -109,7 +109,7 @@ def run_tier2_rtl(dump_vcd=True):
     vcd_size_mb = os.path.getsize(vcd_path) / (1024 * 1024) if os.path.isfile(vcd_path) else 0.0
     print(f"[+] GTKWave Waveform Artifact : {vcd_path} ({vcd_size_mb:.2f} MB)")
     
-    passed = (res_sim.returncode == 0) and ("ALL 11 HARDWARE SECURITY ATTACK SCENARIOS VERIFIED SUCCESSFULLY" in res_sim.stdout)
+    passed = (res_sim.returncode == 0) and ("ALL 13 HARDWARE SECURITY ATTACK SCENARIOS VERIFIED SUCCESSFULLY" in res_sim.stdout)
     return passed, sim_elapsed, vcd_size_mb
 
 def main():
@@ -147,8 +147,8 @@ def main():
         "tier2_synthesizable_rtl_simulation": {
             "status": "PASS" if t2_pass else "FAIL",
             "runtime_seconds": round(t2_time, 2),
-            "scenarios_tested": 11,
-            "scenarios_passed": 11 if t2_pass else 0,
+            "scenarios_tested": 13,
+            "scenarios_passed": 13 if t2_pass else 0,
             "waveform_vcd_path": "waveform_security_attacks.vcd",
             "waveform_size_mb": round(vcd_mb, 2)
         },
@@ -178,7 +178,7 @@ def main():
         f.write("| :--- | :--- | :---: | :---: | :---: | :---: | :---: |\n")
         f.write(f"| **Tier 1** | Architectural Emulation | 8 Threat Traces | **0** | **100.0%** | **0.020%** | **PASS** |\n")
         f.write(f"| **Tier 1 (Fuzzer)** | Randomized Fuzzing Stream | 1,000,000 Beats | **0** | **100.0%** | **0.000%** | **PASS** |\n")
-        f.write(f"| **Tier 2** | Synthesizable RTL (Iverilog) | 11 Hardware Vectors | **0** | **100.0%** | **0.000%** | **PASS** |\n")
+        f.write(f"| **Tier 2** | Synthesizable RTL (Iverilog) | 13 Hardware Vectors | **0** | **100.0%** | **0.000%** | **PASS** |\n")
         f.write(f"| **Tier 3** | Formal SVA (SymbiYosys) | 11 Safety Invariants (k=30) | **0** | **100.0%** | **0.000%** | **PASS** |\n\n")
         f.write("## 2. GTKWave Waveform Instrumentation\n\n")
         f.write(f"- **Waveform Artifact**: `waveform_security_attacks.vcd`\n")

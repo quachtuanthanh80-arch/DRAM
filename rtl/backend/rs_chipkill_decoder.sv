@@ -1,5 +1,5 @@
-// rs_chipkill_decoder.sv
-// Bo giai ma Reed-Solomon RS(18,16) sua loi 1 symbol 4-bit (1 chip DRAM x4) va phat hien loi 2 symbol
+// File: rs_chipkill_decoder.sv
+// Chức năng: Bộ giải mã Reed-Solomon RS(18,16) sửa lỗi 1 symbol 4-bit (1 chip DRAM x4) và phát hiện lỗi 2 symbol.
 
 `timescale 1ns / 1ps
 
@@ -12,17 +12,17 @@ module rs_chipkill_decoder
     input  logic                                clk,
     input  logic                                rst_n,
 
-    // Giao dien codeword 72-bit vao (tu DRAM Bus / PHY)
+    // Giao diện codeword 72-bit vào (từ DRAM Bus / PHY)
     input  logic                                i_valid,
     output logic                                o_ready,
     input  logic [(DATA_SYMBOLS+PARITY_SYMBOLS)*4-1:0] i_codeword,
 
-    // Giao dien du lieu 64-bit sau khi sua loi
+    // Giao diện dữ liệu 64-bit sau khi sửa lỗi
     output logic                                o_valid,
     input  logic                                i_ready,
     output logic [DATA_SYMBOLS*4-1:0]           o_data,
 
-    // Tin hieu telemetry thong bao trang thai loi
+    // Tín hiệu telemetry thông báo trạng thái lỗi
     output logic                                o_single_corrected,
     output logic                                o_double_detected,
     output logic [3:0]                          o_error_symbol_idx
@@ -30,62 +30,36 @@ module rs_chipkill_decoder
 
     assign o_ready = i_ready || !o_valid;
 
-    // Phan ra du lieu codeword thanh 16 data symbols va 2 parity symbols
-    gf16_t rx_msg    [DATA_SYMBOLS];
-    gf16_t rx_parity [PARITY_SYMBOLS];
-
-    always_comb begin
-        for (int i = 0; i < DATA_SYMBOLS; i++) begin
-            rx_msg[i] = i_codeword[i*4 +: 4];
-        end
-        rx_parity[0] = i_codeword[64 +: 4];
-        rx_parity[1] = i_codeword[68 +: 4];
-    end
-
-    // 1. Tinh toan hoi chung loi (Syndrome Calculation)
+    // Tính toán hội chứng lỗi (Syndrome S0, S1), định vị lỗi O(1) trên GF(2^4) và sửa lỗi tổ hợp
     gf16_t s0_comb, s1_comb;
-    always_comb begin
-        s0_comb = rx_parity[0];
-        s1_comb = rx_parity[1];
-        for (int i = 0; i < DATA_SYMBOLS; i++) begin
-            s0_comb = gf16_add(s0_comb, rx_msg[i]);
-            s1_comb = gf16_add(s1_comb, gf16_mul(rx_msg[i], gf16_t'(i)));
+    gf16_t syn_term [DATA_SYMBOLS];
+
+    genvar gi;
+    generate
+        for (gi = 0; gi < DATA_SYMBOLS; gi = gi + 1) begin : gen_syn_mul
+            assign syn_term[gi] = gf16_mul(i_codeword[gi*4 +: 4], gf16_t'(gi));
         end
-    end
+    endgenerate
 
-    // 2. Dinh vi vi tri loi va do lon sai so O(1) truc tiep (Direct Error Locator & Evaluator)
-    logic [3:0] match_idx;
-    logic       match_found;
-    gf16_t      err_magnitude;
+    assign s0_comb = i_codeword[64 +: 4] ^
+                     i_codeword[0*4 +: 4]  ^ i_codeword[1*4 +: 4]  ^ i_codeword[2*4 +: 4]  ^ i_codeword[3*4 +: 4]  ^
+                     i_codeword[4*4 +: 4]  ^ i_codeword[5*4 +: 4]  ^ i_codeword[6*4 +: 4]  ^ i_codeword[7*4 +: 4]  ^
+                     i_codeword[8*4 +: 4]  ^ i_codeword[9*4 +: 4]  ^ i_codeword[10*4 +: 4] ^ i_codeword[11*4 +: 4] ^
+                     i_codeword[12*4 +: 4] ^ i_codeword[13*4 +: 4] ^ i_codeword[14*4 +: 4] ^ i_codeword[15*4 +: 4];
 
-    always_comb begin
-        if ((s0_comb == 4'h0) && (s1_comb == 4'h0)) begin
-            match_found   = 1'b0;
-            match_idx     = 4'h0;
-            err_magnitude = 4'h0;
-        end else if (s0_comb != 4'h0) begin
-            // 1 data symbol error: Ti so S1 / S0 = e * x_j / e = x_j truc tiep cho chi so match_idx
-            match_found   = 1'b1;
-            match_idx     = gf16_mul(s1_comb, gf16_inv(s0_comb));
-            err_magnitude = s0_comb;
-        end else begin
-            // S0 == 0 nhung S1 != 0: Loi kep 2-symbol khong the sua
-            match_found   = 1'b0;
-            match_idx     = 4'h0;
-            err_magnitude = 4'h0;
-        end
-    end
+    assign s1_comb = i_codeword[68 +: 4] ^
+                     syn_term[0]  ^ syn_term[1]  ^ syn_term[2]  ^ syn_term[3]  ^
+                     syn_term[4]  ^ syn_term[5]  ^ syn_term[6]  ^ syn_term[7]  ^
+                     syn_term[8]  ^ syn_term[9]  ^ syn_term[10] ^ syn_term[11] ^
+                     syn_term[12] ^ syn_term[13] ^ syn_term[14] ^ syn_term[15];
 
-    // 3. Tuyen du lieu sua loi (Correction MUX)
-    logic [DATA_SYMBOLS*4-1:0] corrected_data;
-    always_comb begin
-        corrected_data = i_codeword[63:0];
-        if (match_found && (s0_comb != 4'h0)) begin
-            corrected_data[match_idx*4 +: 4] = rx_msg[match_idx] ^ err_magnitude;
-        end
-    end
+    wire       match_found   = (s0_comb != 4'h0);
+    wire [3:0] match_idx     = match_found ? gf16_mul(s1_comb, gf16_inv(s0_comb)) : 4'h0;
+    wire [3:0] err_magnitude = match_found ? s0_comb : 4'h0;
 
-    // 4. Thanh ghi xuat ket qua (Pipeline Stage)
+    wire [DATA_SYMBOLS*4-1:0] corr_mask      = match_found ? ({60'd0, err_magnitude} << (match_idx * 4)) : 64'd0;
+    wire [DATA_SYMBOLS*4-1:0] corrected_data = i_codeword[63:0] ^ corr_mask;
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             o_valid            <= 1'b0;
@@ -100,15 +74,12 @@ module rs_chipkill_decoder
                 o_error_symbol_idx <= match_idx;
 
                 if ((s0_comb == 4'h0) && (s1_comb == 4'h0)) begin
-                    // Khong co loi
                     o_single_corrected <= 1'b0;
                     o_double_detected  <= 1'b0;
                 end else if (match_found) begin
-                    // Sua duoc 1 symbol 4-bit (1 chip DRAM x4)
                     o_single_corrected <= 1'b1;
                     o_double_detected  <= 1'b0;
                 end else begin
-                    // Loi kep khong the sua (Double Symbol Error)
                     o_single_corrected <= 1'b0;
                     o_double_detected  <= 1'b1;
                 end

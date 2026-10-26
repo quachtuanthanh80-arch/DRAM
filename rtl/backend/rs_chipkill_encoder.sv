@@ -1,5 +1,5 @@
-// rs_chipkill_encoder.sv
-// Bo ma hoa Reed-Solomon RS(18,16) tren truong GF(2^4) bao ve Chipkill cho chip nho DRAM x4
+// File: rs_chipkill_encoder.sv
+// Chức năng: Bộ mã hóa Reed-Solomon RS(18,16) trên trường GF(2^4) bảo vệ Chipkill cho chip nhớ DRAM x4.
 
 `timescale 1ns / 1ps
 
@@ -12,12 +12,12 @@ module rs_chipkill_encoder
     input  logic                                clk,
     input  logic                                rst_n,
 
-    // Giao dien du lieu vao
+    // Giao diện dữ liệu vào
     input  logic                                i_valid,
     output logic                                o_ready,
     input  logic [DATA_SYMBOLS*4-1:0]           i_data,
 
-    // Giao dien du lieu ra da ghep ma parity
+    // Giao diện dữ liệu ra đã ghép mã parity
     output logic                                o_valid,
     input  logic                                i_ready,
     output logic [(DATA_SYMBOLS+PARITY_SYMBOLS)*4-1:0] o_codeword
@@ -25,29 +25,27 @@ module rs_chipkill_encoder
 
     assign o_ready = i_ready || !o_valid;
 
-    // Phan ra du lieu thanh mang 16 symbols
-    gf16_t msg_symbols [DATA_SYMBOLS];
-    always_comb begin
-        for (int i = 0; i < DATA_SYMBOLS; i++) begin
-            msg_symbols[i] = i_data[i*4 +: 4];
-        end
-    end
-
-    // Tinh toan 2 parity symbols bang LFSR da thuc sinh g(x) = x^2 + 3x + 2
-    // Co che song song ket hop to hop: P0 = sum(msg_i * alpha_i), P1 = sum(msg_i * beta_i)
+    // Tính toán trực tiếp 2 parity symbols bằng phép nhân-cộng Galois GF(2^4) trong 1 chu kỳ:
+    // P0 = sum(msg_i), P1 = sum(msg_i * x_i) với x_i = i
     gf16_t p0_comb, p1_comb;
+    gf16_t prod_term [DATA_SYMBOLS];
 
-    // He so ma tran tao ma parity cho RS(18,16)
-    // Tinh toan truc tiep bang phep nhan-cong Galois trong 1 chu ky
-    always_comb begin
-        p0_comb = 4'h0;
-        p1_comb = 4'h0;
-        for (int i = 0; i < DATA_SYMBOLS; i++) begin
-            // Ma hoa Cauchy/Vandermonde RS: P0 = sum(msg_i), P1 = sum(msg_i * x_i) voi x_i = i
-            p0_comb = gf16_add(p0_comb, msg_symbols[i]);
-            p1_comb = gf16_add(p1_comb, gf16_mul(msg_symbols[i], gf16_t'(i)));
+    genvar gi;
+    generate
+        for (gi = 0; gi < DATA_SYMBOLS; gi = gi + 1) begin : gen_gf_mul
+            assign prod_term[gi] = gf16_mul(i_data[gi*4 +: 4], gf16_t'(gi));
         end
-    end
+    endgenerate
+
+    assign p0_comb = i_data[0*4 +: 4]  ^ i_data[1*4 +: 4]  ^ i_data[2*4 +: 4]  ^ i_data[3*4 +: 4]  ^
+                     i_data[4*4 +: 4]  ^ i_data[5*4 +: 4]  ^ i_data[6*4 +: 4]  ^ i_data[7*4 +: 4]  ^
+                     i_data[8*4 +: 4]  ^ i_data[9*4 +: 4]  ^ i_data[10*4 +: 4] ^ i_data[11*4 +: 4] ^
+                     i_data[12*4 +: 4] ^ i_data[13*4 +: 4] ^ i_data[14*4 +: 4] ^ i_data[15*4 +: 4];
+
+    assign p1_comb = prod_term[0]  ^ prod_term[1]  ^ prod_term[2]  ^ prod_term[3]  ^
+                     prod_term[4]  ^ prod_term[5]  ^ prod_term[6]  ^ prod_term[7]  ^
+                     prod_term[8]  ^ prod_term[9]  ^ prod_term[10] ^ prod_term[11] ^
+                     prod_term[12] ^ prod_term[13] ^ prod_term[14] ^ prod_term[15];
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -56,7 +54,6 @@ module rs_chipkill_encoder
         end else if (o_ready) begin
             o_valid <= i_valid;
             if (i_valid) begin
-                // Ghep 64-bit data voi 8-bit parity thanh 72-bit codeword
                 o_codeword <= {p1_comb, p0_comb, i_data};
             end
         end

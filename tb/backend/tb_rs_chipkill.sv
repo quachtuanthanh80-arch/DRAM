@@ -1,5 +1,5 @@
-// tb_rs_chipkill.sv
-// Wrapper kiem tra bo ma hoa va giai ma RS(18,16) Chipkill kem cong tiem loi
+// File: tb_rs_chipkill.sv
+// Chức năng: Wrapper kết nối bộ mã hóa và giải mã RS(18,16) Chipkill kèm cổng tiêm lỗi đường truyền DRAM.
 
 `timescale 1ns / 1ps
 
@@ -7,20 +7,20 @@ module tb_rs_chipkill (
     input  logic        clk,
     input  logic        rst_n,
 
-    // Giao dien phat du lieu 64-bit
+    // Giao diện phát dữ liệu 64-bit
     input  logic        i_valid,
     output logic        o_ready,
     input  logic [63:0] i_data,
 
-    // Giao dien tiem loi (Fault Injection)
+    // Giao diện tiêm lỗi (Fault Injection)
     input  logic        i_inject_en,
-    input  logic [1:0]  i_inject_count, // 0 = khong loi, 1 = 1 symbol, 2 = 2 symbols
+    input  logic [1:0]  i_inject_count, // 0 = không lỗi, 1 = 1 symbol, 2 = 2 symbols
     input  logic [3:0]  i_inject_sym_idx0,
     input  logic [3:0]  i_inject_val0,
     input  logic [3:0]  i_inject_sym_idx1,
     input  logic [3:0]  i_inject_val1,
 
-    // Giao dien nhan du lieu sau khi sua loi
+    // Giao diện nhận dữ liệu sau khi sửa lỗi
     output logic        o_valid,
     input  logic        i_ready,
     output logic [63:0] o_data,
@@ -33,7 +33,6 @@ module tb_rs_chipkill (
     logic        enc_ready;
     logic [71:0] enc_codeword;
 
-    // Khoi tao bo ma hoa RS(18,16)
     rs_chipkill_encoder u_encoder (
         .clk        (clk),
         .rst_n      (rst_n),
@@ -45,7 +44,6 @@ module tb_rs_chipkill (
         .o_codeword (enc_codeword)
     );
 
-    // Pipeline dong bo tin hieu tiem loi theo do tre cua bo ma hoa
     logic        inject_en_q;
     logic [1:0]  inject_count_q;
     logic [3:0]  inject_sym0_q, inject_val0_q;
@@ -71,21 +69,10 @@ module tb_rs_chipkill (
         end
     end
 
-    // Cong tiem loi duong truyen DRAM PHY (Bus Channel Fault Injection)
-    logic [71:0] corrupted_codeword;
-    always_comb begin
-        corrupted_codeword = enc_codeword;
-        if (inject_en_q) begin
-            if (inject_count_q >= 2'd1 && inject_sym0_q < 5'd18) begin
-                corrupted_codeword[inject_sym0_q*4 +: 4] ^= inject_val0_q;
-            end
-            if (inject_count_q >= 2'd2 && inject_sym1_q < 5'd18) begin
-                corrupted_codeword[inject_sym1_q*4 +: 4] ^= inject_val1_q;
-            end
-        end
-    end
+    wire [71:0] err_mask0 = (inject_en_q && (inject_count_q >= 2'd1)) ? ({68'd0, inject_val0_q} << (inject_sym0_q * 4)) : 72'd0;
+    wire [71:0] err_mask1 = (inject_en_q && (inject_count_q >= 2'd2)) ? ({68'd0, inject_val1_q} << (inject_sym1_q * 4)) : 72'd0;
+    wire [71:0] corrupted_codeword = enc_codeword ^ err_mask0 ^ err_mask1;
 
-    // Khoi tao bo giai ma RS(18,16)
     rs_chipkill_decoder u_decoder (
         .clk                (clk),
         .rst_n              (rst_n),
