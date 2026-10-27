@@ -11,8 +11,12 @@ from cocotb.triggers import RisingEdge, Timer
 async def reset_dut(dut):
     dut.rst_n.value = 0
     dut.cfg_hash_mode.value = 1       # Dual-Hash
+    dut.cfg_pxor_mode.value = 0
+    dut.cfg_pxor_seed.value = 0xA5A5_5A5A_0123_4567
     dut.cfg_sdc_thresh.value = 5       # Throttle on 5th activation
     dut.cfg_window_size.value = 500    # Epoch window size
+    dut.cfg_multibank_thresh.value = 2
+    dut.i_rowpress_weight.value = 0
 
     dut.i_cmd_valid.value = 0
     dut.i_cmd_id.value = 0

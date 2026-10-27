@@ -16,6 +16,10 @@ async def reset_dut(dut):
     dut.cfg_hash_mode.value = 1  # Dual-Hash default
     dut.cfg_sdc_thresh.value = 5  # Alert after 5 activations
     dut.cfg_window_size.value = 1000  # Large window for normal test
+    dut.cfg_pxor_mode.value = 0
+    dut.cfg_pxor_seed.value = 0xA5A5_5A5A_0123_4567
+    dut.cfg_multibank_thresh.value = 2
+    dut.i_rowpress_weight.value = 0
 
     dut.i_cmd_valid.value = 0
     dut.i_cmd_id.value = 0

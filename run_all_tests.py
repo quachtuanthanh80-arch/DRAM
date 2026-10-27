@@ -282,9 +282,41 @@ def main():
 
         cmd = ["make", "-f", makefile, "sim"]
         run_env = env.copy()
+
+        # Check Verilator version:
+        # - Verilator >= 5.030 (e.g. 5.032 in WSL) supports all SV2017 constructs; pass VLT_MIN=5.030 for Cocotb 2.1
+        # - Verilator < 5.030 (e.g. 5.020 in Ubuntu 24.04 apt) falls back to Icarus Verilog 12.0
+        use_icarus_fallback = False
+        verilator_bin = shutil.which("verilator")
+        if not verilator_bin:
+            use_icarus_fallback = True
+        else:
+            try:
+                v_out = subprocess.run([verilator_bin, "--version"], capture_output=True, text=True).stdout
+                v_match = re.search(r"Verilator\s+(\d+)\.(\d+)", v_out)
+                if v_match:
+                    major, minor = int(v_match.group(1)), int(v_match.group(2))
+                    if (major, minor) < (5, 30):
+                        use_icarus_fallback = True
+                    elif (major, minor) < (5, 36):
+                        cmd.append("VLT_MIN=5.030")
+                        run_env["VLT_MIN"] = "5.030"
+            except Exception:
+                use_icarus_fallback = True
+
+        if use_icarus_fallback and shutil.which("iverilog"):
+            cmd.extend(["SIM=icarus", "EXTRA_ARGS=", "WAVES=0"])
+            run_env["SIM"] = "icarus"
+            run_env["EXTRA_ARGS"] = ""
+            run_env["WAVES"] = "0"
+            sim_build_dir = os.path.join(cwd, overrides.get("SIM_BUILD", "sim_build"))
+            if os.path.isdir(sim_build_dir):
+                shutil.rmtree(sim_build_dir, ignore_errors=True)
+
         for k, v in overrides.items():
             run_env[k] = str(v)
-            cmd.append(f"{k}={v}")
+            if not (use_icarus_fallback and k == "VERILOG_SOURCES"):
+                cmd.append(f"{k}={v}")
 
         t0 = time.time()
         try:

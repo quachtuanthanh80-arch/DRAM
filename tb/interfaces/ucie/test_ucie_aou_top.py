@@ -41,11 +41,11 @@ class AxiResponder:
             await RisingEdge(self.clk)
 
             # Write AW & W
-            if self.dut.m_axi_awvalid.value and self.dut.m_axi_awready.value:
+            if str(self.dut.m_axi_awvalid.value) == "1" and str(self.dut.m_axi_awready.value) == "1":
                 pending_wr_addr = int(self.dut.m_axi_awaddr.value)
                 pending_wr_id   = int(self.dut.m_axi_awid.value)
 
-            if self.dut.m_axi_wvalid.value and self.dut.m_axi_wready.value:
+            if str(self.dut.m_axi_wvalid.value) == "1" and str(self.dut.m_axi_wready.value) == "1":
                 if pending_wr_addr is not None:
                     self.mem[pending_wr_addr] = int(self.dut.m_axi_wdata.value)
                     self.dut.m_axi_bvalid.value = 1
@@ -53,11 +53,11 @@ class AxiResponder:
                     self.dut.m_axi_bresp.value  = 0
                     pending_wr_addr = None
 
-            if self.dut.m_axi_bvalid.value and self.dut.m_axi_bready.value:
+            if str(self.dut.m_axi_bvalid.value) == "1" and str(self.dut.m_axi_bready.value) == "1":
                 self.dut.m_axi_bvalid.value = 0
 
             # Read AR & R
-            if self.dut.m_axi_arvalid.value and self.dut.m_axi_arready.value:
+            if str(self.dut.m_axi_arvalid.value) == "1" and str(self.dut.m_axi_arready.value) == "1":
                 rd_addr = int(self.dut.m_axi_araddr.value)
                 rd_id   = int(self.dut.m_axi_arid.value)
                 rdata   = self.mem.get(rd_addr, 0x11223344_55667788 + rd_addr)
@@ -73,7 +73,7 @@ class AxiResponder:
                 else:
                     self.dut.m_axi_rresp.value   = 0
                     self.dut.m_axi_rpoison.value = 0
-            elif self.dut.m_axi_rvalid.value and self.dut.m_axi_rready.value:
+            elif str(self.dut.m_axi_rvalid.value) == "1" and str(self.dut.m_axi_rready.value) == "1":
                 self.dut.m_axi_rvalid.value  = 0
                 self.dut.m_axi_rpoison.value = 0
 

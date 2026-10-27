@@ -92,8 +92,13 @@ module wdata_buffer #(
         if (!aresetn_axi) begin
             cmd_wr_ptr <= '0;
         end else if (i_wr_addr_valid && !cmd_full) begin
-            cmd_mem[cmd_wr_ptr[CMD_PTR_W-1:0]] <= cmd_in;
             cmd_wr_ptr <= cmd_wr_ptr + 1'b1;
+        end
+    end
+
+    always_ff @(posedge clk_axi) begin
+        if (i_wr_addr_valid && !cmd_full) begin
+            cmd_mem[cmd_wr_ptr[CMD_PTR_W-1:0]] <= cmd_in;
         end
     end
 
@@ -153,8 +158,13 @@ module wdata_buffer #(
         if (!aresetn_axi) begin
             data_wr_ptr <= '0;
         end else if (i_wr_data_valid && !data_full) begin
-            data_mem[data_wr_ptr[DATA_PTR_W-1:0]] <= data_in;
             data_wr_ptr <= data_wr_ptr + 1'b1;
+        end
+    end
+
+    always_ff @(posedge clk_axi) begin
+        if (i_wr_data_valid && !data_full) begin
+            data_mem[data_wr_ptr[DATA_PTR_W-1:0]] <= data_in;
         end
     end
 

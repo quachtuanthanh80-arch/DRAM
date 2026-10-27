@@ -472,10 +472,10 @@ def main():
             ]
         },
         {
-            "name": "Security Attack Validation: Master 13-Vector Suite & VCD Generation",
+            "name": "Security Attack Validation: Master 17-Vector Suite & VCD Generation",
             "top": "tb_security_attacks_vcd",
             "module_covered": "rtl/top/axi_ddr5_mc_top.sv",
-            "behavior_verified": "13 hardware security attack vectors (incl. Phoenix & Half-Double) and VCD GTKWave dump",
+            "behavior_verified": "17 hardware security attack vectors (incl. Phoenix, Half-Double, TRRespass, RAMBleed, Throwhammer, Decoy) and VCD GTKWave dump",
             "sources": [
                 os.path.join(root, "rtl", "cdc", "rst_sync.sv"),
                 os.path.join(root, "rtl", "bus", "axi4_skid_buffer.sv"),

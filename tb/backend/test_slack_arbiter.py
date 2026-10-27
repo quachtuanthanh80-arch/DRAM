@@ -33,6 +33,7 @@ async def reset_dut(dut):
     dut.i_mitigation_bg.value = 0
     dut.i_mitigation_bank.value = 0
     dut.i_mitigation_row.value = 0
+    dut.i_proq_row_hit.value = 0
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)

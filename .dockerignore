@@ -16,3 +16,9 @@ DRAM/
 **/results.xml
 .harness/
 scratch/
+syn/vivado_project/
+tools/verible/
+regression_logs/
+.agents/
+.vscode/
+.idea/

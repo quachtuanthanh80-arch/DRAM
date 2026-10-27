@@ -178,9 +178,7 @@ module reorder_buffer_rob #(
 
             // 2. Writeback Reception from DRAM
             if (i_wb_valid && entry_valid[i_wb_tag]) begin
-                payload_data[i_wb_tag][wb_beat_idx] <= i_wb_data;
-                payload_resp[i_wb_tag][wb_beat_idx] <= i_wb_resp;
-                entry_wb_count[i_wb_tag]            <= entry_wb_count[i_wb_tag] + 1'b1;
+                entry_wb_count[i_wb_tag] <= entry_wb_count[i_wb_tag] + 1'b1;
                 if (i_wb_last || (entry_wb_count[i_wb_tag] >= entry_len[i_wb_tag])) begin
                     entry_wb_done[i_wb_tag] <= 1'b1;
                 end
@@ -204,6 +202,14 @@ module reorder_buffer_rob #(
                 2'b01: occupancy_count <= occupancy_count - 1'b1;
                 default: occupancy_count <= occupancy_count;
             endcase
+        end
+    end
+
+    // Tách mảng dữ liệu ROB sang khối tuần tự thuần đồng bộ để hỗ trợ suy luận LUTRAM và tránh xung đột Set/Reset
+    always_ff @(posedge clk) begin
+        if (i_wb_valid && entry_valid[i_wb_tag]) begin
+            payload_data[i_wb_tag][wb_beat_idx] <= i_wb_data;
+            payload_resp[i_wb_tag][wb_beat_idx] <= i_wb_resp;
         end
     end
 

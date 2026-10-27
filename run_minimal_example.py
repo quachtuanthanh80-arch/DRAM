@@ -2,7 +2,7 @@
 """
 run_minimal_example.py
 Fast End-to-End Reproduction Script for Reviewers, Docker Artifact Evaluation, and CI/CD.
-Validates 30 RTL testbenches (incl. 8 Global Benchmarks & 13 Attack Vectors),
+Validates 30 RTL testbenches (incl. 8 Global Benchmarks & 17 Attack Vectors),
 Attack Emulation, SOTA Comparison Matrices, and Golden Reference Outputs.
 """
 

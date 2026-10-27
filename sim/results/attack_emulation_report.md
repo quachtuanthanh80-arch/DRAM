@@ -19,7 +19,7 @@
 - **Rate Pacing Mitigations**: 5,743
 - **Benign False Positive Rate**: **0.0000%** (Target: $\le 0.02\%$)
 - **Escaped Bit-Flips**: **0** (Complete Protection)
-- **Execution Speed**: 301,927.0 ops/sec (3.31s)
+- **Execution Speed**: 251,398.2 ops/sec (3.98s)
 
 ## 3. Threat Model Boundaries & Assumptions
 

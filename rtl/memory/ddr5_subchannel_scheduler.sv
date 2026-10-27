@@ -109,9 +109,9 @@ module ddr5_subchannel_scheduler #(
             turnaround_timer    <= '0;
 
             for (int b = 0; b < NumBanks; b++) begin
-                bank_state[active_req_bank] <= BANK_CLOSED;
-                open_row[active_req_bank]   <= '0;
-                bank_timer[active_req_bank] <= '0;
+                bank_state[b] <= BANK_CLOSED;
+                open_row[b]   <= '0;
+                bank_timer[b] <= '0;
             end
         end else begin
             // Decrement active timers
@@ -120,13 +120,13 @@ module ddr5_subchannel_scheduler #(
             end
 
             for (int b = 0; b < NumBanks; b++) begin
-                if (bank_timer[active_req_bank] > 0) begin
-                    bank_timer[active_req_bank] <= bank_timer[active_req_bank] - 4'd1;
+                if (bank_timer[b] > 0) begin
+                    bank_timer[b] <= bank_timer[b] - 4'd1;
                 end else begin
-                    if (bank_state[active_req_bank] == BANK_OPENING) begin
-                        bank_state[active_req_bank] <= BANK_ACTIVE;
-                    end else if (bank_state[active_req_bank] == BANK_CLOSING) begin
-                        bank_state[active_req_bank] <= BANK_CLOSED;
+                    if (bank_state[b] == BANK_OPENING) begin
+                        bank_state[b] <= BANK_ACTIVE;
+                    end else if (bank_state[b] == BANK_CLOSING) begin
+                        bank_state[b] <= BANK_CLOSED;
                     end
                 end
             end

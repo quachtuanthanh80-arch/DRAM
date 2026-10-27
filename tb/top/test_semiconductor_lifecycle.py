@@ -53,6 +53,18 @@ async def reset_dut(dut):
     dut.s_axi_rready.value  = 1
     
     # Configuration
+    dut.cfg_bank_coloring_en.value = 0
+    dut.cfg_mapping_mode.value     = 0
+    dut.cfg_scramble_en.value      = 0
+    dut.cfg_scramble_reseed.value  = 0
+    dut.cfg_scramble_seed.value    = 0xA5A5_5A5A_0123_4567
+    dut.cfg_pmu_en.value           = 1
+    dut.cfg_pmu_reset.value        = 0
+    dut.cfg_rowpress_curve.value   = 0
+    dut.cfg_victim3_en.value       = 0
+    dut.i_dram_abo_alert.value     = 0
+    dut.cfg_scramble_mode.value    = 0
+    dut.cfg_decoy_en.value         = 0
     dut.cfg_is_ddr5.value      = 1
     dut.cfg_dual_hash_en.value = 1
     dut.cfg_rh_threshold.value = 8
