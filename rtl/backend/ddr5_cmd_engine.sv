@@ -39,7 +39,8 @@ module ddr5_cmd_engine #(
     parameter int MAX_POSTPONE    = 4,    // JEDEC: hoãn tối đa 4 REF
     // Ngân sách chu kỳ cho một lần drain trước REF/RFM; quá hạn thì ép đóng mọi bank (lỗi thiết kế hoặc tiêm lỗi)
     parameter int REF_WD          = 512,
-    parameter int ROWPRESS_THRESH_DEFAULT = 5000
+    parameter int ROWPRESS_THRESH_DEFAULT = 5000,
+    parameter int RD_STARVE_MAX   = 96
 )(
     input  logic                                         clk,
     input  logic                                         rst_n,
@@ -331,6 +332,11 @@ module ddr5_cmd_engine #(
     // Phân loại đăng ký: hàng của slot có đang mở không (32 phép so sánh song song, không qua mux 32:1).
     // Cũ một chu kỳ: chỉ dùng khi bank không vừa nhận lệnh mới hay ACT/PRE ở cạnh trước (k_chg).
     logic [NB-1:0]            k_hit, k_open, k_chg;
+    // Co doi doc: chong luong ghi bo doi doc (M-13)
+    logic [9:0]               rd_wait_cnt;
+    logic                     rd_starve_q;
+    logic [5:0]               wr_burst_cnt;
+    logic [2:0]               wr_pace_cnt;
 
     function automatic logic [IW-1:0] bidx(input logic [BG_WIDTH-1:0] bg, input logic [BANK_WIDTH-1:0] bk);
         bidx = IW'({bg, bk});
@@ -456,6 +462,7 @@ module ddr5_cmd_engine #(
     // Điều kiện sẵn sàng theo bank: chỉ là AND của các flop (cờ *_z, phân loại k_*, trạng thái slot)
     //=========================================================================
     logic [NB-1:0] cas_rdy, cas_is_wr, act_rdy, pre_rdy, pre_clamp, mit_done, ras_lt;
+    logic [NB-1:0] rd_pend_b;
     logic [5:0]    pac [NB];
     always_comb begin
         for (int b = 0; b < NB; b++) begin
@@ -482,8 +489,10 @@ module ddr5_cmd_engine #(
             // Mốc PRE sau CAS của slot tính sẵn song song (không qua mux theo bank được chọn)
             pac[b]      = pre_after_cas(cas_is_wr[b], s_len[b]);
             ras_lt[b]   = ras_timer[b] < pac[b];
+            rd_pend_b[b] = s_v[b] && !s_wr[b];
         end
     end
+    wire rd_pend = |rd_pend_b;
 
     // Round-robin find-first: ưu tiên bank ngay sau bank vừa được phục vụ. Mặt nạ "chỉ số > rr_ptr" giải mã thẳng từ
     // thanh ghi con trỏ; find-first trên phần trên mặt nạ và trên toàn bộ chạy song song rồi chọn bằng một mux.
@@ -515,7 +524,9 @@ module ddr5_cmd_engine #(
     logic [NB-1:0]        pk_oh;
     logic [2:0]           pk_t;
     logic [ROW_WIDTH-1:0] pk_drow;
-    wire  [NB-1:0] c1 = cas_rdy & ~pk_oh;
+    wire [NB-1:0] c1_rd = cas_rdy & ~cas_is_wr & ~pk_oh;
+    wire block_wr_cas   = rd_starve_q || (wr_pace_cnt != 3'd0);
+    wire [NB-1:0] c1    = block_wr_cas ? c1_rd : (cas_rdy & ~pk_oh);
     wire  [NB-1:0] a1 = act_rdy & ~pk_oh;
     wire  [NB-1:0] p1 = pre_rdy & ~pk_oh;
     wire           cas_late = (pk_t == PK_CAS) && (T_CCD_S > 1);
@@ -753,6 +764,10 @@ module ddr5_cmd_engine #(
             lat_kind             <= K_REF;
             ref_mode             <= 1'b0;
             user_blk_q           <= 1'b0;
+            rd_wait_cnt          <= '0;
+            rd_starve_q          <= 1'b0;
+            wr_burst_cnt         <= '0;
+            wr_pace_cnt          <= '0;
             ref_wd_cnt           <= '0;
             ref_wd_exp           <= 1'b0;
             rfm_req              <= '0;
@@ -1042,6 +1057,32 @@ module ddr5_cmd_engine #(
                 end
             end
 
+            // Cap nhat bo dem doi doc M-13
+            if (!rd_pend || (is_cas && !sel_is_wr)) begin
+                rd_wait_cnt <= '0;
+                rd_starve_q <= 1'b0;
+            end else begin
+                if (rd_wait_cnt != 10'(RD_STARVE_MAX))
+                    rd_wait_cnt <= rd_wait_cnt + 1'b1;
+                rd_starve_q <= (rd_wait_cnt >= 10'(RD_STARVE_MAX - 1)) && rd_pend;
+            end
+
+            // Pacing ghi: sau 24 CAS ghi lien tuc khong co bong bong, tao khoang nghi 4 chu ky (tCCD_S) de tranh DoS doc o frontend
+            if (wr_pace_cnt != 3'd0) begin
+                wr_pace_cnt <= wr_pace_cnt - 1'b1;
+                wr_burst_cnt <= '0;
+            end else if (is_cas && sel_is_wr) begin
+                if (wr_burst_cnt >= 6'd23) begin
+                    wr_pace_cnt <= 3'd4;
+                    wr_burst_cnt <= '0;
+                end else begin
+                    wr_burst_cnt <= wr_burst_cnt + 1'b1;
+                end
+            end else if (is_cas && !sel_is_wr) begin
+                wr_burst_cnt <= '0;
+            end
+
+
             // 7b. Phát đúng một lệnh DFI mỗi chu kỳ
             pk_oh   <= nxt_oh;
             pk_t    <= nxt_t;
@@ -1155,8 +1196,8 @@ module ddr5_cmd_engine #(
         if (!(T_RFC >= 1 && T_RFC <= 255 && T_RFM >= 1 && T_RFM <= 255 && T_REFI >= 16 && T_REFI <= 65535))
             $fatal(1, "SA-E08: T_RFC/T_RFM/T_REFI out of timer range");
         // T_RDV >= 2: exp_v nạp ở cạnh sau RD trên DFI tại bit T_RDV - 1 (spec_v2 M-03.1)
-        if (!(T_RDV >= 2 && T_RDV <= 56 && REF_WD >= 64 && REF_WD <= 1023))
-            $fatal(1, "SA-E09: T_RDV/REF_WD out of range");
+        if (!(T_RDV >= 2 && T_RDV <= 56 && REF_WD >= 64 && REF_WD <= 1023 && RD_STARVE_MAX >= 16 && RD_STARVE_MAX <= 1023))
+            $fatal(1, "SA-E09: T_RDV/REF_WD/RD_STARVE_MAX out of range");
     end
 
     // Tự kiểm mô phỏng các bất biến lịch beat đọc (TB bơm lỗi vào exp_v/rd_st đặt sim_chk_en = 0 trước khi bơm). Bất biến
@@ -1228,6 +1269,8 @@ module ddr5_cmd_engine #(
     // 5. Chuyển trạng thái Bank: Sau ACT bank mở, sau PRE bank đóng
     always_ff @(posedge clk) begin
         if (rst_n && $past(rst_n)) begin
+            // A-R10: bo dem cho doc khong vuot nguong RD_STARVE_MAX
+            assert (rd_wait_cnt <= 10'(RD_STARVE_MAX));
             if ($past(o_dfi_cmd == CMD_ACT)) begin
                 assert (bank_open[bidx($past(o_dfi_bg), $past(o_dfi_bank))]);
             end
