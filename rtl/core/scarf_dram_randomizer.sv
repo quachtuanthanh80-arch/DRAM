@@ -1,5 +1,5 @@
 // File: scarf_dram_randomizer.sv
-// Chức năng: Bộ mã hóa Feistel 1 chu kỳ hoán vị ngẫu nhiên địa chỉ hàng và bank DRAM theo kiến trúc SCARF.
+// Chức năng: Bộ mã hóa Feistel hoán vị ngẫu nhiên địa chỉ hàng và bank DRAM theo kiến trúc SCARF (tổ hợp hoặc pipeline).
 `timescale 1ns / 1ps
 
 /* verilator lint_off UNOPTFLAT */
@@ -7,12 +7,17 @@ module scarf_dram_randomizer #(
     parameter int ROW_WIDTH   = 17,
     parameter int BANK_WIDTH  = 2,
     parameter int TWEAK_WIDTH = 16,
-    parameter int ROUNDS      = 10
+    parameter int ROUNDS      = 10,
+    // 0: tổ hợp (một chu kỳ, như cũ). N > 0: thanh ghi sau mỗi N vòng và ở đầu ra, độ trễ ceil(ROUNDS/N) chu kỳ.
+    // 10 vòng tổ hợp là ~25 mức LUT: không đạt 400 MHz, nên bộ ánh xạ địa chỉ dùng N = 2.
+    parameter int RPS         = 0
 ) (
     input  logic                   clk,
     input  logic                   rst_n,
     input  logic                   cfg_scramble_en,
     input  logic [63:0]            cfg_scramble_seed,
+    // Cho phép pipeline tiến (stall toàn tuyến khi đầu ra bị giữ); bỏ qua khi RPS = 0
+    input  logic                   i_en = 1'b1,
     input  logic [TWEAK_WIDTH-1:0] i_tweak,
     input  logic [ROW_WIDTH-1:0]   i_row,
     input  logic [BANK_WIDTH-1:0]  i_bank,
@@ -74,26 +79,90 @@ module scarf_dram_randomizer #(
         return truncated_res;
     endfunction
 
-    // Mạng Feistel mở phẳng (unrolled combinational network) đảm bảo độ trễ <= 1 chu kỳ
-    wire [L_W-1:0] l_pipe [0:ROUNDS];
-    wire [R_W-1:0] r_pipe [0:ROUNDS];
+    // Hàm vòng chiều ngược (nhánh 9 bit -> 10 bit) cho nửa vòng cập nhật nhánh cao
+    function automatic logic [R_W-1:0] feistel_g(
+        input logic [L_W-1:0]         l_in,
+        input logic [7:0]             round_key,
+        input logic [TWEAK_WIDTH-1:0] twk
+    );
+        logic [R_W-1:0] mixed;
+        logic [R_W-1:0] subbed;
 
-    assign l_pipe[0] = raw_input[L_W-1:0];
-    assign r_pipe[0] = raw_input[TOTAL_W-1:L_W];
+        mixed = {l_in[0], l_in} ^ twk[R_W-1:0] ^ {round_key[1:0], round_key};
+        subbed[3:0] = scarf_sbox(mixed[3:0]);
+        subbed[7:4] = scarf_sbox(mixed[7:4]);
+        subbed[9:8] = mixed[9:8] ^ {subbed[5], subbed[2]};
+        return {subbed[6:0], subbed[9:7]} ^ {subbed[4:0], subbed[9:5]};
+    endfunction
+
+    // Mạng Feistel không cân bằng mở phẳng (độ trễ <= 1 chu kỳ). 19 bit lẻ nên hai nhánh lệch 9/10 bit:
+    // mỗi nửa vòng chỉ XOR một nhánh với hàm của nhánh kia, nên luôn khả nghịch và toàn ánh xạ là song ánh.
+    // Phiên bản cũ hoán đổi nhánh lệch độ rộng, bỏ mất 1 bit mỗi vòng -> 2^18 cặp địa chỉ trùng ảnh (S15).
+    wire [L_W-1:0]         l_pipe   [0:ROUNDS];
+    wire [R_W-1:0]         r_pipe   [0:ROUNDS];
+    // Tweak và địa chỉ gốc đi kèm từng tầng: mỗi vòng dùng tweak của chính yêu cầu đó, bypass trả lại địa chỉ gốc
+    wire [TWEAK_WIDTH-1:0] twk_pipe [0:ROUNDS];
+    wire [TOTAL_W-1:0]     raw_pipe [0:ROUNDS];
+
+    assign l_pipe[0]   = raw_input[L_W-1:0];
+    assign r_pipe[0]   = raw_input[TOTAL_W-1:L_W];
+    assign twk_pipe[0] = i_tweak;
+    assign raw_pipe[0] = raw_input;
 
     genvar r;
     generate
         for (r = 0; r < ROUNDS; r = r + 1) begin : gen_feistel_rounds
-            wire [7:0] rkey = 8'(cfg_scramble_seed >> ((r * 6) % 56)) ^ 8'(r);
-            assign l_pipe[r+1] = r_pipe[r][L_W-1:0];
-            assign r_pipe[r+1] = {1'b0, l_pipe[r]} ^ {1'b0, feistel_f(r_pipe[r], rkey, i_tweak, r)};
+            wire [7:0]     rkey = 8'(cfg_scramble_seed >> ((r * 6) % 56)) ^ 8'(r);
+            wire [L_W-1:0] l_nx;
+            wire [R_W-1:0] r_nx;
+            if (r % 2 == 0) begin : g_upd_lo
+                assign l_nx = l_pipe[r] ^ feistel_f(r_pipe[r], rkey, twk_pipe[r], r);
+                assign r_nx = r_pipe[r];
+            end else begin : g_upd_hi
+                assign l_nx = l_pipe[r];
+                assign r_nx = r_pipe[r] ^ feistel_g(l_pipe[r], rkey, twk_pipe[r]);
+            end
+            localparam bit REG = (RPS > 0) && (((r + 1) % (RPS > 0 ? RPS : 1) == 0) || (r == ROUNDS - 1));
+            if (REG) begin : g_reg
+                logic [L_W-1:0]         l_q;
+                logic [R_W-1:0]         r_q;
+                logic [TWEAK_WIDTH-1:0] t_q;
+                logic [TOTAL_W-1:0]     w_q;
+                // Tầng cuối: chọn bypass trước thanh ghi để đầu ra là thanh ghi thuần (không mux sau flop)
+                localparam bit LAST = (r == ROUNDS - 1);
+                always_ff @(posedge clk)
+                    if (i_en) begin
+                        l_q <= (LAST && !cfg_scramble_en) ? raw_pipe[r][L_W-1:0]       : l_nx;
+                        r_q <= (LAST && !cfg_scramble_en) ? raw_pipe[r][TOTAL_W-1:L_W] : r_nx;
+                        t_q <= twk_pipe[r];
+                        w_q <= raw_pipe[r];
+                    end
+                assign l_pipe[r+1]   = l_q;
+                assign r_pipe[r+1]   = r_q;
+                assign twk_pipe[r+1] = t_q;
+                assign raw_pipe[r+1] = w_q;
+            end else begin : g_comb
+                assign l_pipe[r+1]   = l_nx;
+                assign r_pipe[r+1]   = r_nx;
+                assign twk_pipe[r+1] = twk_pipe[r];
+                assign raw_pipe[r+1] = raw_pipe[r];
+            end
         end
     endgenerate
 
-    // Ghép kết quả đầu ra: khi tắt scramble thì giữ nguyên địa chỉ gốc (bypass không mất chu kỳ)
+    // Khi tắt scramble trả địa chỉ gốc (cùng độ trễ với nhánh xáo trộn)
     wire [TOTAL_W-1:0] scrambled_full = {r_pipe[ROUNDS], l_pipe[ROUNDS]};
 
-    assign o_scrambled_bank = cfg_scramble_en ? scrambled_full[TOTAL_W-1:ROW_WIDTH] : i_bank;
-    assign o_scrambled_row  = cfg_scramble_en ? scrambled_full[ROW_WIDTH-1:0]       : i_row;
+    generate
+        if (RPS > 0) begin : g_out_reg
+            assign o_scrambled_bank = scrambled_full[TOTAL_W-1:ROW_WIDTH];
+            assign o_scrambled_row  = scrambled_full[ROW_WIDTH-1:0];
+        end else begin : g_out_comb
+            assign o_scrambled_bank = cfg_scramble_en ? scrambled_full[TOTAL_W-1:ROW_WIDTH] : i_bank;
+            assign o_scrambled_row  = cfg_scramble_en ? scrambled_full[ROW_WIDTH-1:0]       : i_row;
+        end
+    endgenerate
+
+    wire _unused_rst = rst_n;
 
 endmodule

@@ -22,6 +22,7 @@ module tb_aes_sbox_test;
 
     int pass_count = 0;
     int fail_count = 0;
+    `include "tb_check.svh"
 
     initial begin
         InVals[0] = 8'h00; ExpVals[0] = 8'h63;
@@ -55,6 +56,8 @@ module tb_aes_sbox_test;
         end
 
         $display("==========================================================");
+        tb_merge_legacy(pass_count + fail_count, fail_count);
+        tb_report();
         if (fail_count == 0) begin
             $display(">>> ALL 8 NIST S-BOX VECTORS PASSED PERFECTLY! <<<");
         end else begin

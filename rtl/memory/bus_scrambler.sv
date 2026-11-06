@@ -1,63 +1,54 @@
-// bus_scrambler.sv
-// Module xao tron bus du lieu va dia chi DRAM bang Galois LFSR song song chong snooping
+// File:      bus_scrambler.sv
+// Chức năng: Xáo trộn dữ liệu DRAM bằng keystream suy ra từ seed và địa chỉ word vật lý (không trạng thái, tự nghịch đảo).
 
 `timescale 1ns / 1ps
 
 module bus_scrambler #(
-    parameter int DATA_WIDTH = 128,
-    parameter int ADDR_WIDTH = 18,
-    parameter int LFSR_WIDTH = 64,
-    // Da thuc toi dai Galois 64-bit: x^64 + x^63 + x^61 + x^60 + 1
-    parameter logic [LFSR_WIDTH-1:0] POLY = 64'hD800_0000_0000_0000
+    parameter int DATA_WIDTH = 64,
+    parameter int KEY_WIDTH  = 64
 )(
-    input  logic                   clk,
-    input  logic                   rst_n,
-
-    // Giao tiep cau hinh tu APB CSR
-    input  logic                   cfg_scramble_en,
-    input  logic                   cfg_reseed,
-    input  logic [LFSR_WIDTH-1:0]  cfg_seed,
-
-    // Tin hieu dieu khien buoc nhay trang thai LFSR
-    input  logic                   step_en,
-
-    // Giao dien bus du lieu & dia chi vao/ra
-    input  logic [DATA_WIDTH-1:0]  i_data,
-    output logic [DATA_WIDTH-1:0]  o_data,
-    input  logic [ADDR_WIDTH-1:0]  i_addr,
-    output logic [ADDR_WIDTH-1:0]  o_addr,
-
-    // Giam sat trang thai LFSR cho Formal Verification va Telemetry
-    output logic [LFSR_WIDTH-1:0]  o_lfsr_state
+    input  logic                  cfg_scramble_en,
+    input  logic [63:0]           cfg_seed,
+    // Địa chỉ word vật lý {bg, bank, row, col}: cùng địa chỉ cho ra cùng keystream ở lúc ghi và lúc đọc
+    input  logic [KEY_WIDTH-1:0]  i_key,
+    input  logic [DATA_WIDTH-1:0] i_data,
+    output logic [DATA_WIDTH-1:0] o_data
 );
 
-    // Thanh ghi luu trang thai hien tai cua LFSR
-    logic [LFSR_WIDTH-1:0] lfsr_state_q;
-    logic [LFSR_WIDTH-1:0] lfsr_next;
+    // Keystream phụ thuộc địa chỉ thay vì LFSR bước theo số lệnh: LFSR cũ đổi mặt nạ sau mỗi lệnh nên dữ liệu ghi
+    // không giải xáo được khi đọc, và còn xáo cả địa chỉ hàng làm ACT và RD/WR thấy hai hàng khác nhau (S16).
+    // Ba vòng ARX: x += rotl(x,r1); x ^= rotl(x,r2) ^ (x >> r3); x += rotl(seed,k). Đo bằng mô hình Python: lật 1 bit
+    // địa chỉ đổi trung bình 31,97/64 bit mặt nạ (tệ nhất 17); bản 2 vòng trước chỉ đạt 16,95 (tệ nhất 2).
+    // Đây là che giấu mẫu dữ liệu trên bus (chống pattern/snoop thụ động), không thay thế mã hoá AES-XTS.
+    function automatic logic [63:0] rotl(input logic [63:0] v, input int r);
+        return (v << r) | (v >> (64 - r));
+    endfunction
 
-    assign o_lfsr_state = lfsr_state_q;
+    function automatic logic [63:0] keystream(input logic [63:0] seed, input logic [63:0] addr);
+        logic [63:0] x;
+        x = seed ^ addr;
+        x = x + rotl(x, 13);  x = x ^ rotl(x, 7)  ^ (x >> 17); x = x + rotl(seed, 7);
+        x = x + rotl(x, 29);  x = x ^ rotl(x, 11) ^ (x >> 31); x = x + rotl(seed, 20);
+        x = x + rotl(x, 41);  x = x ^ rotl(x, 19) ^ (x >> 23); x = x + rotl(seed, 33);
+        return x;
+    endfunction
 
-    // Tinh toan buoc nhay Galois LFSR song song 1 chu ky (Co che Galois feedback)
-    assign lfsr_next = lfsr_state_q[0] ? ((lfsr_state_q >> 1) ^ POLY) : (lfsr_state_q >> 1);
+    wire [63:0] ks = keystream(cfg_seed, 64'(i_key));
+    wire [DATA_WIDTH-1:0] mask;
 
-    // Cap nhat thanh ghi trang thai theo xung clock
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            lfsr_state_q <= 64'hACE1_CAFE_BABE_0001;
-        end else if (cfg_reseed) begin
-            lfsr_state_q <= (|cfg_seed) ? cfg_seed : 64'hACE1_CAFE_BABE_0001;
-        end else if (cfg_scramble_en && step_en) begin
-            lfsr_state_q <= lfsr_next;
+    generate
+        if (DATA_WIDTH <= 64) begin : g_narrow
+            assign mask = ks[DATA_WIDTH-1:0];
+        end else begin : g_wide
+            for (genvar k = 0; k < (DATA_WIDTH + 63) / 64; k++) begin : g_lane
+                localparam int LO = k * 64;
+                localparam int W  = (DATA_WIDTH - LO > 64) ? 64 : DATA_WIDTH - LO;
+                wire [63:0] lane = keystream(cfg_seed ^ 64'(k + 1), 64'(i_key));
+                assign mask[LO +: W] = lane[W-1:0];
+            end
         end
-    end
+    endgenerate
 
-    // Tao mat na xao tron (Keystream) mo rong cho du lieu va dia chi
-    wire [127:0]          wide_lfsr = {~lfsr_state_q, lfsr_state_q};
-    wire [DATA_WIDTH-1:0] data_mask = wide_lfsr[DATA_WIDTH-1:0];
-    wire [ADDR_WIDTH-1:0] addr_mask = lfsr_state_q[ADDR_WIDTH-1:0];
-
-    // Zero-latency XOR: Neu tat tinh nang scramble thi bypass truc tiep
-    assign o_data = cfg_scramble_en ? (i_data ^ data_mask) : i_data;
-    assign o_addr = cfg_scramble_en ? (i_addr ^ addr_mask) : i_addr;
+    assign o_data = cfg_scramble_en ? (i_data ^ mask) : i_data;
 
 endmodule

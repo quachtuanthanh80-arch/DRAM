@@ -1,5 +1,5 @@
 // File: tb_standard_benchmarks.sv
-// Chức năng: Đánh giá RTL trên 8 bộ benchmark độc lập chuẩn quốc tế từ Học thuật tới Công nghiệp (STREAM, SPEC2017, GAPBS, YCSB, TPC-H, MLPerf, PARSEC, March C-).
+// Chức năng: Kiểm tra 8 mẫu lưu lượng AXI tổng hợp (mô phỏng dáng truy cập của các workload đã công bố): không throttle nhầm và mọi yêu cầu hoàn tất.
 
 `timescale 1ns / 1ps
 
@@ -16,8 +16,9 @@ module tb_standard_benchmarks;
     localparam int BANK_COUNT     = 4;
     localparam int BANK_WIDTH     = 2;
     localparam int ROW_WIDTH      = 17;
-    localparam int COL_WIDTH      = 10;
+    localparam int COL_WIDTH      = 13;
     localparam int ROB_DEPTH      = 16;
+    localparam int TB_DFI_WRLAT   = 9;
 
     logic clk_axi = 0;
     always #2.0 clk_axi = ~clk_axi; // 250 MHz
@@ -69,6 +70,13 @@ module tb_standard_benchmarks;
     logic [BANK_WIDTH-1:0]     dfi_bank;
     logic [ROW_WIDTH-1:0]      dfi_row;
     logic [COL_WIDTH-1:0]      dfi_col;
+    logic [7:0]                dfi_len;
+    logic                      dfi_wrdata_en;
+    logic [63:0]               dfi_wrdata;
+    logic [7:0]                dfi_wrdata_mask;
+    logic                      dfi_rddata_valid;
+    logic [63:0]               dfi_rddata;
+    logic [7:0]  dfi_wrdata_ecc, dfi_rddata_ecc;
 
     logic                      cfg_is_ddr5;
     logic                      cfg_dual_hash_en;
@@ -88,7 +96,9 @@ module tb_standard_benchmarks;
         .BANK_COUNT     (BANK_COUNT),
         .ROW_WIDTH      (ROW_WIDTH),
         .COL_WIDTH      (COL_WIDTH),
-        .ROB_DEPTH      (ROB_DEPTH)
+        .ROB_DEPTH      (ROB_DEPTH),
+        .DFI_WRLAT      (TB_DFI_WRLAT),
+        .TCK_PS         (4000)
     ) dut (
         .clk_axi             (clk_axi),
         .aresetn_axi         (aresetn_axi),
@@ -130,6 +140,12 @@ module tb_standard_benchmarks;
         .dfi_bank            (dfi_bank),
         .dfi_row             (dfi_row),
         .dfi_col             (dfi_col),
+        .dfi_len             (dfi_len),
+        .dfi_wrdata_en       (dfi_wrdata_en),
+        .dfi_wrdata          (dfi_wrdata),
+        .dfi_wrdata_mask     (dfi_wrdata_mask), .dfi_wrdata_ecc(dfi_wrdata_ecc),
+        .dfi_rddata_valid    (dfi_rddata_valid),
+        .dfi_rddata          (dfi_rddata), .dfi_rddata_ecc(dfi_rddata_ecc),
         .cfg_is_ddr5         (cfg_is_ddr5),
         .cfg_dual_hash_en    (cfg_dual_hash_en),
         .cfg_rh_threshold    (cfg_rh_threshold),
@@ -137,6 +153,120 @@ module tb_standard_benchmarks;
         .o_throttled_events  (o_throttled_events),
         .o_ecc_single_err_cnt(o_ecc_single_err_cnt),
         .o_ecc_double_err_cnt(o_ecc_double_err_cnt)
+    );
+
+    // Bộ kiểm tra giao thức JEDEC gắn trên đầu ra command engine (trước bus scrambler).
+    // Mô hình DRAM hành vi: dữ liệu ghi lưu theo địa chỉ word vật lý, dữ liệu đọc trả về sau RL (= T_CL của engine)
+    dram_model #(.COL_W(COL_WIDTH), .RL(8), .WL(TB_DFI_WRLAT)) u_dram (
+        .clk          (clk_axi),
+        .rst_n        (aresetn_axi),
+        .cmd          (dfi_cmd),
+        .bg           (dfi_bg),
+        .bank         (dfi_bank),
+        .row          (dfi_row),
+        .col          (dfi_col),
+        .len          (dfi_len),
+        .wrdata_en    (dfi_wrdata_en),
+        .wrdata       (dfi_wrdata),
+        .wrdata_mask  (dfi_wrdata_mask), .wrdata_ecc(dfi_wrdata_ecc),
+        .rddata_valid (dfi_rddata_valid),
+        .rddata       (dfi_rddata), .rddata_ecc(dfi_rddata_ecc)
+    );
+
+    dfi_jedec_checker #(.TCK_PS(4000), .TB_DFI_WRLAT(TB_DFI_WRLAT)) u_jchk (.len(dut.u_cmd_engine.o_dfi_len), 
+        .clk  (clk_axi),
+        .rst_n(aresetn_axi),
+        .cmd  (dut.u_cmd_engine.o_dfi_cmd),
+        .bg   (dut.u_cmd_engine.o_dfi_bg),
+        .bank (dut.u_cmd_engine.o_dfi_bank),
+        .row  (dut.u_cmd_engine.o_dfi_row)
+    );
+
+    qs_axi_txn_chk #(
+        .AXI_ADDR_W (AXI_ADDR_WIDTH),
+        .AXI_DATA_W (AXI_DATA_WIDTH),
+        .AXI_ID_W   (AXI_ID_WIDTH)
+    ) u_achk (
+        .clk           (clk_axi),
+        .rst_n         (dut.rst_n_axi),
+        .en_v2         (1'b1),
+        .chk_data_en   (1'b1),
+        .s_axi_awid    (s_axi_awid),
+        .s_axi_awaddr  (s_axi_awaddr),
+        .s_axi_awlen   (s_axi_awlen),
+        .s_axi_awvalid (s_axi_awvalid),
+        .s_axi_awready (s_axi_awready),
+        .s_axi_wdata   (s_axi_wdata),
+        .s_axi_wstrb   (s_axi_wstrb),
+        .s_axi_wlast   (s_axi_wlast),
+        .s_axi_wvalid  (s_axi_wvalid),
+        .s_axi_wready  (s_axi_wready),
+        .s_axi_bid     (s_axi_bid),
+        .s_axi_bresp   (s_axi_bresp),
+        .s_axi_bvalid  (s_axi_bvalid),
+        .s_axi_bready  (s_axi_bready),
+        .s_axi_arid    (s_axi_arid),
+        .s_axi_araddr  (s_axi_araddr),
+        .s_axi_arlen   (s_axi_arlen),
+        .s_axi_arvalid (s_axi_arvalid),
+        .s_axi_arready (s_axi_arready),
+        .s_axi_rid     (s_axi_rid),
+        .s_axi_rdata   (s_axi_rdata),
+        .s_axi_rresp   (s_axi_rresp),
+        .s_axi_rlast   (s_axi_rlast),
+        .s_axi_rvalid  (s_axi_rvalid),
+        .s_axi_rready  (s_axi_rready),
+        .s_axi_rpoison (dut.s_axi_rpoison)
+    );
+
+    qs_engine_port_chk #(
+        .TAG_W   (4),
+        .T_RDV   (9)
+    ) u_echk (
+        .clk                 (clk_axi),
+        .rst_n               (dut.rst_n_axi),
+        .en_v2               (1'b1),
+        .fi_any              (1'b0),
+        .i_cmd_valid         (dut.u_cmd_engine.i_cmd_valid),
+        .i_cmd_bg            (dut.u_cmd_engine.i_cmd_bg),
+        .i_cmd_bank          (dut.u_cmd_engine.i_cmd_bank),
+        .i_cmd_len           (dut.u_cmd_engine.i_cmd_len),
+        .i_cmd_is_mitigation (dut.u_cmd_engine.i_cmd_is_mitigation),
+        .o_bank_free         (dut.u_cmd_engine.o_bank_free),
+        .o_engine_mit_only   (dut.u_cmd_engine.o_engine_mit_only),
+        .o_abo_active        (dut.u_cmd_engine.o_abo_active),
+        .i_dram_abo_alert    (dut.u_cmd_engine.i_dram_abo_alert),
+        .i_force_rfm         (dut.u_cmd_engine.i_force_rfm),
+        .o_dfi_cmd           (dut.u_cmd_engine.o_dfi_cmd),
+        .o_dfi_bg            (dut.u_cmd_engine.o_dfi_bg),
+        .o_dfi_bank          (dut.u_cmd_engine.o_dfi_bank),
+        .o_dfi_row           (dut.u_cmd_engine.o_dfi_row),
+        .o_dfi_col           (dut.u_cmd_engine.o_dfi_col),
+        .o_dfi_len           (dut.u_cmd_engine.o_dfi_len),
+        .o_dfi_tag           (dut.u_cmd_engine.o_dfi_tag),
+        .o_ref_tick          (dut.u_cmd_engine.o_ref_tick),
+        .o_rfm_active        (dut.u_cmd_engine.o_rfm_active),
+        .o_fault             (dut.u_cmd_engine.o_fault),
+        .rd_valid            (dut.u_cmd_engine.i_dfi_rddata_valid),
+        .o_rd_take           (dut.u_cmd_engine.o_rd_take),
+        .o_rd_beat_ok        (dut.u_cmd_engine.o_rd_beat_ok),
+        .o_rd_flush          (dut.u_cmd_engine.o_rd_flush),
+        .o_rd_resync         (dut.u_cmd_engine.o_rd_resync),
+        .o_wb_valid          (dut.u_cmd_engine.o_wb_valid),
+        .o_wb_tag            (dut.u_cmd_engine.o_wb_tag),
+        .o_wb_last           (dut.u_cmd_engine.o_wb_last),
+        .o_wb_err            (dut.u_cmd_engine.o_wb_err),
+        .o_wb_resp           (dut.u_cmd_engine.o_wb_resp),
+        .o_rmw_valid         (dut.u_cmd_engine.o_rmw_valid)
+    );
+
+    qs_top_probe_chk #(
+        .ROB_DEPTH (ROB_DEPTH)
+    ) u_pchk (
+        .clk    (clk_axi),
+        .rst_n  (dut.rst_n_axi),
+        .en_v2  (1'b1),
+        .fi_any (1'b0)
     );
 
     int ddr_cycles = 0;
@@ -170,6 +300,7 @@ module tb_standard_benchmarks;
         s_axi_wvalid  <= 1'b1;
         @(posedge clk_axi);
         while (!(s_axi_awready && s_axi_wready)) @(posedge clk_axi);
+        aw_cnt++;
         @(negedge clk_axi);
         s_axi_awvalid <= 1'b0;
         s_axi_wvalid  <= 1'b0;
@@ -190,13 +321,46 @@ module tb_standard_benchmarks;
         s_axi_arvalid <= 1'b1;
         @(posedge clk_axi);
         while (!s_axi_arready) @(posedge clk_axi);
+        ar_cnt++;
         @(negedge clk_axi);
         s_axi_arvalid <= 1'b0;
     endtask
 
-    int tests_passed = 0;
-    int tests_failed = 0;
-    int c0, c1;
+    `include "tb_check.svh"
+
+    // Monitor hoàn tất giao dịch: mỗi AR phải có đúng một burst R, mỗi AW phải có một B.
+    int ar_cnt = 0, aw_cnt = 0, r_bursts = 0, b_cnt = 0;
+    logic [AXI_DATA_WIDTH-1:0] last_rdata;
+    int thr_s, ar_s, aw_s, r_s, b_s;
+
+    always @(posedge clk_axi) begin
+        if (aresetn_axi) begin
+            if (s_axi_rvalid && s_axi_rready) begin
+                last_rdata <= s_axi_rdata;
+                if (s_axi_rlast) r_bursts <= r_bursts + 1;
+            end
+            if (s_axi_bvalid && s_axi_bready) b_cnt <= b_cnt + 1;
+        end
+    end
+
+    task automatic snap();
+        thr_s = o_throttled_events;
+        ar_s  = ar_cnt;
+        aw_s  = aw_cnt;
+        r_s   = r_bursts;
+        b_s   = b_cnt;
+    endtask
+
+    // Mẫu lưu lượng lành tính: không được throttle nhầm và mọi yêu cầu phải hoàn tất.
+    task automatic check_pattern(input string name);
+        for (int c = 0; c < 1000 && ((r_bursts - r_s) < (ar_cnt - ar_s) || (b_cnt - b_s) < (aw_cnt - aw_s)); c++)
+            @(posedge clk_axi);
+        tb_check(o_throttled_events == thr_s,
+                 $sformatf("%s: no false-positive throttling on benign traffic (+%0d)", name, o_throttled_events - thr_s));
+        tb_check(r_bursts - r_s == ar_cnt - ar_s && b_cnt - b_s == aw_cnt - aw_s,
+                 $sformatf("%s: every request completed (R %0d/%0d, B %0d/%0d)", name,
+                           r_bursts - r_s, ar_cnt - ar_s, b_cnt - b_s, aw_cnt - aw_s));
+    endtask
 
     initial begin
         aresetn_axi      = 1'b0;
@@ -232,124 +396,75 @@ module tb_standard_benchmarks;
         repeat (4) @(posedge clk_axi);
 
         $display("================================================================");
-        $display("[TB_STD_BENCH] 8 GLOBAL ACADEMIC & INDUSTRIAL BENCHMARKS ON RTL");
+        $display("[TB_STD_BENCH] 8 synthetic AXI traffic patterns modelled after published workloads (not the workloads themselves)");
         $display("================================================================");
 
         // 1. McCalpin STREAM Triad (University of Virginia / HPC Standard)
-        c0 = ddr_cycles;
+        snap();
         for (int i = 0; i < 8; i++) begin
             axi_read_tx(4'd1, 32'h0010_0000 + (i * 64));
             axi_read_tx(4'd2, 32'h0020_0000 + (i * 64));
             axi_write_tx(4'd3, 32'h0030_0000 + (i * 64), 64'hA5A5_0000_0000_0000 + i);
         end
         repeat (16) @(posedge clk_axi);
-        c1 = ddr_cycles - c0;
-        if (o_throttled_events == 16'd0 && c1 > 0) begin
-            $display("[PASS] Bench 1 (McCalpin STREAM Triad - UVA HPC): 24 Sequential R/W ops in %0d DDR cycles (0 FPR).", c1);
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Bench 1 (STREAM Triad) failed.");
-            tests_failed++;
-        end
+        check_pattern("Pattern 1 (McCalpin STREAM Triad traffic pattern)");
 
         // 2. SPEC CPU2017 505.mcf_r (SPEC Consortium - Pointer-Chasing High-MPKI)
-        c0 = ddr_cycles;
+        snap();
         for (int i = 0; i < 10; i++) begin
             axi_read_tx(i[3:0], 32'h0040_0000 ^ ((i * 32'h0001_4800) & 32'h00FF_FFC0));
             repeat (2) @(posedge clk_axi);
         end
         repeat (16) @(posedge clk_axi);
-        c1 = ddr_cycles - c0;
-        if (o_throttled_events == 16'd0 && c1 > 0) begin
-            $display("[PASS] Bench 2 (SPEC CPU2017 505.mcf_r - SPEC): 10 Pointer-Chasing Reads in %0d DDR cycles (0 FPR).", c1);
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Bench 2 (SPEC CPU2017) failed.");
-            tests_failed++;
-        end
+        check_pattern("Pattern 2 (SPEC CPU2017 505.mcf_r traffic pattern)");
 
         // 3. UC Berkeley GAPBS bfs / pr (Graph Analytics Performance Benchmark Suite)
-        c0 = ddr_cycles;
+        snap();
         for (int v = 0; v < 10; v++) begin
             axi_read_tx(v[3:0], 32'h0080_0000 + ((v * 7) << 13) + ((v * 3) << 6));
         end
         repeat (16) @(posedge clk_axi);
-        c1 = ddr_cycles - c0;
-        if (o_throttled_events == 16'd0 && c1 > 0) begin
-            $display("[PASS] Bench 3 (UC Berkeley GAPBS bfs): 10 Sparse-Graph Vertex Reads in %0d DDR cycles (0 FPR).", c1);
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Bench 3 (GAPBS bfs) failed.");
-            tests_failed++;
-        end
+        check_pattern("Pattern 3 (UC Berkeley GAPBS bfs traffic pattern)");
 
         // 4. Yahoo! YCSB Workload-A (Cloud Key-Value Store 50% Read / 50% Update)
-        c0 = ddr_cycles;
+        snap();
         for (int k = 0; k < 6; k++) begin
             axi_read_tx(4'd8, 32'h00C0_0000 + (k << 12));
             axi_write_tx(4'd9, 32'h00C0_0000 + (k << 12), 64'hCAFE_0000_0000_0000 | k);
         end
         repeat (16) @(posedge clk_axi);
-        c1 = ddr_cycles - c0;
-        if (o_throttled_events == 16'd0 && c1 > 0) begin
-            $display("[PASS] Bench 4 (Yahoo! YCSB Workload-A): 12 Cloud KV 50:50 R/W ops in %0d DDR cycles (0 FPR).", c1);
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Bench 4 (YCSB Workload-A) failed.");
-            tests_failed++;
-        end
+        check_pattern("Pattern 4 (Yahoo! YCSB Workload-A traffic pattern)");
 
         // 5. TPC-H / TPC-C In-Memory Database Scan & Commit (TPC Council)
-        c0 = ddr_cycles;
+        snap();
         for (int q = 0; q < 6; q++) begin
             axi_read_tx(4'd4, 32'h0100_0000 + (q * 128));
             axi_read_tx(4'd5, 32'h0100_0040 + (q * 128));
         end
         axi_write_tx(4'd6, 32'h0108_0000, 64'hDB00_C011_1170_0001);
         repeat (16) @(posedge clk_axi);
-        c1 = ddr_cycles - c0;
-        if (o_throttled_events == 16'd0 && c1 > 0) begin
-            $display("[PASS] Bench 5 (TPC-H / TPC-C In-Memory DB - TPC): 13 Columnar Scan + Commit ops in %0d DDR cycles.", c1);
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Bench 5 (TPC-H / TPC-C) failed.");
-            tests_failed++;
-        end
+        check_pattern("Pattern 5 (TPC-H / TPC-C In-Memory DB traffic pattern)");
 
         // 6. MLCommons MLPerf DLRM Embedding Lookup & LLM KV-Cache Append
-        c0 = ddr_cycles;
+        snap();
         for (int e = 0; e < 6; e++) begin
             axi_read_tx(e[3:0], 32'h0140_0000 + ((e * 11) << 11)); // Sparse Embedding Gather
             axi_write_tx(4'd10, 32'h0180_0000 + (e * 64), 64'h4B56_4341_4348_0000 | e); // KV-Cache Append
         end
         repeat (16) @(posedge clk_axi);
-        c1 = ddr_cycles - c0;
-        if (o_throttled_events == 16'd0 && c1 > 0) begin
-            $display("[PASS] Bench 6 (MLCommons MLPerf DLRM/KV-Cache): 12 Embedding Gather + KV Append ops in %0d DDR cycles.", c1);
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Bench 6 (MLPerf DLRM/KV-Cache) failed.");
-            tests_failed++;
-        end
+        check_pattern("Pattern 6 (MLCommons MLPerf DLRM/KV-Cache traffic pattern)");
 
         // 7. Princeton PARSEC 3.0 canneal / streamcluster (Shared-Memory RMW Hazard Check)
-        c0 = ddr_cycles;
+        snap();
         for (int p = 0; p < 5; p++) begin
             axi_write_tx(4'd11, 32'h01C0_0000 + (p * 256), 64'h5041_5253_4543_0000 | p);
             axi_read_tx(4'd11, 32'h01C0_0000 + (p * 256)); // Immediate Read-After-Write (RAW)
         end
         repeat (16) @(posedge clk_axi);
-        c1 = ddr_cycles - c0;
-        if (o_throttled_events == 16'd0 && c1 > 0) begin
-            $display("[PASS] Bench 7 (Princeton PARSEC 3.0 canneal): 10 Shared-Memory RAW Hazard ops in %0d DDR cycles.", c1);
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Bench 7 (PARSEC 3.0) failed.");
-            tests_failed++;
-        end
+        check_pattern("Pattern 7 (Princeton PARSEC 3.0 canneal traffic pattern)");
 
         // 8. Delft Univ. Van de Goor March C- Post-Silicon Memory BIST Standard
-        c0 = ddr_cycles;
+        snap();
         for (int m = 0; m < 4; m++) begin
             axi_write_tx(4'd12, 32'h0200_0000 + (m * 64), 64'h0000_0000_0000_0000); // w0
             axi_read_tx(4'd12,  32'h0200_0000 + (m * 64));                          // r0
@@ -357,26 +472,28 @@ module tb_standard_benchmarks;
             axi_read_tx(4'd12,  32'h0200_0000 + (m * 64));                          // r1
         end
         repeat (20) @(posedge clk_axi);
-        c1 = ddr_cycles - c0;
-        if (o_throttled_events == 16'd0 && c1 > 0 && dfi_cas_cnt > 0) begin
-            $display("[PASS] Bench 8 (Delft Univ. March C- Memory BIST): 16 March Elements retired in %0d DDR cycles (DFI ACT=%0d, CAS=%0d).",
-                     c1, dfi_act_cnt, dfi_cas_cnt);
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Bench 8 (March C-) failed.");
-            tests_failed++;
-        end
+        check_pattern("Pattern 8 (Delft Univ. March C- Memory BIST traffic pattern)");
+        tb_check(last_rdata === 64'hFFFF_FFFF_FFFF_FFFF,
+                 $sformatf("Pattern 8 (March C-): final r1 returns written 1s, got %h", last_rdata));
 
-        $display("================================================================");
-        $display("[TB_STD_BENCH] SUMMARY: %0d/8 GLOBAL BENCHMARKS PASSED, %0d FAILED", tests_passed, tests_failed);
-        $display("================================================================");
-
-        if (tests_failed == 0) begin
-            $display("[ALL TESTS PASSED SUCCESSFULLY]");
-            $finish;
-        end else begin
-            $fatal(1, "[BENCHMARK SUITE FAILED]");
-        end
+        u_jchk.report("benchmarks");
+        repeat (2) @(posedge clk_axi);
+        u_achk.final_check();
+        u_echk.final_check();
+        u_achk.report("benchmarks");
+        u_echk.report("benchmarks");
+        u_pchk.report("benchmarks");
+        tb_check(u_jchk.timing_violations() == 0 && u_jchk.viol_ref_open == 0,
+                 $sformatf("JEDEC timing: no tRCD/tRP/tRAS/tRFC/bank-state violations on DFI (%0d timing, %0d REF/RFM-open)",
+                           u_jchk.timing_violations(), u_jchk.viol_ref_open));
+        if (u_jchk.cyc_total > 5 * u_jchk.REFI_CYC)
+            tb_check(u_jchk.refresh_ok(),
+                     $sformatf("Periodic refresh: REF interval <= 5 x tREFI (worst %0d cycles)", u_jchk.worst_ref_gap()));
+        tb_check(u_achk.errors() == 0, $sformatf("qs_axi_txn_chk zero errors (%0d)", u_achk.errors()));
+        tb_check(u_echk.errors() == 0, $sformatf("qs_engine_port_chk zero errors (%0d)", u_echk.errors()));
+        tb_check(u_pchk.errors() == 0, $sformatf("qs_top_probe_chk zero errors (%0d)", u_pchk.errors()));
+        tb_report();
+        $finish;
     end
 
 endmodule

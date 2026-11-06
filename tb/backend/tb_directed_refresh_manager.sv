@@ -1,14 +1,5 @@
-//=============================================================================
-// Testbench:   tb_directed_refresh_manager
-// Description: Self-checking SystemVerilog testbench for directed_refresh_manager:
-//              1. Reset and idle state
-//              2. Aggressor detection triggers victim generation (Row +/- 1)
-//              3. Victim 2 expansion (Row +/- 2)
-//              4. FIFO dequeue on arbiter grant
-//              5. Priority arbitration between Directed Refresh and ECC Scrubbing
-// Standard:    SystemVerilog IEEE 1800-2017
-//=============================================================================
-
+// File:        tb_directed_refresh_manager.sv
+// Chức năng:   Testbench tự kiểm cho directed_refresh_manager: sinh hàng nạn nhân +/-1, +/-2, ưu tiên scrub, SA-F10/SA-F11 và o_drm_fault.
 `timescale 1ns / 1ps
 
 module tb_directed_refresh_manager;
@@ -51,6 +42,8 @@ module tb_directed_refresh_manager;
 
     logic [15:0]            o_drm_ref_count;
     logic                   o_queue_full;
+    logic                   o_drm_fault;
+    logic [(1<<BG_WIDTH)-1:0] o_proq_blk;
 
     // Instantiate DUT
     directed_refresh_manager #(
@@ -81,13 +74,25 @@ module tb_directed_refresh_manager;
         .o_mitigation_bank  (o_mitigation_bank),
         .o_mitigation_row   (o_mitigation_row),
         .i_mitigation_grant (i_mitigation_grant),
+        .i_cand_fresh       ({(1<<BG_WIDTH){1'b1}}),
+        .o_proq_blk         (o_proq_blk),
         .o_drm_ref_count    (o_drm_ref_count),
-        .o_queue_full       (o_queue_full)
+        .o_queue_full       (o_queue_full),
+        .o_drm_fault        (o_drm_fault)
     );
 
     int tests_run = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    int inv_err = 0;
+    `include "tb_check.svh"
+
+    always @(posedge clk) begin
+        if (rst_n) begin
+            if (o_drm_fault || (u_dut.blkp_a !== u_dut.blkp_b) || (u_dut.pq_v !== u_dut.pq_region) || u_dut.inj_oh_err)
+                inv_err++;
+        end
+    end
 
     initial begin
         $display("================================================================");
@@ -117,7 +122,7 @@ module tb_directed_refresh_manager;
 
         // TEST 1: Idle state
         tests_run++;
-        if (!o_mitigation_req && o_drm_ref_count == 0 && !o_queue_full) begin
+        if (!o_mitigation_req && o_drm_ref_count == 0 && !o_queue_full && !o_drm_fault) begin
             $display("[PASS] Test 1: Reset idle state verified.");
             tests_passed++;
         end else begin
@@ -126,7 +131,6 @@ module tb_directed_refresh_manager;
         end
 
         // TEST 2: Aggressor Alert -> Victim Row Generation (Row +/- 1)
-        // Aggressor at BG 1, Bank 2, Row 0x1000
         tests_run++;
         @(negedge clk);
         i_sdc_req  = 1;
@@ -138,11 +142,13 @@ module tb_directed_refresh_manager;
         @(negedge clk);
         i_sdc_req = 0;
 
-        // Allow generator state machine to enqueue victims
-        @(posedge clk);
+        // SA-F11: trong khi đẩy nạn nhân của BG 1 vào PROQ, chỉ o_proq_blk[1] được bật, các BG khác bằng 0
+        tb_check((o_proq_blk & 8'b1111_1101) == 8'd0,
+                 $sformatf("SA-F11: BG 1 push does not block other BGs (o_proq_blk=%b)", o_proq_blk));
+
+        for (int c = 0; c < 8 && !o_mitigation_req; c++) @(posedge clk);
         #1;
 
-        // Victim 1 should be Row + 1 = 0x1001
         if (o_mitigation_req && o_mitigation_row == 17'h1001 &&
             o_mitigation_bg == 3'd1 && o_mitigation_bank == 2'd2) begin
             $display("[PASS] Test 2a: Victim 1 (Row + 1 = 0x1001) presented at output.");
@@ -158,6 +164,7 @@ module tb_directed_refresh_manager;
         i_mitigation_grant = 1;
         @(negedge clk);
         i_mitigation_grant = 0;
+        for (int c = 0; c < 8 && !o_mitigation_req; c++) @(posedge clk);
         #1ps;
 
         // Victim 2 should now be Row - 1 = 0x0FFF
@@ -174,6 +181,7 @@ module tb_directed_refresh_manager;
         i_mitigation_grant = 1;
         @(negedge clk);
         i_mitigation_grant = 0;
+        repeat (2) @(posedge clk);
         #1ps;
 
         // TEST 3: Priority - ECC Scrubbing when queue empty
@@ -183,12 +191,14 @@ module tb_directed_refresh_manager;
         i_scrub_bg   = 3'd5;
         i_scrub_bank = 2'd3;
         i_scrub_row  = 17'h0555;
+        for (int c = 0; c < 4 && !o_mitigation_req; c++) @(posedge clk);
         #1;
 
         if (o_mitigation_req && o_mitigation_bg == 3'd5 && o_mitigation_row == 17'h0555) begin
-            // Grant scrub request
             @(negedge clk);
             i_mitigation_grant = 1;
+            @(negedge clk);
+            i_mitigation_grant = 0;
             #1;
             if (o_scrub_grant == 1) begin
                 $display("[PASS] Test 3: ECC Patrol Scrub granted when DRM queue is empty.");
@@ -197,9 +207,7 @@ module tb_directed_refresh_manager;
                 $display("[FAIL] Test 3: Scrub grant not asserted.");
                 tests_failed++;
             end
-            @(posedge clk);
             @(negedge clk);
-            i_mitigation_grant = 0;
             i_scrub_req = 0;
         end else begin
             $display("[FAIL] Test 3: Scrub request did not pass through.");
@@ -207,11 +215,16 @@ module tb_directed_refresh_manager;
         end
 
         #(ClkPeriod * 4);
+        tb_check(inv_err == 0 && !o_drm_fault,
+                 $sformatf("SA-F10: DRM invariants clean and o_drm_fault=0 (inv_err=%0d)", inv_err));
+
         $display("================================================================");
         $display("[TB_DRM] SUMMARY: %0d/%0d TESTS PASSED, %0d FAILED",
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

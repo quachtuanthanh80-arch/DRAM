@@ -151,6 +151,7 @@ module tb_apb_csr_regs;
     int tests_run    = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     // APB Write Task (2-phase APB transfer: Setup -> Access)
     task automatic apb_write(
@@ -493,6 +494,8 @@ module tb_apb_csr_regs;
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

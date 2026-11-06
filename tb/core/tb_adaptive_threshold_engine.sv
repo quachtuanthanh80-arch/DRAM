@@ -52,6 +52,7 @@ module tb_adaptive_threshold_engine;
     int tests_run = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     initial begin
         $display("================================================================");
@@ -91,6 +92,8 @@ module tb_adaptive_threshold_engine;
             i_telemetry_accesses  <= i_telemetry_accesses + 32'd10;
             i_telemetry_throttles <= i_telemetry_throttles + 32'd2;
         end
+        // Ngưỡng được cập nhật qua 3 pha thanh ghi sau mốc lấy mẫu
+        repeat (3) @(negedge clk);
         #1ps;
 
         // Threshold should have relaxed upwards (> 1000)
@@ -114,7 +117,7 @@ module tb_adaptive_threshold_engine;
                 @(negedge clk);
                 i_telemetry_accesses <= i_telemetry_accesses + 32'd10;
             end
-
+            repeat (3) @(negedge clk);
             #1ps;
 
             if (o_dynamic_thresh < prev_thresh) begin
@@ -134,6 +137,8 @@ module tb_adaptive_threshold_engine;
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

@@ -119,6 +119,7 @@ module tb_dfi_phy_adapter;
     int tests_run    = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     initial begin
         // Reset initialization
@@ -308,6 +309,8 @@ module tb_dfi_phy_adapter;
                  tests_passed, tests_run + 2, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

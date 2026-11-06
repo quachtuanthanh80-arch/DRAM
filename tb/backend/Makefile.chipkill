@@ -7,7 +7,7 @@ SIM_BUILD ?= sim_build_chipkill
 ROOT_DIR ?= $(abspath $(CURDIR)/../..)
 
 VERILOG_SOURCES ?= \
-    $(ROOT_DIR)/rtl/backend/gf16_arith_pkg.sv \
+    $(ROOT_DIR)/rtl/backend/gf256_arith_pkg.sv \
     $(ROOT_DIR)/rtl/backend/rs_chipkill_encoder.sv \
     $(ROOT_DIR)/rtl/backend/rs_chipkill_decoder.sv \
     $(ROOT_DIR)/tb/backend/tb_rs_chipkill.sv

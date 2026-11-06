@@ -1,39 +1,121 @@
 {
-  "timestamp_epoch": 1793021435.5886784,
-  "commit_sha": "1d21ae8ea4866712d68ca851322b6501803a3e70",
-  "total_runtime_seconds": 5.64,
-  "tier1_architectural_emulation": {
-    "status": "PASS",
-    "runtime_seconds": 3.73,
-    "threat_vectors_tested": 8,
-    "detection_rate_pct": 100.0,
-    "benign_fpr_pct": 0.02,
-    "escaped_bitflips": 0,
-    "adversarial_fuzzer": {
+  "timestamp_epoch": 1793295828.7087054,
+  "commit_sha": "916b881bb4515185778db15720309957f3380818",
+  "platform": "Windows 11",
+  "total_runtime_seconds": 35.53,
+  "tier1_python_model": {
+    "status": "RAN",
+    "abstraction": "Python architectural model (see attack_emulation_meta.json model_fidelity_notes)",
+    "runtime_seconds": 5.75,
+    "traces_evaluated": 8,
+    "escaped_bitflips_total": 0,
+    "traces_without_exposure": [
+      "Benign_Standard",
+      "Standard_RowHammer",
+      "Blacksmith_MultiSided",
+      "RowPress_Prolonged",
+      "Mixed_MultiTenant",
+      "ZenHammer_DDR5",
+      "Crystalor_Hash_Collision"
+    ],
+    "fuzzer": {
       "workload": "Adversarial_Address_Fuzzer_1M",
       "total_accesses": 1000000,
       "mitigations": 5743,
       "escaped_bitflips": 0,
       "benign_fpr_pct": 0.0,
-      "fuzzing_throughput_ops_sec": 301927.0,
-      "runtime_seconds": 3.31,
-      "status": "SECURE"
+      "fuzzing_throughput_ops_sec": 207582.8,
+      "runtime_seconds": 4.82,
+      "status": "NO_ESCAPES_IN_MODEL"
     }
   },
-  "tier2_synthesizable_rtl_simulation": {
-    "status": "PASS",
-    "runtime_seconds": 1.67,
-    "scenarios_tested": 13,
-    "scenarios_passed": 13,
+  "tier2_rtl_red_team": {
+    "status": "PASS_WITH_OPEN_GAPS",
+    "runtime_seconds": 29.38,
+    "checks": 30,
+    "fails": 0,
+    "failed_checks": [],
+    "open_vulnerabilities": [
+      {
+        "gap": "S10",
+        "detail": "V0 effective SDC threshold 514 after hammering (configured 3)"
+      },
+      {
+        "gap": "S8",
+        "detail": "V2 cumulative hammering across epochs must be mitigated (throttle +0, REF 3)"
+      },
+      {
+        "gap": "S14",
+        "detail": "V4 RowPress alert raised with curve 2 (equality comparison against falling threshold)"
+      },
+      {
+        "gap": "R18",
+        "detail": "V8 high-QoS read completed in 217 cycles (bound 2x baseline = 46)"
+      },
+      {
+        "gap": "R9",
+        "detail": "V10 read-back data equals written (wrote deadbeefcafebabe, read aaaa000000000700)"
+      },
+      {
+        "gap": "R17",
+        "detail": "V13 distance-2 victim refresh issued (20 REF total)"
+      },
+      {
+        "gap": "S11",
+        "detail": "V14 every hot aggressor got targeted refresh (15/16)"
+      },
+      {
+        "gap": "R18",
+        "detail": "V16 high-QoS read served in 183 cycles (bound 2x baseline = 46)"
+      },
+      {
+        "gap": "S18",
+        "detail": "V17 decoy produced real DRAM activations (0 ACT)"
+      },
+      {
+        "gap": "S16",
+        "detail": "V6 same logical row maps to same physical row (first 0xd38c, again 0x190f9)"
+      },
+      {
+        "gap": "S16",
+        "detail": "V15 axi_ddr5_mc_top has no DFI data bus; scrambled/encrypted DRAM data is not observable"
+      },
+      {
+        "gap": "R9",
+        "detail": "V15 read-back with scrambling enabled equals written data"
+      }
+    ],
     "waveform_vcd_path": "waveform_security_attacks.vcd",
-    "waveform_size_mb": 2.53
+    "waveform_size_mb": 20.64
   },
-  "tier3_formal_sva_verification": {
-    "status": "PASS",
-    "unbounded_k_induction_proofs": 4,
-    "bounded_bmc_proofs": 7,
-    "total_invariants_proven": 11,
-    "counterexamples_found": 0
+  "tier3_formal": {
+    "status": "NOT_RUN",
+    "reason": "sby not installed",
+    "jobs": [
+      "formal_async_fifo.sby",
+      "formal_ate.sby",
+      "formal_axi_frontend.sby",
+      "formal_cmd_engine.sby",
+      "formal_drm.sby",
+      "formal_ecc_scrubber.sby",
+      "formal_qos_queue.sby",
+      "formal_rob.sby",
+      "formal_scrambler.sby",
+      "formal_sdc_filter.sby",
+      "formal_skid_buffer.sby",
+      "formal_slack_arbiter.sby"
+    ]
   },
-  "overall_security_verdict": "CERTIFIED_SECURE"
+  "open_vulnerability_ids": [
+    "R17",
+    "R18",
+    "R9",
+    "S10",
+    "S11",
+    "S14",
+    "S16",
+    "S18",
+    "S8"
+  ],
+  "overall_verdict": "OPEN_VULNERABILITIES"
 }

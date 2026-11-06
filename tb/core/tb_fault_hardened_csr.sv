@@ -38,7 +38,7 @@ module tb_fault_hardened_csr;
     initial clk = 0;
     always #1.25 clk = ~clk;
 
-    int test_errors = 0;
+    `include "tb_check.svh"
 
     initial begin
         rst_n = 0;
@@ -53,13 +53,7 @@ module tb_fault_hardened_csr;
         #10;
 
         $display("=== [TEST 1] Kiểm tra giá trị Reset mặc định an toàn ===");
-        if (o_cfg_rh_threshold !== 16'd1024 || o_cfg_scramble_mode !== 2'b10 || o_glitch_alert !== 0) begin
-            $display("[FAIL] Trạng thái Reset không đúng chuẩn!");
-            test_errors++;
-        end else begin
-            $display("[PASS] Trạng thái Reset đạt chuẩn an toàn: Thresh=%0d Scramble=%b",
-                     o_cfg_rh_threshold, o_cfg_scramble_mode);
-        end
+        tb_check(!(o_cfg_rh_threshold !== 16'd1024 || o_cfg_scramble_mode !== 2'b10 || o_glitch_alert !== 0), $sformatf("Trạng thái Reset đạt chuẩn an toàn: Thresh=%0d Scramble=%b" , o_cfg_rh_threshold, o_cfg_scramble_mode));
 
         $display("=== [TEST 2] Ghi cấu hình mới đồng thời vào 3 ray TMR ===");
         i_cfg_we = 1;
@@ -69,12 +63,7 @@ module tb_fault_hardened_csr;
         i_cfg_we = 0;
         #5;
 
-        if (o_cfg_rh_threshold !== 16'd512) begin
-            $display("[FAIL] Ghi cấu hình thất bại: Got %0d", o_cfg_rh_threshold);
-            test_errors++;
-        end else begin
-            $display("[PASS] Cấu hình 3 đường ray đồng bộ thành công: Thresh=%0d", o_cfg_rh_threshold);
-        end
+        tb_check(!(o_cfg_rh_threshold !== 16'd512), $sformatf("Cấu hình 3 đường ray đồng bộ thành công: Thresh=%0d" , o_cfg_rh_threshold));
 
         $display("=== [TEST 3] Bơm lỗi đơn tia (SEU) vào 1 ray và kiểm tra bỏ phiếu 2-out-of-3 ===");
         // Bơm xung nhiễu làm lệch rail0
@@ -82,35 +71,15 @@ module tb_fault_hardened_csr;
         #2.5;
 
         // Đầu ra phải giữ vững 16'd512 nhờ rail1 và rail2 chiếm đa số
-        if (o_cfg_rh_threshold !== 16'd512) begin
-            $display("[FAIL] Bỏ phiếu TMR thất bại khi 1 ray bị lỗi: Got %0d", o_cfg_rh_threshold);
-            test_errors++;
-        end else begin
-            $display("[PASS] Bộ bỏ phiếu TMR chống chịu lỗi đơn cực tốt: Output vẫn giữ nguyên 512!");
-        end
+        tb_check(!(o_cfg_rh_threshold !== 16'd512), "Bộ bỏ phiếu TMR chống chịu lỗi đơn cực tốt: Output vẫn giữ nguyên 512!");
 
-        if (!o_glitch_alert) begin
-            $display("[FAIL] Không phát hiện cảnh báo xung nhiễu (o_glitch_alert)!");
-            test_errors++;
-        end else begin
-            $display("[PASS] Phát hiện lệch ray và kích hoạt o_glitch_alert thành công!");
-        end
+        tb_check(!(!o_glitch_alert), "Phát hiện lệch ray và kích hoạt o_glitch_alert thành công!");
 
         #5;
-        if (!o_security_locked) begin
-            $display("[FAIL] Không chốt khóa bảo mật sau cảnh báo glitch!");
-            test_errors++;
-        end else begin
-            $display("[PASS] Chốt khóa bảo vệ phần cứng (o_security_locked) thành công!");
-        end
+        tb_check(!(!o_security_locked), "Chốt khóa bảo vệ phần cứng (o_security_locked) thành công!");
 
-        if (test_errors == 0) begin
-            $display("\n>>> [ALL TESTS PASSED] Fault-Hardened CSR hoạt động hoàn hảo! <<<\n");
-            $finish(0);
-        end else begin
-            $display("\n>>> [FAIL] Phát hiện %0d lỗi! <<<\n", test_errors);
-            $finish(1);
-        end
+        tb_report();
+        $finish;
     end
 
 endmodule

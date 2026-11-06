@@ -51,6 +51,13 @@ async def test_mac_generation_and_valid_verification(dut):
 
     generated_mac = int(dut.o_wr_mac.value)
     assert generated_mac != 0, "Generated MAC must be non-zero!"
+    # Tham chiếu độc lập RFC 4493: CMAC-AES128 trên data||addr||counter||0^64, cắt 64 bit trái
+    from cryptography.hazmat.primitives import cmac
+    from cryptography.hazmat.primitives.ciphers import algorithms
+    ref = cmac.CMAC(algorithms.AES((0x2b7e151628aed2a6abf7158809cf4f3c).to_bytes(16, "big")))
+    ref.update(data.to_bytes(16, "big") + addr.to_bytes(4, "big") + counter.to_bytes(4, "big") + bytes(8))
+    expected = int.from_bytes(ref.finalize()[:8], "big")
+    assert generated_mac == expected, f"MAC {generated_mac:016x} != RFC 4493 reference {expected:016x}"
     await RisingEdge(dut.clk)
 
     # 2. Xac thuc MAC tren kenh doc voi du lieu nguyen ban (Read phase)

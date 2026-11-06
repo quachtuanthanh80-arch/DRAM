@@ -106,6 +106,8 @@ module tb_pcie_cxl_io_shim;
     endtask
 
     logic [31:0] rdata;
+    `include "tb_check.svh"
+
 
     initial begin
         rst_n          = 0;
@@ -129,33 +131,21 @@ module tb_pcie_cxl_io_shim;
 
         // 1. Verify DVSEC Header Reads
         axil_read(32'h100, rdata);
-        if (rdata !== 32'h03C11E98) begin
-            $display("[FAIL] DVSEC Hdr1 mismatch: %h", rdata);
-            $fatal(1);
-        end
+        tb_check(!(rdata !== 32'h03C11E98), $sformatf("DVSEC Hdr1 mismatch: %h", rdata));
 
         axil_read(32'h108, rdata);
-        if (rdata !== 32'h00000005) begin
-            $display("[FAIL] CXL Cap mismatch: %h", rdata);
-            $fatal(1);
-        end
+        tb_check(!(rdata !== 32'h00000005), $sformatf("CXL Cap mismatch: %h", rdata));
 
         // 2. Configure Q-Shield TMR Security CSRs via CXL.io APB bridge
         axil_write(32'h040, 32'h00000002); // Profile 2
         axil_read(32'h040, rdata);
-        if ((rdata & 32'h3) !== 32'h2 || o_cfg_crypto_profile !== 2'b10) begin
-            $display("[FAIL] Profile mismatch: %h", rdata);
-            $fatal(1);
-        end
+        tb_check(!((rdata & 32'h3) !== 32'h2 || o_cfg_crypto_profile !== 2'b10), $sformatf("Profile mismatch: %h", rdata));
 
         axil_write(32'h048, 32'h0003ABCD); // Epoch Nonce
         axil_read(32'h048, rdata);
-        if ((rdata & 32'h7FFFF) !== 32'h0003ABCD || o_cfg_epoch_nonce !== 19'h3ABCD) begin
-            $display("[FAIL] Nonce mismatch: %h", rdata);
-            $fatal(1);
-        end
+        tb_check(!((rdata & 32'h7FFFF) !== 32'h0003ABCD || o_cfg_epoch_nonce !== 19'h3ABCD), $sformatf("Nonce mismatch: %h", rdata));
 
-        $display("[PASS] PCIe CXL.io APB Shim Verification Completed Successfully");
+        tb_report();
         $finish;
     end
 

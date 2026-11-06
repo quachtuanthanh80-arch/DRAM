@@ -157,6 +157,8 @@ module tb_ucie_fdi_axi_shim;
             end
         end
     end
+    `include "tb_check.svh"
+
 
     initial begin
         rst_n            = 0;
@@ -204,12 +206,9 @@ module tb_ucie_fdi_axi_shim;
         pl_valid = 1'b0;
 
         while (!lp_valid) @(posedge clk);
-        if (lp_data[511:508] !== 4'h1 || lp_data[499:492] !== 8'h55 || lp_data[63:0] !== 64'h1234_5678_9ABC_DEF0) begin
-            $display("[FAIL] AoU Read Data mismatch: %h", lp_data);
-            $fatal(1);
-        end
+        tb_check(!(lp_data[511:508] !== 4'h1 || lp_data[499:492] !== 8'h55 || lp_data[63:0] !== 64'h1234_5678_9ABC_DEF0), $sformatf("AoU Read Data mismatch: %h", lp_data));
 
-        $display("[PASS] UCIe 1.1 FDI AoU Shim Verification Completed Successfully");
+        tb_report();
         $finish;
     end
 

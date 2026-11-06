@@ -1,6 +1,5 @@
-// File: tb_rowpress_tras_clamping.sv
-// Chức năng: Kiểm chứng cơ chế RowPress tRAS_max auto-precharge clamping buộc đóng hàng khi mở quá thời gian cho phép.
-
+// File:        tb_rowpress_tras_clamping.sv
+// Chức năng:   Kiểm chứng cơ chế RowPress tRAS_max auto-precharge clamping buộc đóng hàng khi mở quá thời gian cho phép (T-REG-02).
 `timescale 1ns / 1ps
 
 module tb_rowpress_tras_clamping;
@@ -32,8 +31,6 @@ module tb_rowpress_tras_clamping;
     logic [ROB_PTR_WIDTH-1:0]  i_cmd_tag;
     logic                      i_cmd_is_mitigation;
 
-    logic [15:0]               cfg_rowpress_thresh;
-    logic [1:0]                cfg_rowpress_curve;
     logic [15:0]               cfg_tras_max_thresh;
     logic                      o_rowpress_alert;
     logic [BG_WIDTH-1:0]       o_rowpress_bg;
@@ -53,6 +50,7 @@ module tb_rowpress_tras_clamping;
     logic [7:0]                cfg_raammt_thresh;
     logic [15:0]               o_rfm_auto_cnt;
     logic                      o_rfm_active;
+    logic [6:1]                o_fault;
 
     logic [BG_COUNT-1:0]       o_bg_ready;
     logic                      o_engine_ready;
@@ -63,6 +61,10 @@ module tb_rowpress_tras_clamping;
     logic [BANK_WIDTH-1:0]     o_dfi_bank;
     logic [ROW_WIDTH-1:0]      o_dfi_row;
     logic [COL_WIDTH-1:0]      o_dfi_col;
+    logic [AXI_LEN_WIDTH-1:0]  o_dfi_len;
+    logic [ROB_PTR_WIDTH-1:0]  o_dfi_tag;
+    logic                      dfi_rddata_valid;
+    logic [AXI_DATA_WIDTH-1:0] dfi_rddata;
 
     logic                      o_wb_valid;
     logic [ROB_PTR_WIDTH-1:0]  o_wb_tag;
@@ -85,13 +87,7 @@ module tb_rowpress_tras_clamping;
         .AXI_ID_WIDTH    (AXI_ID_WIDTH),
         .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
         .AXI_LEN_WIDTH   (AXI_LEN_WIDTH),
-        .ROB_PTR_WIDTH   (ROB_PTR_WIDTH),
-        .T_RCD           (2),
-        .T_RP            (2),
-        .T_RAS           (4),
-        .T_CCD_L         (2),
-        .T_CCD_S         (1),
-        .T_CL            (2)
+        .ROB_PTR_WIDTH   (ROB_PTR_WIDTH)
     ) u_dut (
         .clk                 (clk),
         .rst_n               (rst_n),
@@ -128,6 +124,7 @@ module tb_rowpress_tras_clamping;
         .cfg_raammt_thresh   (cfg_raammt_thresh),
         .o_rfm_auto_cnt      (o_rfm_auto_cnt),
         .o_rfm_active        (o_rfm_active),
+        .o_fault             (o_fault),
 
         .o_bg_ready          (o_bg_ready),
         .o_engine_ready      (o_engine_ready),
@@ -140,6 +137,10 @@ module tb_rowpress_tras_clamping;
         .o_dfi_bank          (o_dfi_bank),
         .o_dfi_row           (o_dfi_row),
         .o_dfi_col           (o_dfi_col),
+        .o_dfi_len           (o_dfi_len),
+        .o_dfi_tag           (o_dfi_tag),
+        .i_dfi_rddata_valid  (dfi_rddata_valid),
+        .i_dfi_rddata        (dfi_rddata),
 
         .o_wb_valid          (o_wb_valid),
         .o_wb_tag            (o_wb_tag),
@@ -148,16 +149,57 @@ module tb_rowpress_tras_clamping;
         .o_wb_last           (o_wb_last)
     );
 
+    dram_model #(.COL_W(COL_WIDTH), .RL(9), .WL(9)) u_dram (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .cmd          (o_dfi_cmd),
+        .bg           (o_dfi_bg),
+        .bank         (o_dfi_bank),
+        .row          (o_dfi_row),
+        .col          (o_dfi_col),
+        .len          (o_dfi_len),
+        .wrdata_en    (1'b0),
+        .wrdata       ('0),
+        .wrdata_mask  ('0),
+        .wrdata_ecc   ('0),
+        .rddata_valid (dfi_rddata_valid),
+        .rddata       (dfi_rddata),
+        .rddata_ecc   ()
+    );
+
+    dfi_jedec_checker #(.TCK_PS(2500)) u_jchk (
+        .clk  (clk),
+        .rst_n(rst_n),
+        .cmd  (o_dfi_cmd),
+        .bg   (o_dfi_bg),
+        .bank (o_dfi_bank),
+        .row  (o_dfi_row),
+        .len  (o_dfi_len)
+    );
+
     int tests_run = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
+    int pre_target_window = 0;
     int clamp_cmd_seen = 0;
-    always @(posedge clk) begin
-        if (rst_n && o_dfi_cmd == CMD_PRE && o_tras_clamped_alert) begin
-            clamp_cmd_seen <= 1;
-            $display("[PASS] RowPress tRAS_max clamp PRE issued for BG %0d, Bank %0d at time %0t",
-                     o_dfi_bg, o_dfi_bank, $time);
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            pre_target_window <= 0;
+            clamp_cmd_seen    <= 0;
+        end else begin
+            if (o_dfi_cmd == CMD_PRE && o_dfi_bg == 3'd2 && o_dfi_bank == 2'd1) begin
+                pre_target_window <= 2;
+            end else if (pre_target_window > 0) begin
+                pre_target_window <= pre_target_window - 1;
+            end
+            // Cảnh báo kẹp đăng ký lên cùng chu kỳ hoặc chu kỳ ngay sau PRE tới bank (2,1)
+            if (o_tras_clamped_alert && (pre_target_window > 0 || (o_dfi_cmd == CMD_PRE && o_dfi_bg == 3'd2 && o_dfi_bank == 2'd1))) begin
+                clamp_cmd_seen <= 1;
+                $display("[PASS] RowPress tRAS_max clamp PRE + alert observed for BG %0d, Bank %0d, Row 0x%0h at time %0t",
+                         o_rowpress_bg, o_rowpress_bank, o_rowpress_row, $time);
+            end
         end
     end
 
@@ -194,7 +236,6 @@ module tb_rowpress_tras_clamping;
         i_cmd_tag      = 5'd1;
 
         @(posedge clk);
-        #1;
         @(negedge clk);
         i_cmd_valid = 0;
 
@@ -216,6 +257,12 @@ module tb_rowpress_tras_clamping;
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        u_jchk.report("rowpress_clamp");
+        tb_check(u_jchk.timing_violations() == 0,
+                 $sformatf("No JEDEC timing violation during tRAS_max clamp (%0d)", u_jchk.timing_violations()));
+        tb_check(o_fault == 6'd0, $sformatf("No engine fault flags during clean run (o_fault=%b)", o_fault));
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

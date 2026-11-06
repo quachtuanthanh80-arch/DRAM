@@ -446,9 +446,9 @@ def main():
     print("  GENERATING MULTI-TIER ARCHITECTURAL COMPARISON MATRICES")
     print("=" * 96)
 
-    # 1. Tier 1: Apples-to-Apples Cycle-Accurate
-    export_json(APPLES_TO_APPLES_DATA, "apples_to_apples_cycle_accurate.json")
-    export_apples_to_apples_tex(os.path.join(RESULTS_DIR, "apples_to_apples_cycle_accurate.tex"))
+    # 1. Tier 1 (apples-to-apples) không còn được xuất: APPLES_TO_APPLES_DATA là số viết cứng gắn nhãn
+    #    "Ramulator 2.0, SPEC CPU2017" mà không có lần chạy nào sinh ra. Số liệu Tier 1 phải lấy từ
+    #    sim/run_benchmarks.py chạy Ramulator 2 thật (WSL) hoặc tools/run_rtl_bench.py (RTL).
 
     # 2. Tier 2: Literature-Reported Comparison
     export_json(LITERATURE_REPORTED_DATA, "literature_reported_values.json")
@@ -459,7 +459,7 @@ def main():
     export_taxonomy_tex(os.path.join(RESULTS_DIR, "qualitative_taxonomy.tex"))
 
     print("=" * 96)
-    print("  [SUCCESS] All 3 comparison tiers exported with academic disclaimers.")
+    print("  [SUCCESS] Literature (Tier 2) and taxonomy (Tier 3) exported; Tier 1 must come from a real simulation run.")
     print("=" * 96)
 
 if __name__ == "__main__":

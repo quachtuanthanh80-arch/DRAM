@@ -1,13 +1,5 @@
-//=============================================================================
-// Testbench:   tb_ddr5_cmd_engine
-// Description: Self-checking SystemVerilog testbench for ddr5_cmd_engine:
-//              1. Row-Miss: Closed bank -> ACT -> tRCD -> RD
-//              2. Row-Hit: Open bank -> Immediate RD
-//              3. Row-Conflict: Diff row -> PRE -> tRP -> ACT -> tRCD -> RD
-//              4. RowPress Attack Detection: bank kept open > thresh fires alert
-// Standard:    SystemVerilog IEEE 1800-2017
-//=============================================================================
-
+// File:        tb_ddr5_cmd_engine.sv
+// Chức năng:   Testbench tự kiểm cho ddr5_cmd_engine: Row-Miss, Row-Hit, cảnh báo RowPress, phát hiện lỗi bộ đếm ACT chéo và qs_engine_port_chk.
 `timescale 1ns / 1ps
 
 module tb_ddr5_cmd_engine;
@@ -22,6 +14,7 @@ module tb_ddr5_cmd_engine;
     localparam int AXI_DATA_WIDTH = 64;
     localparam int AXI_LEN_WIDTH  = 8;
     localparam int ROB_PTR_WIDTH  = 5;
+    localparam int T_RDV_TB       = 4;
     localparam time ClkPeriod     = 2.5ns; // 400 MHz
 
     logic clk = 0;
@@ -54,19 +47,37 @@ module tb_ddr5_cmd_engine;
 
     logic [BG_COUNT-1:0]       o_bg_ready;
     logic                      o_engine_ready;
+    logic [BG_COUNT*BANK_COUNT-1:0] o_bank_free;
+    logic                      o_engine_mit_only;
     logic                      o_slack_cycle;
 
     logic [2:0]                o_dfi_cmd;
+    logic                      o_cnt_fault;
+    logic [6:1]                o_fault;
+    logic [15:0]               o_rfm_auto_cnt;
+    logic                      o_rfm_active;
+    logic                      o_ref_tick;
     logic [BG_WIDTH-1:0]       o_dfi_bg;
     logic [BANK_WIDTH-1:0]     o_dfi_bank;
     logic [ROW_WIDTH-1:0]      o_dfi_row;
     logic [COL_WIDTH-1:0]      o_dfi_col;
+    logic [AXI_LEN_WIDTH-1:0]  o_dfi_len;
+    logic [ROB_PTR_WIDTH-1:0]  o_dfi_tag;
+    logic                      dfi_rddata_valid;
+    logic [AXI_DATA_WIDTH-1:0] dfi_rddata;
 
     logic                      o_wb_valid;
     logic [ROB_PTR_WIDTH-1:0]  o_wb_tag;
     logic [AXI_DATA_WIDTH-1:0] o_wb_data;
     logic [1:0]                o_wb_resp;
     logic                      o_wb_last;
+    logic                      o_rmw_valid;
+    logic                      o_wb_err;
+    logic                      o_rd_take;
+    logic                      o_rd_beat_ok;
+    logic                      o_rd_flush;
+    logic                      o_rd_resync;
+    bit                        fi_any_tb;
 
     // DFI Commands
     localparam logic [2:0] CMD_NOP = 3'b000;
@@ -92,6 +103,7 @@ module tb_ddr5_cmd_engine;
         .T_CCD_L         (2),
         .T_CCD_S         (1),
         .T_CL            (4),
+        .T_RDV           (T_RDV_TB),
         .ROWPRESS_THRESH_DEFAULT(25)
     ) u_dut (
         .clk                 (clk),
@@ -119,7 +131,14 @@ module tb_ddr5_cmd_engine;
         .o_abo_alert_cnt     (o_abo_alert_cnt),
         .o_bg_ready          (o_bg_ready),
         .o_engine_ready      (o_engine_ready),
+        .o_bank_free         (o_bank_free),
+        .o_engine_mit_only   (o_engine_mit_only),
         .o_slack_cycle       (o_slack_cycle),
+        .o_cnt_fault         (o_cnt_fault),
+        .o_fault             (o_fault),
+        .o_rfm_auto_cnt      (o_rfm_auto_cnt),
+        .o_rfm_active        (o_rfm_active),
+        .o_ref_tick          (o_ref_tick),
         .o_decoy_active      (),
         .o_decoy_cnt         (),
         .o_dfi_cmd           (o_dfi_cmd),
@@ -127,16 +146,93 @@ module tb_ddr5_cmd_engine;
         .o_dfi_bank          (o_dfi_bank),
         .o_dfi_row           (o_dfi_row),
         .o_dfi_col           (o_dfi_col),
+        .o_dfi_len           (o_dfi_len),
+        .o_dfi_tag           (o_dfi_tag),
+        .i_dfi_rddata_valid  (dfi_rddata_valid),
+        .i_dfi_rddata        (dfi_rddata),
         .o_wb_valid          (o_wb_valid),
         .o_wb_tag            (o_wb_tag),
         .o_wb_data           (o_wb_data),
         .o_wb_resp           (o_wb_resp),
-        .o_wb_last           (o_wb_last)
+        .o_wb_last           (o_wb_last),
+        .o_rmw_valid         (o_rmw_valid),
+        .o_wb_err            (o_wb_err),
+        .o_rd_take           (o_rd_take),
+        .o_rd_beat_ok        (o_rd_beat_ok),
+        .o_rd_flush          (o_rd_flush),
+        .o_rd_resync         (o_rd_resync)
+    );
+
+    dram_model #(.COL_W(COL_WIDTH), .RL(T_RDV_TB), .WL(9)) u_dram (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .cmd          (o_dfi_cmd),
+        .bg           (o_dfi_bg),
+        .bank         (o_dfi_bank),
+        .row          (o_dfi_row),
+        .col          (o_dfi_col),
+        .len          (o_dfi_len),
+        .wrdata_en    (1'b0),
+        .wrdata       ('0),
+        .wrdata_mask  ('0),
+        .wrdata_ecc   ('0),
+        .rddata_valid (dfi_rddata_valid),
+        .rddata       (dfi_rddata),
+        .rddata_ecc   ()
+    );
+
+    qs_engine_port_chk #(
+        .NB      (BG_COUNT * BANK_COUNT),
+        .BG_W    (BG_WIDTH),
+        .BANK_W  (BANK_WIDTH),
+        .ROW_W   (ROW_WIDTH),
+        .COL_W   (COL_WIDTH),
+        .TAG_W   (ROB_PTR_WIDTH),
+        .T_RDV   (T_RDV_TB)
+    ) u_echk (
+        .clk                 (clk),
+        .rst_n               (rst_n),
+        .en_v2               (1'b1),
+        .fi_any              (fi_any_tb),
+        .fi_rd_state         (1'b0),
+        .allow_it1           (1'b0),
+        .i_cmd_valid         (i_cmd_valid),
+        .i_cmd_bg            (i_cmd_bg),
+        .i_cmd_bank          (i_cmd_bank),
+        .i_cmd_len           (i_cmd_len),
+        .i_cmd_is_mitigation (i_cmd_is_mitigation),
+        .o_bank_free         (o_bank_free),
+        .o_engine_mit_only   (o_engine_mit_only),
+        .o_abo_active        (o_abo_active),
+        .i_dram_abo_alert    (i_dram_abo_alert),
+        .i_force_rfm         (1'b0),
+        .o_dfi_cmd           (o_dfi_cmd),
+        .o_dfi_bg            (o_dfi_bg),
+        .o_dfi_bank          (o_dfi_bank),
+        .o_dfi_row           (o_dfi_row),
+        .o_dfi_col           (o_dfi_col),
+        .o_dfi_len           (o_dfi_len),
+        .o_dfi_tag           (o_dfi_tag),
+        .o_ref_tick          (o_ref_tick),
+        .o_rfm_active        (o_rfm_active),
+        .o_fault             (o_fault),
+        .rd_valid            (dfi_rddata_valid),
+        .o_rd_take           (o_rd_take),
+        .o_rd_beat_ok        (o_rd_beat_ok),
+        .o_rd_flush          (o_rd_flush),
+        .o_rd_resync         (o_rd_resync),
+        .o_wb_valid          (o_wb_valid),
+        .o_wb_tag            (o_wb_tag),
+        .o_wb_last           (o_wb_last),
+        .o_wb_err            (o_wb_err),
+        .o_wb_resp           (o_wb_resp),
+        .o_rmw_valid         (o_rmw_valid)
     );
 
     int tests_run = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     initial begin
         $display("================================================================");
@@ -144,6 +240,7 @@ module tb_ddr5_cmd_engine;
         $display("================================================================");
 
         rst_n = 0;
+        fi_any_tb = 0;
         i_cmd_valid = 0;
         i_cmd_is_write = 0;
         i_cmd_id = 0;
@@ -174,7 +271,12 @@ module tb_ddr5_cmd_engine;
         i_cmd_tag = 5'd1;
 
         @(posedge clk);
-        #1;
+        @(negedge clk);
+        i_cmd_valid = 0;
+        for (int c = 0; c < 4 && o_dfi_cmd != CMD_ACT; c++) begin
+            @(posedge clk);
+            #1;
+        end
         if (o_dfi_cmd == CMD_ACT && o_dfi_row == 17'h0100) begin
             $display("[PASS] Test 1: Row-Miss initiated with CMD_ACT for Row 0x0100.");
             tests_passed++;
@@ -186,7 +288,7 @@ module tb_ddr5_cmd_engine;
         i_cmd_valid = 0;
 
         // Wait for RCD to complete and read to be issued
-        repeat (6) @(posedge clk);
+        repeat (8) @(posedge clk);
 
         // TEST 2: Row-Hit (Immediate RD without ACT)
         tests_run++;
@@ -200,7 +302,12 @@ module tb_ddr5_cmd_engine;
         i_cmd_tag = 5'd2;
 
         @(posedge clk);
-        #1;
+        @(negedge clk);
+        i_cmd_valid = 0;
+        for (int c = 0; c < 12 && !(o_dfi_cmd == CMD_RD && o_dfi_col == 10'h020); c++) begin
+            @(posedge clk);
+            #1;
+        end
         if (o_dfi_cmd == CMD_RD && o_dfi_col == 10'h020) begin
             $display("[PASS] Test 2: Row-Hit issued immediate CMD_RD for Col 0x020.");
             tests_passed++;
@@ -212,8 +319,6 @@ module tb_ddr5_cmd_engine;
         i_cmd_valid = 0;
 
         // TEST 3: RowPress Attack Detection
-        // Bank (BG 0, Bank 0) is already open to Row 0x0100.
-        // Let it sit open for > 20 cycles without PRE.
         tests_run++;
         begin : rowpress_test
             int alert_seen;
@@ -240,12 +345,47 @@ module tb_ddr5_cmd_engine;
             end
         end
 
+        // Wait for Test 2 RD beat to return before fault injection
+        repeat (6) @(posedge clk);
+
+        // TEST 4: tiêm lỗi vào bộ đếm ACT cuốn chiếu
+        tests_run++;
+        begin : cnt_fault_test
+            int fault_seen, rfm_seen;
+            logic [15:0] rfm0;
+            fault_seen = 0;
+            rfm_seen   = 0;
+            rfm0       = o_rfm_auto_cnt;
+            @(negedge clk);
+            fi_any_tb = 1'b1;
+            u_dut.rolling_act_cnt[3] = u_dut.rolling_act_cnt[3] + 8'd5;
+            for (int cycle = 0; cycle < 400 && !(fault_seen && rfm_seen); cycle++) begin
+                @(posedge clk);
+                #1;
+                if (o_cnt_fault && o_fault[1]) fault_seen = 1;
+                if (o_dfi_cmd == 3'b110 && o_rfm_auto_cnt != rfm0) rfm_seen = 1;
+            end
+            if (fault_seen && rfm_seen && u_dut.cnt_err == '0) begin
+                $display("[PASS] Test 4: Counter fault detected, fail-safe RFM issued, counters resynchronized");
+                tests_passed++;
+            end else begin
+                $display("[FAIL] Test 4: fault_seen=%0d rfm_seen=%0d cnt_err=%b", fault_seen, rfm_seen, u_dut.cnt_err);
+                tests_failed++;
+            end
+        end
+
         #(ClkPeriod * 4);
+        u_echk.final_check();
+        u_echk.report("cmd_engine");
+        tb_check(u_echk.errors() == 0, $sformatf("qs_engine_port_chk zero errors (%0d)", u_echk.errors()));
+
         $display("================================================================");
         $display("[TB_CMD_ENGINE] SUMMARY: %0d/%0d TESTS PASSED, %0d FAILED",
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;
@@ -254,4 +394,4 @@ module tb_ddr5_cmd_engine;
         end
     end
 
-endmodule: tb_ddr5_cmd_engine
+endmodule

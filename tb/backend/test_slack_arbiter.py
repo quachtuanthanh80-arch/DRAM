@@ -27,13 +27,15 @@ async def reset_dut(dut):
 
     dut.i_bg_ready.value = 0xFF  # all 8 BGs ready initially
     dut.i_engine_ready.value = 1
+    dut.i_engine_mit_only.value = 0
     dut.i_slack_cycle.value = 0
 
     dut.i_mitigation_req.value = 0
     dut.i_mitigation_bg.value = 0
     dut.i_mitigation_bank.value = 0
     dut.i_mitigation_row.value = 0
-    dut.i_proq_row_hit.value = 0
+    dut.i_proq_blk.value = 0
+    dut.i_proq_hit.value = 0
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -137,6 +139,9 @@ async def test_write_drain_mode(dut):
     cocotb.start_soon(clock.start())
 
     await reset_dut(dut)
+    # Ứng viên giữ nguyên qua nhiều chu kỳ (không có hàng đợi thật để dequeue): tắt engine_ready để arbiter không
+    # cấp lệnh và không che BG vừa cấp; lựa chọn (o_cmd_bg/o_cmd_is_write) vẫn quan sát được
+    dut.i_engine_ready.value = 0
 
     # Initially: 1 Read (BG0, QoS=15), 1 Write (BG1, QoS=8)
     # writes = 1 < 4 => drain_mode should be 0 (Read burst mode)

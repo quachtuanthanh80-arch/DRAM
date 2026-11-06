@@ -50,6 +50,7 @@ module tb_async_fifo_cdc;
     int tests_run    = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     // Bảng đối chiếu dữ liệu (Scoreboard) kiểm tra bảo toàn thứ tự FIFO qua 2 miền xung nhịp
     logic [DataWidth-1:0] expected_mem [0:127];
@@ -178,6 +179,8 @@ module tb_async_fifo_cdc;
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

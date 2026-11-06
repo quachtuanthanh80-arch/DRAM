@@ -40,6 +40,17 @@ BASE_RH_THRESHOLD = 32
 ROWPRESS_TACT_THRESH_CYCLES = 120  # Clamped by JEDEC tRAS_max
 EPOCH_WINDOW_CYCLES = 64000        # Refresh window epoch (tREFW)
 
+# Disturbance model assumptions (model inputs, not measured results)
+HC_FIRST = 4800          # Assumed neighbour activations before the first bit flip
+T_ACCESS_CYCLES = 15     # Assumed service time of one access, used for throughput accounting
+T_THROTTLE_CYCLES = 100  # Pacing stall charged per mitigation
+MODEL_FIDELITY_NOTES = [
+    "Python architectural model, not RTL simulation.",
+    "hash1/hash2 are not the RTL PXOR hash (rtl/core/pxor_hash_engine.sv).",
+    "Trace address mapping (BG=addr[17:16], bank=addr[15:14]) differs from rtl/frontend (BG=addr[8:6]^addr[20:18], bank=addr[17:16]).",
+    "Bit flips are modelled as victim rows reaching HC_FIRST neighbour activations without an intervening refresh.",
+]
+
 # -----------------------------------------------------------------------------
 # Attack Definitions & Threat Profiles
 import random
@@ -154,14 +165,18 @@ def hash2(row, bank, bg):
 # -----------------------------------------------------------------------------
 # Architectural Defense Simulation Engine
 # -----------------------------------------------------------------------------
-def simulate_defense(commands, use_ate=True, use_rowpress=True):
+def simulate_defense(commands, use_ate=True, use_rowpress=True, defense=True):
     bins = [0] * NUM_BINS
     total_accesses = len(commands)
     mitigations_issued = 0
-    escaped_bitflips = 0
     attack_events_detected = 0
-    benign_stalls = 0
     worst_case_stall_cycles = 0
+    total_stall_cycles = 0
+
+    # Each ACT on row r disturbs r-1 and r+1; activating a row or a targeted refresh restores it.
+    # A victim that reaches HC_FIRST is counted as an escaped bit flip.
+    disturb = {}
+    flipped = set()
 
     # ATE Tracking
     ewma_rate = 1.0
@@ -185,6 +200,12 @@ def simulate_defense(commands, use_ate=True, use_rowpress=True):
         if not is_row_hit:
             active_row[bank_key] = row
             active_duration[bank_key] = 15
+            disturb[(bg, bank, row)] = 0
+            for v in (row - 1, row + 1):
+                key = (bg, bank, v)
+                disturb[key] = disturb.get(key, 0) + 1
+                if disturb[key] >= HC_FIRST:
+                    flipped.add(key)
             h1 = hash1(row, bank, bg)
             h2 = hash2(row, bank, bg)
 
@@ -215,21 +236,24 @@ def simulate_defense(commands, use_ate=True, use_rowpress=True):
                 active_duration[bank_key] = 0
 
         # Mitigation decision: rate pacing & targeted refresh (DRM)
-        if count >= dynamic_thresh or is_rowpress:
+        if defense and (count >= dynamic_thresh or is_rowpress):
             mitigations_issued += 1
             attack_events_detected += 1
-            stall_cycles = 100  # Pacing delay T_THROTTLE
-            worst_case_stall_cycles = max(worst_case_stall_cycles, stall_cycles)
-            # Reset counting bins for mitigated address
+            worst_case_stall_cycles = max(worst_case_stall_cycles, T_THROTTLE_CYCLES)
+            total_stall_cycles += T_THROTTLE_CYCLES
             bins[h1] = 0
             bins[h2] = 0
+            for v in (row - 2, row - 1, row + 1, row + 2):
+                disturb[(bg, bank, v)] = 0
 
     return {
         "total_accesses": total_accesses,
         "mitigations": mitigations_issued,
-        "escaped_bitflips": escaped_bitflips,
+        "flipped_victims": flipped,
+        "escaped_bitflips": len(flipped),
         "detected_attacks": attack_events_detected,
         "worst_case_stall_cycles": worst_case_stall_cycles,
+        "total_stall_cycles": total_stall_cycles,
     }
 
 # -----------------------------------------------------------------------------
@@ -256,7 +280,7 @@ def main():
     for tag, meta in ATTACK_TAXONOMY.items():
         trace_path = os.path.join(TRACES_DIR, meta["filename"])
         commands = parse_trace(trace_path)
-        
+
         # If trace file missing, generate synthetic fallback sequence for complete testing
         if not commands:
             print(f"[-] Generating synthetic verification pattern for {tag} ({meta['filename']}) ...")
@@ -276,15 +300,21 @@ def main():
                 # Random benign rows
                 commands = [("READ", (i * 7) % 65536, (i % 8), (i % 4)) for i in range(10000)]
 
-        sim_res = simulate_defense(commands, use_ate=True, use_rowpress=True)
+        sim_res = simulate_defense(commands, use_ate=True, use_rowpress=True, defense=True)
+        undefended = simulate_defense(commands, use_ate=True, use_rowpress=True, defense=False)
 
         is_adv = meta["is_attack"]
-        detection_rate = 100.0 if (is_adv and sim_res["mitigations"] > 0) else (100.0 if not is_adv else 0.0)
+        exposed = undefended["flipped_victims"]
+        still_flipped = sim_res["flipped_victims"] & exposed
+        # Detection = share of victims that flip without defense but are protected with it.
+        # None when the trace never reaches HC_FIRST: it then cannot demonstrate protection either way.
+        detection_rate = (100.0 * (1 - len(still_flipped) / len(exposed))) if exposed else None
         fpr = (sim_res["mitigations"] / max(1, sim_res["total_accesses"]) * 100.0) if not is_adv else 0.0
-        
-        # Throughput reduction calculation on attacking stream
-        throughput_reduction = 57.9 if is_adv else 0.0
-        benign_slowdown = 1.00 if not is_adv else (1.01 if tag != "Mixed_MultiTenant" else 1.02)
+
+        base_cycles = sim_res["total_accesses"] * T_ACCESS_CYCLES
+        stall = sim_res["total_stall_cycles"]
+        throughput_reduction = round(100.0 * stall / max(1, base_cycles + stall), 2) if is_adv else 0.0
+        benign_slowdown = round((base_cycles + stall) / max(1, base_cycles), 4)
 
         results.append({
             "attack_tag": tag,
@@ -293,12 +323,13 @@ def main():
             "total_accesses": sim_res["total_accesses"],
             "mitigations_issued": sim_res["mitigations"],
             "escaped_bitflips": sim_res["escaped_bitflips"],
-            "attack_detection_rate_pct": detection_rate,
+            "victims_exposed_without_defense": len(exposed),
+            "attack_detection_rate_pct": None if detection_rate is None else round(detection_rate, 2),
             "false_positive_rate_pct": round(fpr, 3),
             "throughput_reduction_pct": throughput_reduction,
             "benign_slowdown_factor": benign_slowdown,
             "worst_case_stall_cycles": sim_res["worst_case_stall_cycles"],
-            "security_status": "SECURE" if sim_res["escaped_bitflips"] == 0 else "VULNERABLE",
+            "security_status": "NO_ESCAPES_IN_MODEL" if sim_res["escaped_bitflips"] == 0 else "ESCAPES_IN_MODEL",
         })
 
     elapsed_wall_time = time.time() - start_time
@@ -307,10 +338,13 @@ def main():
     print(f"\n{'Workload Scenario':<26} | {'Accesses':<9} | {'Mitigations':<11} | {'Bit-Flips':<9} | {'Detection':<9} | {'FPR':<7} | {'Status'}")
     print("-" * 96)
     for r in results:
-        fpr_str = f"{r['false_positive_rate_pct']:.3f}%" if r['false_positive_rate_pct'] > 0 else "0.000%"
-        print(f"{r['attack_tag']:<26} | {r['total_accesses']:<9,} | {r['mitigations_issued']:<11,} | {r['escaped_bitflips']:<9} | {r['attack_detection_rate_pct']:<8.1f}% | {fpr_str:<7} | {r['security_status']}")
+        fpr_str = f"{r['false_positive_rate_pct']:.3f}%"
+        det = "N/A" if r['attack_detection_rate_pct'] is None else f"{r['attack_detection_rate_pct']:.1f}%"
+        print(f"{r['attack_tag']:<26} | {r['total_accesses']:<9,} | {r['mitigations_issued']:<11,} | {r['escaped_bitflips']:<9} | {det:<9} | {fpr_str:<7} | {r['security_status']}")
     print("=" * 96)
-    print(f"  SECURITY SIGN-OFF: 0 Bit-Flips Escaped across ALL Workloads. (Execution: {elapsed_wall_time:.2f}s)")
+    total_escaped = sum(r["escaped_bitflips"] for r in results)
+    print(f"  MODEL RESULT: {total_escaped} escaped bit flips across all workloads "
+          f"(Python model, HC_FIRST={HC_FIRST}, {elapsed_wall_time:.2f}s)")
     print("=" * 96)
 
     # -------------------------------------------------------------------------
@@ -322,8 +356,9 @@ def main():
     t_fuzz0 = time.time()
     bins = [0] * NUM_BINS
     fuzz_mitigations = 0
-    fuzz_escaped = 0
     benign_false_alarms = 0
+    fuzz_disturb = {}
+    fuzz_flipped = set()
     total_benign_beats = 0
 
     random.seed(0x5EED_F022)
@@ -333,7 +368,7 @@ def main():
     for c in range(chunk_count):
         # Epoch reset emulation at chunk boundaries
         bins = [0] * NUM_BINS
-        
+
         # 8,000 Benign mixed compute accesses per chunk (Poisson/uniform distributed)
         for i in range(8000):
             row = random.randint(0, 16383)
@@ -361,12 +396,20 @@ def main():
             cnt = min(bins[h1], bins[h2]) + 1
             bins[h1] = cnt
             bins[h2] = cnt
+            fuzz_disturb[row] = 0
+            for v in (row - 1, row + 1):
+                fuzz_disturb[v] = fuzz_disturb.get(v, 0) + 1
+                if fuzz_disturb[v] >= HC_FIRST:
+                    fuzz_flipped.add(v)
             if cnt >= BASE_RH_THRESHOLD:
                 fuzz_mitigations += 1
                 bins[h1] = 0
                 bins[h2] = 0
+                for v in (row - 2, row - 1, row + 1, row + 2):
+                    fuzz_disturb[v] = 0
 
     elapsed_fuzz = time.time() - t_fuzz0
+    fuzz_escaped = len(fuzz_flipped)
     fuzzer_fpr = (benign_false_alarms / max(1, total_benign_beats)) * 100.0
 
     print(f"  Total Fuzzing Beats  : 1,000,000")
@@ -374,7 +417,7 @@ def main():
     print(f"  Benign False Alarms  : {benign_false_alarms} ({fuzzer_fpr:.4f}% FPR)")
     print(f"  Escaped Bit-Flips    : {fuzz_escaped}")
     print(f"  Fuzzing Throughput   : {1_000_000 / elapsed_fuzz:,.0f} ops/sec (Elapsed: {elapsed_fuzz:.2f}s)")
-    print(f"  Verdict              : SECURE (100% Protection Maintained, FPR <= 0.02%)")
+    print(f"  Model verdict        : {'NO ESCAPES IN MODEL' if fuzz_escaped == 0 else 'ESCAPES IN MODEL'}")
     print("=" * 96)
 
     fuzzer_result = {
@@ -385,7 +428,7 @@ def main():
         "benign_fpr_pct": round(fuzzer_fpr, 4),
         "fuzzing_throughput_ops_sec": round(1_000_000 / elapsed_fuzz, 1),
         "runtime_seconds": round(elapsed_fuzz, 2),
-        "status": "SECURE",
+        "status": "NO_ESCAPES_IN_MODEL" if fuzz_escaped == 0 else "ESCAPES_IN_MODEL",
     }
 
     # 1. Save Attack Emulation Summary JSON
@@ -407,6 +450,12 @@ def main():
             "rowpress_tact_thresh_cycles": ROWPRESS_TACT_THRESH_CYCLES,
             "epoch_window_cycles": EPOCH_WINDOW_CYCLES,
         },
+        "model_assumptions": {
+            "hc_first": HC_FIRST,
+            "t_access_cycles": T_ACCESS_CYCLES,
+            "t_throttle_cycles": T_THROTTLE_CYCLES,
+        },
+        "model_fidelity_notes": MODEL_FIDELITY_NOTES,
         "attacks_evaluated": list(ATTACK_TAXONOMY.keys()),
         "fuzzer_evaluated": True,
         "fuzzer_transactions": 1_000_000,
@@ -419,21 +468,25 @@ def main():
     # 3. Save Markdown Report
     report_md_path = os.path.join(RESULTS_DIR, "attack_emulation_report.md")
     with open(report_md_path, "w") as f:
-        f.write("# Q-Shield Security Resilience & Attack Emulation Evaluation Report\n\n")
+        f.write("# Q-Shield Attack Emulation Report (Python Architectural Model)\n\n")
+        f.write("> Results come from a Python model, not from RTL simulation. Fidelity limits:\n")
+        for note in MODEL_FIDELITY_NOTES:
+            f.write(f"> - {note}\n")
+        f.write(f"> - Assumed HC_FIRST = {HC_FIRST} activations; detection is N/A when a trace never reaches it.\n\n")
         f.write("## 1. Summary Matrix (Standardized Threat Vectors)\n\n")
         f.write("| Attack Profile | Category | Memory Accesses | Mitigations | Escaped Bit-Flips | Detection Rate | FPR | Attack Throughput Cut | Benign Slowdown |\n")
         f.write("| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n")
         for r in results:
-            f.write(f"| **{r['attack_tag']}** | {r['category']} | {r['total_accesses']:,} | {r['mitigations_issued']:,} | **{r['escaped_bitflips']}** | {r['attack_detection_rate_pct']:.1f}% | {r['false_positive_rate_pct']:.3f}% | -{r['throughput_reduction_pct']}% | {r['benign_slowdown_factor']:.2f}$\\times$ |\n")
+            f.write(f"| **{r['attack_tag']}** | {r['category']} | {r['total_accesses']:,} | {r['mitigations_issued']:,} | **{r['escaped_bitflips']}** | {'N/A' if r['attack_detection_rate_pct'] is None else format(r['attack_detection_rate_pct'], '.1f') + '%'} | {r['false_positive_rate_pct']:.3f}% | -{r['throughput_reduction_pct']}% | {r['benign_slowdown_factor']:.2f}$\\times$ |\n")
         f.write("\n## 2. Tier 1 Adversarial Address Fuzzing (1,000,000 Transactions)\n\n")
         f.write(f"- **Total Transactions**: {fuzzer_result['total_accesses']:,}\n")
         f.write(f"- **Rate Pacing Mitigations**: {fuzzer_result['mitigations']:,}\n")
-        f.write(f"- **Benign False Positive Rate**: **{fuzzer_result['benign_fpr_pct']:.4f}%** (Target: $\\le 0.02\\%$)\n")
-        f.write(f"- **Escaped Bit-Flips**: **{fuzzer_result['escaped_bitflips']}** (Complete Protection)\n")
+        f.write(f"- **Benign False Positive Rate**: **{fuzzer_result['benign_fpr_pct']:.4f}%**\n")
+        f.write(f"- **Escaped Bit-Flips**: **{fuzzer_result['escaped_bitflips']}** (model)\n")
         f.write(f"- **Execution Speed**: {fuzzer_result['fuzzing_throughput_ops_sec']:,} ops/sec ({fuzzer_result['runtime_seconds']}s)\n\n")
         f.write("## 3. Threat Model Boundaries & Assumptions\n\n")
         f.write("- **Attacker Capabilities**: Unprivileged native instruction execution with arbitrary row targeting.\n")
-        f.write("- **Hardware Protections**: Dual-hash counting guarantees zero false negatives; ATE dynamically prevents threshold evasion.\n")
+        f.write("- **RTL status**: open RTL gaps found by tb/top/tb_security_attacks_vcd.sv (e.g. S8 epoch split, S10 threshold loosening, S11 dropped alerts) are not modelled here.\n")
         f.write("- **Non-Defended Vectors**: Physical bus probing, interposer sniffing, and cryogenic row-retention reading are outside controller scope.\n")
     print(f"[+] Saved Markdown Report     : {report_md_path}")
 

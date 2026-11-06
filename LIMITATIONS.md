@@ -1,5 +1,7 @@
 # Q-Shield Architectural Limitations, Threat Boundaries & Trade-Offs
 
+> **Provenance note (2026-10-30).** Ramulator-based throughput/overhead figures (SPEC CPU2017/PARSEC, ±σ), the "apples-to-apples" table and the Nangate 45 nm gate counts were not reproducible from this repository and are withdrawn. See `sim/results/PROVENANCE.md` for what each result file is, and the README section "What has been measured" for the numbers that are backed by runs.
+
 This document provides a comprehensive, peer-review-grade disclosure of the architectural boundaries, underlying assumptions, failure modes, and engineering trade-offs of the **Q-Shield** memory controller.
 
 ---
@@ -100,4 +102,5 @@ To ensure complete experimental transparency regarding the boundaries between si
 
 ### 5.3 Security Validation Boundaries
 - **Proven Defenses**: RowHammer bit-flip prevention (single, double, many-sided), RowPress hold-time capping, adaptive rate pacing, and autonomous single-bit SEC-DED soft-error scrubbing.
-- **Explicit Non-Goals**: Side-channel resistance (timing, power analysis, electromagnetic emission), transient speculative execution, and physical bus tampering.
+- **Mitigation-timing channels (LeakyHammer / PRACLeak)**: A tenant can no longer observe another tenant's mitigation activity across banks. Victim refreshes occupy only the aggressor's bank (bank-parallel engine), and queue capacity is split per bank: each bank has one reserved slot in its bank-group queue, and the remaining slots form a shared pool. As a result, commands stalled behind a pending victim refresh cannot exhaust the queue entries of a different bank. `tb_security_attacks_vcd` V19 measures 39 vs 40 cycles for the two symbols, and the receiver decodes 7/16 bits (chance level). A receiver in the *same* physical bank still sees the refresh, because the bank itself is the shared resource. Bank coloring (V23) separates tenants at bank granularity.
+- **Explicit Non-Goals**: Side-channel resistance beyond the scheduling channels above (power analysis, electromagnetic emission), transient speculative execution, and physical bus tampering.

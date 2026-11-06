@@ -138,6 +138,7 @@ module tb_axi4_slave_adapter;
     int tests_run    = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     int beats_sub_a  = 0;
     int beats_sub_b  = 0;
@@ -316,18 +317,35 @@ module tb_axi4_slave_adapter;
             tests_failed++;
         end
 
+        // Test 5: Kênh đọc AXI4 — một AR hợp lệ phải nhận được burst R (adapter hiện trả hằng số rvalid=0).
+        begin
+            int waited;
+            @(posedge clk);
+            s_axi_arid    <= 8'h31;
+            s_axi_araddr  <= '0;
+            s_axi_arlen   <= 8'd0;
+            s_axi_arvalid <= 1'b1;
+            @(posedge clk);
+            while (!s_axi_arready) @(posedge clk);
+            s_axi_arvalid <= 1'b0;
+            waited = 0;
+            while (!s_axi_rvalid && waited < 200) begin
+                @(posedge clk);
+                waited++;
+            end
+            tb_check_xfail(s_axi_rvalid === 1'b1, "R1",
+                           $sformatf("Test 5: AR handshake accepted but R channel never responds (waited %0d cycles)", waited));
+        end
+
         #(ClkPeriod * 4);
         $display("================================================================");
         $display("[TB_AXI4_ADAPTER] SUMMARY: %0d/%0d TESTS PASSED, %0d FAILED",
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
-        if (tests_failed == 0) begin
-            $display("[ALL TESTS PASSED SUCCESSFULLY]");
-            $finish;
-        end else begin
-            $fatal(1, "[TESTBENCH COMPLETED WITH FAILURES]");
-        end
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
+        $finish;
     end
 
 endmodule: tb_axi4_slave_adapter

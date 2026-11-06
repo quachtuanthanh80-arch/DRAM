@@ -11,7 +11,10 @@ module sdc_resilient_filter #(
     parameter int BANK_WIDTH     = 2,
     parameter int BANK_COUNT     = 1 << BANK_WIDTH,
     parameter int TABLE_ENTRIES  = 256,
-    parameter int COUNT_WIDTH    = 16
+    parameter int COUNT_WIDTH    = 16,
+    // Số REFab định kỳ trong một tREFW (JEDEC: 8192 x tREFI = 32 ms). Cố định theo chuẩn, không mở cổng cấu hình:
+    // cửa sổ ngắn hơn tREFW cho phép chia nhỏ hammer qua nhiều cửa sổ mà không bao giờ chạm ngưỡng (S8).
+    parameter int REFW_REFS      = 8192
 ) (
     input  logic                      clk,
     input  logic                      rst_n,
@@ -21,7 +24,8 @@ module sdc_resilient_filter #(
     input  logic                      cfg_pxor_mode        = 1'b0, // 1: Crystalor PXOR Universal Hash, 0: Modulo/CRC-8
     input  logic [63:0]               cfg_pxor_seed        = 64'hA5A5_5A5A_0123_4567, // Universal hash matrix seed
     input  logic [COUNT_WIDTH-1:0]    cfg_sdc_thresh,  // Activation alert threshold
-    input  logic [15:0]               cfg_window_size, // Cycles per tREFI window
+    input  logic [15:0]               cfg_window_size, // Cửa sổ (chu kỳ) cho throttle phối hợp đa bank SledgeHammer
+    input  logic                      i_ref_tick = 1'b0, // Xung mỗi REFab định kỳ từ command engine
     input  logic [2:0]                cfg_multibank_thresh = 3'd2, // Max concurrent throttled banks
 
     // Input Decoded Command from addr_mapper_ddr5
@@ -67,6 +71,11 @@ module sdc_resilient_filter #(
     localparam int IDX_W      = $clog2(TABLE_ENTRIES);              // 8 bits
 
     wire [ADDR_TAG_W-1:0] full_row_tag = {i_cmd_bg, i_cmd_bank, i_cmd_row};
+
+    // Pipeline 3 tầng, dừng cùng lúc khi đầu ra bị giữ (en = 0): T1 băm địa chỉ hàng, T2 đọc hai bảng đếm
+    // (forward giá trị T3 đang ghi khi trùng bin), T3 so ngưỡng, cập nhật bảng và đăng ký đầu ra.
+    // Trước đây băm -> đọc bảng 256 bin -> min -> so ngưỡng -> cộng -> ghi nằm trong một chu kỳ (18 mức logic).
+    logic en;
 
     //=========================================================================
     // 1. Orthogonal Hash Functions: H_A (XOR-Fold) and H_B (CRC-8)
@@ -121,25 +130,63 @@ module sdc_resilient_filter #(
         .o_hash (pxor_hash_b)
     );
 
-    wire [IDX_W-1:0] eff_hash_a = cfg_pxor_mode ? pxor_hash_a : hash_a;
-    wire [IDX_W-1:0] eff_hash_b = cfg_pxor_mode ? pxor_hash_b : hash_b;
+    wire [IDX_W-1:0] in_hash_a = cfg_pxor_mode ? pxor_hash_a : hash_a;
+    wire [IDX_W-1:0] in_hash_b = cfg_pxor_mode ? pxor_hash_b : hash_b;
+
+    localparam int CMD_W = AXI_ID_WIDTH + 1 + BG_WIDTH + BANK_WIDTH + ROW_WIDTH + COL_WIDTH + 8 + AXI_QOS_WIDTH;
+    logic             p1_valid, p2_valid;
+    logic [CMD_W-1:0] p1_cmd, p2_cmd;
+    logic [IDX_W-1:0] p1_ha, p1_hb, p2_ha, p2_hb;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)  p1_valid <= 1'b0;
+        else if (en) p1_valid <= i_cmd_valid;
+    end
+    always_ff @(posedge clk)
+        if (en) begin
+            p1_cmd <= {i_cmd_id, i_cmd_is_write, i_cmd_bg, i_cmd_bank, i_cmd_row, i_cmd_col, i_cmd_len, i_cmd_qos};
+            p1_ha  <= in_hash_a;
+            p1_hb  <= in_hash_b;
+        end
+    // Lệnh ở T3 (đầu vào của bước cập nhật)
+    logic [AXI_ID_WIDTH-1:0]  s_id;
+    logic                     s_is_write;
+    logic [BG_WIDTH-1:0]      s_bg;
+    logic [BANK_WIDTH-1:0]    s_bank;
+    logic [ROW_WIDTH-1:0]     s_row;
+    logic [COL_WIDTH-1:0]     s_col;
+    logic [7:0]               s_len;
+    logic [AXI_QOS_WIDTH-1:0] s_qos;
+    assign {s_id, s_is_write, s_bg, s_bank, s_row, s_col, s_len, s_qos} = p2_cmd;
+    wire [IDX_W-1:0] eff_hash_a = p2_ha;
+    wire [IDX_W-1:0] eff_hash_b = p2_hb;
+    wire             s_fire     = p2_valid && en;
 
     //=========================================================================
-    // 2. O(1) Window Reset Logic via Epoch Tagging
+    // 2. O(1) Epoch Reset gắn với tREFW
+    // Epoch chỉ đổi sau đúng REFW_REFS lệnh REFab: khi đó mọi hàng đều đã được làm tươi ít nhất một lần,
+    // nên xoá bộ đếm không bỏ sót ACT nào chưa được bù. window_timer chỉ còn phục vụ throttle phối hợp đa bank.
     //=========================================================================
-    logic [15:0] window_timer;
-    logic        current_epoch;
+    localparam int REFW_W = (REFW_REFS > 1) ? $clog2(REFW_REFS) : 1;
+    logic [15:0]       window_timer;
+    logic [REFW_W-1:0] ref_cnt;
+    logic              current_epoch;
+    logic [IDX_W-1:0]  sweep_idx;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             window_timer  <= '0;
+            ref_cnt       <= '0;
             current_epoch <= 1'b0;
         end else begin
-            if (window_timer >= cfg_window_size) begin
-                window_timer  <= '0;
-                current_epoch <= ~current_epoch; // Instant O(1) window reset!
-            end else begin
-                window_timer  <= window_timer + 1'b1;
+            if (window_timer >= cfg_window_size) window_timer <= '0;
+            else                                 window_timer <= window_timer + 1'b1;
+            if (i_ref_tick) begin
+                if (ref_cnt == REFW_W'(REFW_REFS - 1)) begin
+                    ref_cnt       <= '0;
+                    current_epoch <= ~current_epoch; // Instant O(1) epoch reset
+                end else begin
+                    ref_cnt       <= ref_cnt + 1'b1;
+                end
             end
         end
     end
@@ -152,9 +199,29 @@ module sdc_resilient_filter #(
     logic [TABLE_ENTRIES-1:0]   table_b_epoch;
     logic [COUNT_WIDTH-1:0]     table_b_count [TABLE_ENTRIES-1:0];
 
-    // Read current effective counts
-    wire [COUNT_WIDTH-1:0] cur_cnt_a = (table_a_epoch[eff_hash_a] == current_epoch) ? table_a_count[eff_hash_a] : '0;
-    wire [COUNT_WIDTH-1:0] cur_cnt_b = (table_b_epoch[eff_hash_b] == current_epoch) ? table_b_count[eff_hash_b] : '0;
+    // T2: đọc số đếm hiệu lực của bin T1; nếu T3 đang ghi đúng bin đó ở cạnh này thì lấy giá trị mới (forward)
+    logic [COUNT_WIDTH-1:0] cur_cnt_a, cur_cnt_b;
+    logic [COUNT_WIDTH-1:0] new_cnt_a, new_cnt_b;
+    wire  [COUNT_WIDTH-1:0] rd_cnt_a = (table_a_epoch[p1_ha] == current_epoch) ? table_a_count[p1_ha] : '0;
+    wire  [COUNT_WIDTH-1:0] rd_cnt_b = (table_b_epoch[p1_hb] == current_epoch) ? table_b_count[p1_hb] : '0;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)  p2_valid <= 1'b0;
+        else if (en) p2_valid <= p1_valid;
+    end
+    always_ff @(posedge clk)
+        if (en) begin
+            p2_cmd    <= p1_cmd;
+            p2_ha     <= p1_ha;
+            p2_hb     <= p1_hb;
+            cur_cnt_a <= (s_fire && p1_ha == p2_ha) ? new_cnt_a : rd_cnt_a;
+            cur_cnt_b <= (s_fire && cfg_hash_mode && p1_hb == p2_hb) ? new_cnt_b : rd_cnt_b;
+        end
+    // Ngưỡng động từ ATE thay đổi chậm: đăng ký để tách khỏi đường so sánh
+    logic [COUNT_WIDTH-1:0] thresh_q;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) thresh_q <= {COUNT_WIDTH{1'b1}};
+        else        thresh_q <= cfg_sdc_thresh;
+    end
 
     // Minimum count evaluation (Theorem 1)
     logic [COUNT_WIDTH-1:0] effective_count;
@@ -175,40 +242,56 @@ module sdc_resilient_filter #(
     assign o_bank_throttled_flags         = bank_throttled_flags;
     assign o_coordinated_throttle_cnt     = coordinated_throttle_cnt;
 
-    wire will_throttle      = (effective_count >= cfg_sdc_thresh);
+    wire will_throttle      = (effective_count >= thresh_q);
     wire effective_throttle = will_throttle || coordinated_throttle_active;
 
     // Handshake control
-    assign o_cmd_ready = !o_cmd_valid || i_cmd_ready;
+    assign en          = !o_cmd_valid || i_cmd_ready;
+    assign o_cmd_ready = en;
 
     // Table Update on Handshake
     wire [COUNT_WIDTH-1:0] inc_val = 1'b1 + COUNT_WIDTH'(i_rowpress_weight);
+    // Hàng chạm ngưỡng: lệnh giảm thiểu làm tươi nạn nhân nên đếm lại từ 0 (mỗi T ACT một lần giảm thiểu).
+    // Giữ nguyên số đếm sẽ giảm thiểu ở MỌI truy cập tới hết tREFW (bão refresh). Đánh đổi: hàng khác dùng chung
+    // bin có thể bị đếm thiếu, nên bảo đảm hiệu dụng là 2T ACT -> cấu hình T <= ngưỡng RowHammer / 2.
+    always_comb begin
+        if (will_throttle)                                  new_cnt_a = '0;
+        else if (cur_cnt_a <= ({COUNT_WIDTH{1'b1}} - inc_val)) new_cnt_a = cur_cnt_a + inc_val;
+        else                                                new_cnt_a = {COUNT_WIDTH{1'b1}};
+        if (will_throttle)                                  new_cnt_b = '0;
+        else if (cur_cnt_b <= ({COUNT_WIDTH{1'b1}} - inc_val)) new_cnt_b = cur_cnt_b + inc_val;
+        else                                                new_cnt_b = {COUNT_WIDTH{1'b1}};
+    end
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             table_a_epoch <= '0;
             table_b_epoch <= '0;
+            sweep_idx     <= '0;
             for (int i = 0; i < TABLE_ENTRIES; i++) begin
                 table_a_count[i] <= '0;
                 table_b_count[i] <= '0;
             end
-        end else if (i_cmd_valid && o_cmd_ready) begin
-            // Increment Table A with RowPress equivalent weight
-            if (cur_cnt_a <= ({COUNT_WIDTH{1'b1}} - inc_val)) begin
-                table_a_count[eff_hash_a] <= cur_cnt_a + inc_val;
-            end else begin
-                table_a_count[eff_hash_a] <= {COUNT_WIDTH{1'b1}};
+        end else begin
+            // Quét nền 1 bin/chu kỳ xoá bin thuộc epoch cũ. Epoch dài hàng triệu chu kỳ nên mọi bin được quét trong mỗi
+            // epoch: tag 1 bit không thể khớp nhầm với số đếm của 2 epoch trước. Truy cập cùng bin ghi sau nên được ưu tiên.
+            sweep_idx <= sweep_idx + 1'b1;
+            if (table_a_epoch[sweep_idx] != current_epoch) begin
+                table_a_count[sweep_idx] <= '0;
+                table_a_epoch[sweep_idx] <= current_epoch;
             end
-            table_a_epoch[eff_hash_a] <= current_epoch;
+            if (table_b_epoch[sweep_idx] != current_epoch) begin
+                table_b_count[sweep_idx] <= '0;
+                table_b_epoch[sweep_idx] <= current_epoch;
+            end
 
-            // Increment Table B (in Dual-Hash mode)
-            if (cfg_hash_mode == 1'b1) begin
-                if (cur_cnt_b <= ({COUNT_WIDTH{1'b1}} - inc_val)) begin
-                    table_b_count[eff_hash_b] <= cur_cnt_b + inc_val;
-                end else begin
-                    table_b_count[eff_hash_b] <= {COUNT_WIDTH{1'b1}};
+            if (s_fire) begin
+                table_a_count[eff_hash_a] <= new_cnt_a;
+                table_a_epoch[eff_hash_a] <= current_epoch;
+                if (cfg_hash_mode == 1'b1) begin
+                    table_b_count[eff_hash_b] <= new_cnt_b;
+                    table_b_epoch[eff_hash_b] <= current_epoch;
                 end
-                table_b_epoch[eff_hash_b] <= current_epoch;
             end
         end
     end
@@ -267,8 +350,8 @@ module sdc_resilient_filter #(
                 bank_throttled_flags        <= '0;
                 coordinated_throttle_active <= 1'b0;
             end else begin
-                if (i_cmd_valid && o_cmd_ready && will_throttle) begin
-                    bank_throttled_flags[i_cmd_bank] <= 1'b1;
+                if (s_fire && will_throttle) begin
+                    bank_throttled_flags[s_bank] <= 1'b1;
                 end
                 if ($countones(bank_throttled_flags) > cfg_multibank_thresh) begin
                     coordinated_throttle_active <= 1'b1;
@@ -278,17 +361,17 @@ module sdc_resilient_filter #(
                 end
             end
 
-            if (o_cmd_ready) begin
-                out_valid <= i_cmd_valid;
-                if (i_cmd_valid) begin
-                    out_id        <= i_cmd_id;
-                    out_is_write  <= i_cmd_is_write;
-                    out_bg        <= i_cmd_bg;
-                    out_bank      <= i_cmd_bank;
-                    out_row       <= i_cmd_row;
-                    out_col       <= i_cmd_col;
-                    out_len       <= i_cmd_len;
-                    out_qos       <= i_cmd_qos;
+            if (en) begin
+                out_valid <= p2_valid;
+                if (p2_valid) begin
+                    out_id        <= s_id;
+                    out_is_write  <= s_is_write;
+                    out_bg        <= s_bg;
+                    out_bank      <= s_bank;
+                    out_row       <= s_row;
+                    out_col       <= s_col;
+                    out_len       <= s_len;
+                    out_qos       <= s_qos;
                     out_throttled <= effective_throttle;
 
                     telemetry_accesses_reg <= telemetry_accesses_reg + 1'b1;
@@ -296,9 +379,9 @@ module sdc_resilient_filter #(
                     if (effective_throttle) begin
                         telemetry_throttles_reg <= telemetry_throttles_reg + 1'b1;
                         mitigation_req_reg      <= 1'b1;
-                        mitigation_bg_reg       <= i_cmd_bg;
-                        mitigation_bank_reg     <= i_cmd_bank;
-                        mitigation_row_reg      <= i_cmd_row;
+                        mitigation_bg_reg       <= s_bg;
+                        mitigation_bank_reg     <= s_bank;
+                        mitigation_row_reg      <= s_row;
                         sdc_alert_reg           <= 1'b1;
                     end
                 end
@@ -371,7 +454,7 @@ module sdc_resilient_filter #(
     // Property 3: Throttle and Alert Consistency
     always_ff @(posedge clk) begin
         if (rst_n && $past(rst_n)) begin
-            if ($past(o_cmd_ready && i_cmd_valid && will_throttle)) begin
+            if ($past(s_fire && will_throttle)) begin
                 assert (o_sdc_alert);
                 assert (o_mitigation_req);
                 assert (o_cmd_valid);
@@ -383,7 +466,7 @@ module sdc_resilient_filter #(
     // Property 4: Telemetry Monotonicity on Throttle
     always_ff @(posedge clk) begin
         if (rst_n && $past(rst_n)) begin
-            if ($past(o_cmd_ready && i_cmd_valid && will_throttle)) begin
+            if ($past(s_fire && will_throttle)) begin
                 assert (o_telemetry_throttles == $past(o_telemetry_throttles) + 1'b1);
             end
         end
@@ -393,7 +476,7 @@ module sdc_resilient_filter #(
     // Invariance: Any command hitting an entry that reached threshold within the epoch must be throttled.
     always_ff @(posedge clk) begin
         if (rst_n && $past(rst_n)) begin
-            if ($past(o_cmd_ready && i_cmd_valid && will_throttle)) begin
+            if ($past(s_fire && will_throttle)) begin
                 assert (o_cmd_throttled);
             end
         end
@@ -413,21 +496,18 @@ module sdc_resilient_filter #(
     // If effective_count >= cfg_sdc_thresh, will_throttle is unconditionally asserted.
     always_comb begin
         if (rst_n) begin
-            if (effective_count >= cfg_sdc_thresh) begin
+            if (effective_count >= thresh_q) begin
                 assert (will_throttle);
                 assert (effective_throttle);
             end
         end
     end
 
-    // Property 8: Instantaneous Epoch Clear Correctness
-    // Upon epoch toggle, stale table entries evaluate to 0 effective count with zero command stalls.
+    // Property 8: Cửa sổ throttle phối hợp quay về 0; epoch chỉ đổi sau đủ REFW_REFS lệnh REFab
     always_ff @(posedge clk) begin
         if (rst_n && $past(rst_n)) begin
-            if ($past(window_timer >= cfg_window_size)) begin
-                assert (window_timer == 16'd0);
-                assert (current_epoch != $past(current_epoch));
-            end
+            if ($past(window_timer >= cfg_window_size)) assert (window_timer == 16'd0);
+            if (current_epoch != $past(current_epoch)) assert ($past(i_ref_tick && ref_cnt == REFW_W'(REFW_REFS - 1)));
         end
     end
 `endif

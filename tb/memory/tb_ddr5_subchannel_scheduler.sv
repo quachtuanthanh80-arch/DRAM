@@ -75,6 +75,7 @@ module tb_ddr5_subchannel_scheduler;
     int tests_run    = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     task automatic wait_for_cmd(
         output logic [2:0]          type_out,
@@ -220,6 +221,8 @@ module tb_ddr5_subchannel_scheduler;
                  tests_passed, tests_run + 3, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;
