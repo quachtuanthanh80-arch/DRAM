@@ -200,6 +200,21 @@ def main():
     log_dir = os.path.join(root, "regression_logs")
     os.makedirs(log_dir, exist_ok=True)
 
+    timeout = 600
+    if "--timeout" in sys.argv:
+        t_idx = sys.argv.index("--timeout")
+        if t_idx + 1 >= len(sys.argv):
+            print("Error: --timeout requires a positive integer argument (seconds)", file=sys.stderr)
+            sys.exit(2)
+        val_str = sys.argv[t_idx + 1]
+        try:
+            timeout = int(val_str)
+            if timeout <= 0:
+                raise ValueError("Must be positive")
+        except ValueError:
+            print(f"Error: --timeout requires a positive integer, got '{val_str}'", file=sys.stderr)
+            sys.exit(2)
+
     iverilog = find_tool("iverilog")
     vvp = find_tool("vvp")
     iverilog_ver = get_iverilog_version(iverilog)
@@ -871,14 +886,6 @@ def main():
         },
     ]
 
-    timeout = 600
-    if "--timeout" in sys.argv:
-        try:
-            t_idx = sys.argv.index("--timeout")
-            timeout = int(sys.argv[t_idx + 1])
-        except (ValueError, IndexError):
-            timeout = 600
-
     # --tb-file <file1,file2...>: chạy một testbench tùy ý qua cùng đường phân loại
     if "--tb-file" in sys.argv:
         tb_idx = sys.argv.index("--tb-file")
@@ -972,6 +979,15 @@ def main():
     summary_json_path = os.path.join(log_dir if only else root, "regression_summary.json")
     with open(summary_json_path, "w", encoding="utf-8") as f:
         json.dump(summary_payload, f, indent=2)
+
+    if not only:
+        # Overwrite regression_logs/regression_summary.json with stale=True mirror so no conflicting 31/10 data exists
+        log_summary_path = os.path.join(log_dir, "regression_summary.json")
+        stale_copy = dict(summary_payload)
+        stale_copy["stale"] = True
+        stale_copy["canonical_path"] = "regression_summary.json"
+        with open(log_summary_path, "w", encoding="utf-8") as f:
+            json.dump(stale_copy, f, indent=2)
 
     # 2. Save Failure Diagnostics JSON
     failure_json_path = os.path.join(log_dir, "failure_report.json")
