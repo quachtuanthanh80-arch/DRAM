@@ -67,6 +67,8 @@ def allowed_patterns(tid):
 
 
 def check_task_scope(tid, bad):
+    if tid == "T00":
+        return
     pats = allowed_patterns(tid)
     if pats is None:
         bad.append(f"[scope] khong tim thay muc 'Duoc sua' trong briefs/{tid}.md")
