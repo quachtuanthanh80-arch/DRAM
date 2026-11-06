@@ -19,7 +19,7 @@ module tb_pxor_sdc_filter;
         .o_hash (hash_out)
     );
 
-    int test_errors = 0;
+    `include "tb_check.svh"
 
     initial begin
         tag_in = '0;
@@ -33,12 +33,7 @@ module tb_pxor_sdc_filter;
             logic [HASH_WIDTH-1:0] h1;
             h1 = hash_out;
             #5;
-            if (hash_out !== h1) begin
-                $display("[FAIL] Đầu ra không ổn định!");
-                test_errors++;
-            end else begin
-                $display("[PASS] Hash tính toán thành công: Tag=0x%06x -> Hash=0x%02x", tag_in, hash_out);
-            end
+            tb_check(!(hash_out !== h1), $sformatf("Hash tính toán thành công: Tag=0x%06x -> Hash=0x%02x", tag_in, hash_out));
         end
 
         $display("=== [TEST 2] Kiểm tra phân bố và tính chống va chạm cụm (Anti-Clustering) ===");
@@ -59,12 +54,7 @@ module tb_pxor_sdc_filter;
                     max_bin_count = hash_bins[b];
                 end
             end
-            if (max_bin_count > 25) begin
-                $display("[FAIL] Va chạm cụm quá mức: Max bin = %0d mẫu", max_bin_count);
-                test_errors++;
-            end else begin
-                $display("[PASS] Phân bố băm vạn năng đạt chuẩn cân bằng: Max bin = %0d/1024 mẫu!", max_bin_count);
-            end
+            tb_check(!(max_bin_count > 25), $sformatf("Phân bố băm vạn năng đạt chuẩn cân bằng: Max bin = %0d/1024 mẫu!", max_bin_count));
         end
 
         $display("=== [TEST 3] Kiểm tra tính nhạy với Seed ===");
@@ -76,21 +66,11 @@ module tb_pxor_sdc_filter;
 
             seed_in = 64'h5A5A_A5A5_89AB_CDEF;
             #5;
-            if (hash_out === old_hash) begin
-                $display("[FAIL] Đổi seed nhưng hash không đổi!");
-                test_errors++;
-            end else begin
-                $display("[PASS] Đổi seed làm đổi hash thành công: Old=0x%02x, New=0x%02x", old_hash, hash_out);
-            end
+            tb_check(!(hash_out === old_hash), $sformatf("Đổi seed làm đổi hash thành công: Old=0x%02x, New=0x%02x", old_hash, hash_out));
         end
 
-        if (test_errors == 0) begin
-            $display("\n>>> [ALL TESTS PASSED] PXOR-Hash Engine hoạt động hoàn hảo! <<<\n");
-            $finish(0);
-        end else begin
-            $display("\n>>> [FAIL] Phát hiện %0d lỗi! <<<\n", test_errors);
-            $finish(1);
-        end
+        tb_report();
+        $finish;
     end
 
 endmodule

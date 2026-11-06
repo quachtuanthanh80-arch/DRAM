@@ -119,9 +119,58 @@ module tb_qshield_crypto_top;
     // Clock Generation
     always #(ClkPeriod / 2) clk = ~clk;
 
+    // Precompute có bắt tay: lịch khoá AES-256 thật cần ~53 chu kỳ sau reset/đổi khoá, trong lúc đó precompute bị chặn
+    task automatic precomp(input logic is_wr, input logic [4:0] tag, input logic [33:0] addr);
+        i_precomp_valid    = 1'b1;
+        i_precomp_is_write = is_wr;
+        i_precomp_tag      = tag;
+        i_precomp_addr     = addr;
+        i_precomp_key_id   = 8'h01;
+        @(posedge clk);
+        while (!o_precomp_ready) @(posedge clk);
+        #0.1;
+        i_precomp_valid = 1'b0;
+        repeat (24) @(posedge clk);
+        #0.1;
+    endtask
+
+    // Profile 3: ghi một dòng, chờ bản mã + MAC
+    task automatic p3_write(input logic [4:0] tag, input logic [33:0] addr, input logic [511:0] d,
+                            output logic [511:0] ct, output logic [63:0] mac);
+        precomp(1'b1, tag, addr);
+        i_wr_valid = 1'b1; i_wr_tag = tag; i_wr_addr = addr; i_wr_data = d;
+        @(posedge clk);
+        while (!o_wr_ready) @(posedge clk);
+        #0.1;
+        i_wr_valid = 1'b0;
+        while (!o_wr_valid) @(posedge clk);
+        ct  = o_wr_data;
+        mac = o_wr_mac;
+        @(posedge clk);
+        #0.1;
+    endtask
+
+    // Profile 3: đọc một dòng (bản mã + MAC đã lưu), chờ kết luận
+    task automatic p3_read(input logic [4:0] tag, input logic [33:0] addr, input logic [511:0] ct, input logic [63:0] mac,
+                           output logic [511:0] d, output logic poison, output logic slverr);
+        precomp(1'b0, tag, addr);
+        i_rd_valid = 1'b1; i_rd_tag = tag; i_rd_addr = addr; i_rd_data = ct; i_rd_stored_mac = mac;
+        @(posedge clk);
+        while (!o_rd_ready) @(posedge clk);
+        #0.1;
+        i_rd_valid = 1'b0;
+        while (!o_rd_valid) @(posedge clk);
+        d      = o_rd_data;
+        poison = o_rd_poison;
+        slverr = o_rd_slverr;
+        @(posedge clk);
+        #0.1;
+    endtask
+
     int tests_run = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     initial begin
         clk                = 1'b0;
@@ -183,17 +232,8 @@ module tb_qshield_crypto_top;
         tests_run++;
         i_crypto_profile = 2'b10;
 
-        // Step 2a: Trigger Pre-computation on Read Address Phase
-        i_precomp_valid    = 1'b1;
-        i_precomp_is_write = 1'b0;
-        i_precomp_tag      = 5'd5;
-        i_precomp_addr     = 34'h4000; // Line 0 of page 4
-        i_precomp_key_id   = 8'h01;
-        #(ClkPeriod);
-        i_precomp_valid    = 1'b0;
-
-        // Step 2b: Overlap with DRAM latency (18 cycles)
-        #(ClkPeriod * 20);
+        // Step 2a/2b: Pre-computation on the read address phase, overlapped with DRAM latency
+        precomp(1'b0, 5'd5, 34'h4000);
 
         // Step 2c: Arriving Read Data from DRAM
         i_rd_valid = 1'b1;
@@ -217,14 +257,7 @@ module tb_qshield_crypto_top;
         // TEST 3: Profile 2 Write-Path Pre-computation
         tests_run++;
         // Pre-compute for Write
-        i_precomp_valid    = 1'b1;
-        i_precomp_is_write = 1'b1;
-        i_precomp_tag      = 5'd8;
-        i_precomp_addr     = 34'h8000;
-        #(ClkPeriod);
-        i_precomp_valid    = 1'b0;
-
-        #(ClkPeriod * 20);
+        precomp(1'b1, 5'd8, 34'h8000);
 
         // Write data dispatch
         i_wr_valid = 1'b1;
@@ -244,44 +277,37 @@ module tb_qshield_crypto_top;
         i_wr_valid = 1'b0;
         #(ClkPeriod * 2);
 
-        // TEST 4: Profile 3 (ASIL-D Poisoning on MAC Integrity Failure)
-        tests_run++;
-        i_crypto_profile = 2'b11; // CTR + MAC
+        // TEST 4: Profile 3 vòng ghi -> đọc thật (encrypt-then-MAC trên cả dòng 512 bit), rồi các tấn công
+        i_crypto_profile = 2'b11;
+        begin
+            logic [511:0] d, ct, got;
+            logic [63:0]  mac;
+            logic         ps, se;
+            d = {16{32'hC0FF_EE00}} ^ {8{64'h0123_4567_89AB_CDEF}};
+            p3_write(5'd9, 34'hC000, d, ct, mac);
+            tb_check(ct != d && mac != '0, "Profile 3 write: ciphertext differs from plaintext and carries a MAC");
 
-        // Trigger Pre-computation
-        i_precomp_valid    = 1'b1;
-        i_precomp_is_write = 1'b0;
-        i_precomp_tag      = 5'd3;
-        i_precomp_addr     = 34'hC000;
-        #(ClkPeriod);
-        i_precomp_valid    = 1'b0;
+            p3_read(5'd3, 34'hC000, ct, mac, got, ps, se);
+            tb_check(got == d && !ps && !se, $sformatf("Profile 3 round trip: read decrypts to the written line with no poison (poison %b)", ps));
 
-        #(ClkPeriod * 20);
+            // Bit 400 nằm trong 384 bit cao mà MAC cũ không phủ (S25)
+            p3_read(5'd4, 34'hC000, ct ^ (512'd1 << 400), mac, got, ps, se);
+            tb_check(ps && se && got == '0, "Profile 3: tampered high-order ciphertext bit is poisoned (zeroed + SLVERR)");
 
-        // Send corrupt read data with wrong stored MAC
-        i_rd_valid         = 1'b1;
-        i_rd_tag           = 5'd3;
-        i_rd_addr          = 34'hC000;
-        i_rd_data          = {8{64'hBAD0BAD0BAD0BAD0}};
-        i_rd_stored_mac    = 64'hDEAD_DEAD_DEAD_DEAD; // Corrupted MAC
-        #(ClkPeriod);
+            p3_read(5'd6, 34'hD000, ct, mac, got, ps, se);
+            tb_check(ps && se, "Profile 3: line relocated to another address is poisoned");
 
-        if (o_rd_poison && o_rd_slverr && o_rd_data == '0 && o_sec_fault_set[1]) begin
-            $display("[PASS] Test 4: Profile 3 ASIL-D Poisoning (Zeroized Data + SLVERR + Fault Set) verified.");
-            tests_passed++;
-        end else begin
-            $display("[FAIL] Test 4: Profile 3 Poisoning failed. Poison=%b, Slverr=%b, Data=%h, Fault=%b",
-                     o_rd_poison, o_rd_slverr, o_rd_data, o_sec_fault_set);
-            tests_failed++;
+            p3_read(5'd7, 34'hC000, ct, mac ^ 64'h1, got, ps, se);
+            tb_check(ps && se, "Profile 3: forged MAC is poisoned");
         end
-        i_rd_valid = 1'b0;
-        #(ClkPeriod * 4);
 
         $display("================================================================");
         $display("[TB_CRYPTO_TOP] SUMMARY: %0d/%0d TESTS PASSED, %0d FAILED",
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

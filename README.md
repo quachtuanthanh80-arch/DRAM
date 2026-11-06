@@ -84,24 +84,29 @@ AMBA AXI4/AXI5 Slave ──► [Zero-Bubble Skid Buffer] ──► [SCARF Addres
 ```
 
 ### RTL Source & Implementation Breakdown
-| Component | Source File | Status | Area (45nm) | Mechanism & Rationale |
-| :--- | :--- | :---: | :---: | :--- |
-| **SDC Filter** | [`sdc_resilient_filter.sv`](rtl/core/sdc_resilient_filter.sv) | Implemented ✓ | 48,920 GE | 1,024-bin Count-Min sketch with Crystalor PXOR universal hash; O(1) single-cycle epoch tag invalidation. |
-| **PXOR-Hash Engine** | [`pxor_hash_engine.sv`](rtl/core/pxor_hash_engine.sv) | Implemented ✓ | 1,120 GE | Parallel XOR universal hashing reduction tree over Toeplitz matrix with provable collision upper bound $\le 2^{-8}$. |
-| **SCARF Randomizer** | [`scarf_dram_randomizer.sv`](rtl/core/scarf_dram_randomizer.sv) | Implemented ✓ | 6,450 GE | 10-round Tweaked-Feistel low-latency cipher with 4-bit S-Box; 1-cycle spatial row-address permutation against ZenHammer/Phoenix. |
-| **Multi-VM Key Table**| [`multi_vm_key_table.sv`](rtl/crypto/multi_vm_key_table.sv) | Implemented ✓ | 12,400 GE | 16-VM ASID confidential key table with APB4 supervisor-only write protection (`pprot[1]`) & C-bit DMA bypass. |
-| **Fault-Hardened CSR**| [`fault_hardened_csr.sv`](rtl/core/fault_hardened_csr.sv) | Implemented ✓ | 2,840 GE | Triple Modular Redundancy (TMR) with 2-out-of-3 bitwise voting and continuous glitch alert latch against fault injection. |
-| **ATE Engine** | [`adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv) | Implemented ✓ | 860 GE | Applies EWMA smoothing with formal bounds on threshold range [N_base, N_max]. Proven via k-induction (k = 20). |
-| **Two-Tier Crypto**| [`qshield_crypto_top.sv`](rtl/crypto/qshield_crypto_top.sv) | Implemented ✓ | 38,620 GE | Two-tier decoupled cryptographic subsystem with 0-cycle CTR pre-computation and dynamic Profiles 0-3. |
-| **Split-Counter Table**| [`split_counter_table.sv`](rtl/crypto/split_counter_table.sv) | Implemented ✓ | 6,850 GE | Split-counter table with 64-bit Major and 7-bit Minor counters per page; bounds storage to 1.56%. |
-| **Keystream Engine**| [`aes_ctr_keystream.sv`](rtl/crypto/aes_ctr_keystream.sv) | Implemented ✓ | 24,100 GE | 16-entry CAM tag buffer overlapping 14-stage AES keystream pre-computation with DRAM t_RCD + t_CL. |
-| **Integrity MAC**  | [`integrity_mac_gen.sv`](rtl/crypto/integrity_mac_gen.sv) | Implemented ✓ | 5,420 GE | 64-bit Universal MAC with zero-cycle verification, bus poisoning, and ASIL-D fault reporting. |
-| **ROB Queue** | [`reorder_buffer_rob.sv`](rtl/core/reorder_buffer_rob.sv) | Implemented ✓ | 18,450 GE | 16-entry CAM queue enforcing in-order retirement and eliminating RAW data hazards without stalls. |
-| **Slack Arbiter** | [`slack_aware_arbiter.sv`](rtl/backend/slack_aware_arbiter.sv) | Implemented ✓ | 14,210 GE | Opportunistic Bank Group bypassing during t_CCD_L stalls; eliminates Head-of-Line blocking under attack. |
-| **CMD Engine** | [`ddr5_cmd_engine.sv`](rtl/backend/ddr5_cmd_engine.sv) | Implemented ✓ | 8,960 GE | JEDEC command FSM enforcing t_RRD_L, t_RAS_min, and clamping t_RAS_max ≤ 70 µs (RowPress defense). |
-| **Skid Buffer** | [`axi4_skid_buffer.sv`](rtl/bus/axi4_skid_buffer.sv) | Implemented ✓ | 1,240 GE | 2-deep register slice providing zero-bubble backpressure decoupling between AXI host and pipeline. |
-| **ECC Scrubber** | [`ecc_scrubber.sv`](rtl/backend/ecc_scrubber.sv) | Implemented ✓ | 12,850 GE | Autonomous background SEC-DED (72, 64) scrubbing engine correcting single-bit faults in-flight. |
-| **Bus Scrambler**| [`bus_scrambler.sv`](rtl/memory/bus_scrambler.sv) | Implemented ✓ | 4,200 GE | 128/64-bit Galois LFSR symmetric data bus scrambler with APB dynamic re-seeding. |
+Area figures were removed on 2026-10-30: no synthesis run in this repository produced the old gate-equivalent column. The "Evidence" column names the test that exercises each claim; run it with `python run_iverilog_regression.py --only <tb>`.
+
+| Component | Source File | What it does (as implemented) | Evidence |
+| :--- | :--- | :--- | :--- |
+| **SDC Filter** | [`sdc_resilient_filter.sv`](rtl/core/sdc_resilient_filter.sv) | Dual-hash count-min sketch with epoch tags. The epoch advances after 8192 REFab (tREFW). The count resets after mitigation, so the guarantee is 2T: configure T ≤ RH threshold / 2. | `test_sdc_filter.py`, `tb_security_attacks_vcd` |
+| **PXOR-Hash Engine** | [`pxor_hash_engine.sv`](rtl/core/pxor_hash_engine.sv) | Parallel XOR hash reduction for the filter bins. | `tb_pxor_sdc_filter` |
+| **SCARF Randomizer** | [`scarf_dram_randomizer.sv`](rtl/core/scarf_dram_randomizer.sv) | Alternating unbalanced Feistel on the row address, bijective for any round function. | `tb_scarf_randomizer` (exhaustive 2^19: 0 collisions) |
+| **Multi-VM Key Table** | [`multi_vm_key_table.sv`](rtl/crypto/multi_vm_key_table.sv) | Per-ASID keys. Writes need PPROT secure+privileged (`pprot[0] && !pprot[1]`). Keys are write-only, and reset leaves keys 0 with valid = 0. | `tb_multi_vm_key_table` |
+| **Fault-Hardened CSR** | [`fault_hardened_csr.sv`](rtl/core/fault_hardened_csr.sv), [`ddr5_cmd_engine.sv`](rtl/backend/ddr5_cmd_engine.sv) | TMR registers with 2-of-3 voting and a glitch alert latch. The per-BG rolling ACT counters that trigger autonomous RFM use a cross-counter (up + down copy, as OpenTitan `prim_count`): a glitch that clears or lowers a counter is detected, raises `o_glitch_alert` and forces a fail-safe RFM. | `tb_fault_hardened_csr`, `tb_ddr5_cmd_engine` test 4 |
+| **ATE Engine** | [`adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv) | Adapts the threshold with EWMA, clamped to [N_base, N_max]. | `tb_adaptive_threshold_engine` |
+| **AES-256 Key Schedule** | [`aes256_key_expand.sv`](rtl/crypto/aes256_key_expand.sv) | FIPS-197 expansion, one word per cycle (52 cycles). `o_valid` blocks cryptographic use until all round keys exist. | `tb_aes256_key_expand`: FIPS-197 A.3, C.3 and 64 Python `cryptography` vectors |
+| **Two-Tier Crypto** | [`qshield_crypto_top.sv`](rtl/crypto/qshield_crypto_top.sv) | Profiles 0–3. CTR keystream is precomputed per tag. Profile 3 is encrypt-then-MAC over the full 512-bit line and holds each beat until the CMAC verdict. | `tb_qshield_crypto_top` (write→read round trip, tamper, relocation, forged MAC) |
+| **Split-Counter Table** | [`split_counter_table.sv`](rtl/crypto/split_counter_table.sv) | Major/minor write counters per page. | `tb_qshield_crypto_top` |
+| **Keystream Engine** | [`aes_ctr_keystream.sv`](rtl/crypto/aes_ctr_keystream.sv) | 14-stage AES round pipeline with a 16-entry tag buffer. | `tb_qshield_crypto_top` |
+| **Integrity MAC** | [`integrity_mac_gen.sv`](rtl/crypto/integrity_mac_gen.sv) | AES-CMAC (RFC 4493) over data ‖ address ‖ write counter, truncated to 64 bits. Multi-cycle: (NB + 1) AES-128 blocks per line. | `tb_integrity_mac_attack` (bit-exact vs Python `cryptography`) |
+| **ROB** | [`reorder_buffer_rob.sv`](rtl/core/reorder_buffer_rob.sv) | Retires in order per AXI ID (age matrix), so different IDs may overtake each other. | `tb_reorder_buffer_rob`, `test_rob.py` |
+| **QoS Queue** | [`qos_scheduler_queue.sv`](rtl/core/qos_scheduler_queue.sv) | Per-entry same-address dependency masks keep RAW/WAR/WAW order while QoS reorders independent commands. | `tb_qos_scheduler_queue` |
+| **Slack Arbiter** | [`slack_aware_arbiter.sv`](rtl/backend/slack_aware_arbiter.sv) | Bank-group bypass during tCCD_L. Head-of-line blocking from the per-BG queue partition remains (open gap R20). | `tb_slack_aware_arbiter` |
+| **CMD Engine** | [`ddr5_cmd_engine.sv`](rtl/backend/ddr5_cmd_engine.sv) | JEDEC FSM: tRCD/tRP/tRAS/tRRD_S/L/tFAW/tWR/tRTP, REFab every tREFI (postpone ≤ 4), RFMab, victim refresh by ACT→tRAS→PRE, tRAS(max) clamp, RMW for partial writes. | `dfi_jedec_checker` on every top-level TB (0 violations), `test_cmd_engine.py` |
+| **Skid Buffer** | [`axi4_skid_buffer.sv`](rtl/bus/axi4_skid_buffer.sv) | 2-entry register slice. | `tb_axi4_slave_adapter` |
+| **SEC-DED ECC** | [`secded_72_64_pkg.sv`](rtl/backend/secded_72_64_pkg.sv), [`ecc_scrubber.sv`](rtl/backend/ecc_scrubber.sv) | Hamming (72,64), with masks equal to OpenTitan `prim_secded_hamming_72_64`; check bits are stored inverted (XOR `0xAA`, as in OpenTitan `prim_secded_inv`), so an all-zero or all-one 72-bit word (stuck DQ bus, absent DIMM, bulk-erased line) decodes as uncorrectable instead of valid data. Encodes on DFI write and corrects on read. Uncorrectable beats return SLVERR / RPOISON. A 3-bit error landing on a non-existent position is trapped; other 3-bit errors are miscorrected (68 of 70 adjacent clusters). | `tb_eccfail_zem_scrubber` (72 single, 2556 double, all-0/all-1 words), `tb_e2e_scoreboard` fault injection |
+| **Chipkill RS** | [`rs_chipkill_encoder.sv`](rtl/backend/rs_chipkill_encoder.sv), [`rs_chipkill_decoder.sv`](rtl/backend/rs_chipkill_decoder.sv) | RS(18,16) over GF(2^8): one symbol per x4 chip over 2 beats. Corrects any single chip. A two-chip failure is detected about 93.5 % of the time (d = 3, so there is no DSD guarantee). Standalone: not wired into `axi_ddr5_mc_top`. | `tb_rs_chipkill_selfcheck` (4590/4590), `tb_rs_parity_chip` |
+| **Bus Scrambler** | [`bus_scrambler.sv`](rtl/memory/bus_scrambler.sv) | Stateless keystream: 3-round ARX of the seed and the physical word address. | `tb_e2e_scoreboard`, `test_bus_scrambler.py` |
 
 ---
 

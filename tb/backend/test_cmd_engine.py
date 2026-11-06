@@ -5,7 +5,7 @@
 #              1. Row-Miss: Closed bank -> ACT -> tRCD -> RD.
 #              2. Row-Hit: Open bank same row -> Immediate RD without PRE/ACT.
 #              3. Row-Conflict: Open bank diff row -> PRE -> tRP -> ACT -> tRCD -> RD.
-#              4. CAS Read Latency (tCL) and writeback return to ROB.
+#              4. Dữ liệu đọc thật từ DFI được gắn đúng tag của lệnh RD và chuyển sang ROB.
 #=============================================================================
 
 import cocotb
@@ -19,6 +19,16 @@ CMD_RD  = 3
 CMD_WR  = 4
 CMD_REF = 5
 
+async def wait_cmd(dut, cmd, max_cycles=4):
+    """Lệnh đi qua slice nhận lệnh + chu kỳ phân loại bank: chờ lệnh DFI xuất hiện trong vài chu kỳ."""
+    for _ in range(max_cycles):
+        await Timer(1, unit="ns")
+        if int(dut.o_dfi_cmd.value) == cmd:
+            return True
+        await RisingEdge(dut.clk)
+    await Timer(1, unit="ns")
+    return int(dut.o_dfi_cmd.value) == cmd
+
 async def reset_dut(dut):
     dut.rst_n.value = 0
     dut.i_cmd_valid.value = 0
@@ -30,7 +40,18 @@ async def reset_dut(dut):
     dut.i_cmd_col.value = 0
     dut.i_cmd_len.value = 0
     dut.i_cmd_tag.value = 0
+    dut.i_dfi_rddata_valid.value = 0
+    dut.i_dfi_rddata.value = 0
     dut.i_cmd_is_mitigation.value = 0
+    # Giá trị mặc định khai báo trên cổng không được áp ở top-level khi cocotb điều khiển: phải lái tường minh,
+    # nếu không các cổng này là X và o_engine_ready cũng ra X
+    dut.cfg_rowpress_thresh.value = 5000
+    dut.cfg_rowpress_curve.value = 0
+    dut.cfg_tras_max_thresh.value = 8775
+    dut.i_dram_abo_alert.value = 0
+    dut.i_cmd_rmw.value = 0
+    dut.cfg_raammt_thresh.value = 32
+    dut.cfg_decoy_en.value = 0
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -57,8 +78,7 @@ async def test_row_miss_activate_and_read(dut):
     await RisingEdge(dut.clk)
     dut.i_cmd_valid.value = 0
 
-    # In this cycle, engine must issue CMD_ACT
-    await Timer(1, unit="ns")
+    assert await wait_cmd(dut, CMD_ACT), "Row-Miss did not issue CMD_ACT"
     assert int(dut.o_dfi_cmd.value) == CMD_ACT, f"Expected CMD_ACT but got {int(dut.o_dfi_cmd.value)}"
     assert int(dut.o_dfi_bg.value) == 0
     assert int(dut.o_dfi_row.value) == 0x100
@@ -77,18 +97,20 @@ async def test_row_miss_activate_and_read(dut):
 
     assert rd_issued, "CMD_RD was not issued after tRCD delay!"
 
-    # Wait for CAS Read Latency (tCL = 8 cycles) and check writeback to ROB
-    wb_received = False
-    for cycle in range(15):
+    # DRAM trả beat dữ liệu sau CL; engine phải gắn đúng tag của lệnh RD và chuyển nguyên dữ liệu sang ROB
+    for _ in range(7):
         await RisingEdge(dut.clk)
-        await Timer(1, unit="ns")
-        if int(dut.o_wb_valid.value) == 1:
-            wb_received = True
-            assert int(dut.o_wb_tag.value) == 0x3, f"Expected tag 0x3, got {int(dut.o_wb_tag.value)}"
-            dut._log.info(f"Writeback arrived at ROB with tag {int(dut.o_wb_tag.value)} and data {hex(int(dut.o_wb_data.value))}")
-            break
-
-    assert wb_received, "Read writeback data did not arrive at ROB within expected CAS latency!"
+    dut.i_dfi_rddata.value = 0x0123_4567_89AB_CDEF
+    dut.i_dfi_rddata_valid.value = 1
+    await Timer(1, unit="ns")
+    assert int(dut.o_wb_valid.value) == 1, "Engine did not forward DRAM read data to the ROB"
+    assert int(dut.o_wb_tag.value) == 0x3, f"Expected tag 0x3, got {int(dut.o_wb_tag.value)}"
+    assert int(dut.o_wb_data.value) == 0x0123_4567_89AB_CDEF, "Read data altered on its way to the ROB"
+    assert int(dut.o_wb_last.value) == 1
+    await RisingEdge(dut.clk)
+    dut.i_dfi_rddata_valid.value = 0
+    await Timer(1, unit="ns")
+    assert int(dut.o_wb_valid.value) == 0, "Engine produced read data without a DRAM beat"
 
 @cocotb.test()
 async def test_row_hit_direct_issue(dut):
@@ -113,8 +135,8 @@ async def test_row_hit_direct_issue(dut):
     await RisingEdge(dut.clk)
     dut.i_cmd_valid.value = 0
 
-    await Timer(1, unit="ns")
-    # MUST directly issue CMD_RD! No CMD_ACT!
+    # Row hit: CMD_RD trực tiếp, không có ACT
+    assert await wait_cmd(dut, CMD_RD), "Row-Hit did not issue CMD_RD"
     assert int(dut.o_dfi_cmd.value) == CMD_RD, f"Expected immediate CMD_RD for Row-Hit, got {int(dut.o_dfi_cmd.value)}"
     assert int(dut.o_dfi_col.value) == 0x20
     dut._log.info("Immediate CMD_RD on Row-Hit verified successfully (Zero-Bubble ACT avoidance)!")
@@ -141,10 +163,17 @@ async def test_row_conflict_precharge_and_activate(dut):
     await RisingEdge(dut.clk)
     dut.i_cmd_valid.value = 0
 
-    # Step 1: Must issue CMD_PRE
-    await Timer(1, unit="ns")
-    assert int(dut.o_dfi_cmd.value) == CMD_PRE, f"Expected CMD_PRE on Row Conflict, got {int(dut.o_dfi_cmd.value)}"
-    dut._log.info("Step 1: CMD_PRE issued on Row Conflict")
+    # Step 1: PRE chỉ được phát khi hàng đang mở đã đủ tRAS (và tRTP sau RD); hàng vừa mở nên PRE có thể phải chờ
+    pre_issued = False
+    for cycle in range(24):
+        await Timer(1, unit="ns")
+        if int(dut.o_dfi_cmd.value) == CMD_PRE:
+            pre_issued = True
+            break
+        assert int(dut.o_dfi_cmd.value) in (CMD_NOP,), f"Unexpected command {int(dut.o_dfi_cmd.value)} before PRE"
+        await RisingEdge(dut.clk)
+    assert pre_issued, "CMD_PRE was not issued on Row Conflict"
+    dut._log.info(f"Step 1: CMD_PRE issued on Row Conflict after {cycle} cycles (tRAS respected)")
 
     # Step 2: Must wait tRP and issue CMD_ACT with new row 0x200
     act_issued = False
@@ -179,8 +208,8 @@ async def test_rowpress_detection(dut):
     clock = Clock(dut.clk, 2.5, unit="ns")
     cocotb.start_soon(clock.start())
 
-    dut.cfg_rowpress_thresh.value = 20 # Low threshold for simulation
     await reset_dut(dut)
+    dut.cfg_rowpress_thresh.value = 20 # Low threshold for simulation
 
     # Open bank: BG 1, Bank 2, Row 0x0ABC
     dut.i_cmd_valid.value = 1

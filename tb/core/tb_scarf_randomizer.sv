@@ -38,7 +38,11 @@ module tb_scarf_randomizer;
     initial clk = 0;
     always #1.25 clk = ~clk;
 
-    int test_errors = 0;
+    `include "tb_check.svh"
+
+    // Bảng đánh dấu ảnh đã gặp trên toàn miền 2^(ROW+BANK): song ánh ⇔ không có ảnh trùng.
+    localparam int DOMAIN = 1 << (ROW_WIDTH + BANK_WIDTH);
+    bit seen [DOMAIN];
 
     initial begin
         rst_n = 0;
@@ -56,23 +60,15 @@ module tb_scarf_randomizer;
         i_row = 17'h01ABC;
         i_bank = 2'b11;
         #5;
-        if (o_scrambled_row !== i_row || o_scrambled_bank !== i_bank) begin
-            $display("[FAIL] Bypass không khớp: Row=0x%05x Bank=%b", o_scrambled_row, o_scrambled_bank);
-            test_errors++;
-        end else begin
-            $display("[PASS] Bypass hoạt động chính xác!");
-        end
+        tb_check(o_scrambled_row === i_row && o_scrambled_bank === i_bank,
+                 $sformatf("Bypass passes address through: Row=0x%05x Bank=%b", o_scrambled_row, o_scrambled_bank));
 
         $display("=== [TEST 2] Kích hoạt SCARF và kiểm tra xáo trộn phi tuyến ===");
         cfg_scramble_en = 1;
         #5;
-        if (o_scrambled_row === i_row && o_scrambled_bank === i_bank) begin
-            $display("[FAIL] SCARF không biến đổi địa chỉ!");
-            test_errors++;
-        end else begin
-            $display("[PASS] SCARF hoán vị thành công: In=(0x%05x,%b) -> Out=(0x%05x,%b)",
-                     i_row, i_bank, o_scrambled_row, o_scrambled_bank);
-        end
+        tb_check(!(o_scrambled_row === i_row && o_scrambled_bank === i_bank),
+                 $sformatf("SCARF transforms address: In=(0x%05x,%b) -> Out=(0x%05x,%b)",
+                           i_row, i_bank, o_scrambled_row, o_scrambled_bank));
 
         $display("=== [TEST 3] Kiểm tra tính nhạy cảm với Seed (Avalanche Effect) ===");
         begin
@@ -84,34 +80,41 @@ module tb_scarf_randomizer;
             // Thay đổi 1 bit của seed
             cfg_scramble_seed = 64'hFEDC_BA98_7654_3211;
             #5;
-            if (o_scrambled_row === row_out1 && o_scrambled_bank === bank_out1) begin
-                $display("[FAIL] Seed thay đổi nhưng đầu ra không đổi!");
-                test_errors++;
-            end else begin
-                $display("[PASS] Hiệu ứng thác đổ đạt chuẩn: New Out=(0x%05x,%b)",
-                         o_scrambled_row, o_scrambled_bank);
-            end
+            tb_check(!(o_scrambled_row === row_out1 && o_scrambled_bank === bank_out1),
+                     $sformatf("Seed change alters mapping: New Out=(0x%05x,%b)", o_scrambled_row, o_scrambled_bank));
         end
 
-        $display("=== [TEST 4] Kiểm tra tính song ánh trên 5,000 mẫu liên tiếp ===");
+        $display("=== [TEST 4] Song ánh vét cạn trên toàn miền %0d địa chỉ (row,bank) ===", DOMAIN);
         begin
-            int collisions = 0;
-            // Kiểm tra phân bố khác biệt giữa các hàng kế tiếp (anti-adjacency)
-            for (int k = 0; k < 5000; k++) begin
-                i_row = k[ROW_WIDTH-1:0];
-                i_bank = k[BANK_WIDTH-1:0];
+            int collisions;
+            int first_a, first_b;
+            int img;
+            int owner [DOMAIN];
+            collisions = 0;
+            first_a = -1;
+            first_b = -1;
+            for (int k = 0; k < DOMAIN; k++) begin
+                {i_bank, i_row} = k[ROW_WIDTH+BANK_WIDTH-1:0];
                 #1;
+                img = int'({o_scrambled_bank, o_scrambled_row});
+                if (seen[img]) begin
+                    if (collisions == 0) begin
+                        first_a = owner[img];
+                        first_b = k;
+                    end
+                    collisions++;
+                end else begin
+                    seen[img]  = 1'b1;
+                    owner[img] = k;
+                end
             end
-            $display("[PASS] 5,000 mẫu được sinh thành công với 0 va chạm!");
+            tb_check(collisions == 0,
+                     $sformatf("SCARF is a bijection over all 2^19 {bank,row} inputs (%0d collisions, first pair 0x%05x/0x%05x)",
+                               collisions, first_a, first_b));
         end
 
-        if (test_errors == 0) begin
-            $display("\n>>> [ALL TESTS PASSED] SCARF DRAM Randomizer hoạt động hoàn hảo! <<<\n");
-            $finish(0);
-        end else begin
-            $display("\n>>> [FAIL] Phát hiện %0d lỗi! <<<\n", test_errors);
-            $finish(1);
-        end
+        tb_report();
+        $finish;
     end
 
 endmodule

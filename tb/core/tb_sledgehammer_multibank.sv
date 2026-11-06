@@ -114,6 +114,7 @@ module tb_sledgehammer_multibank;
     int tests_run = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     task automatic send_cmd(
         input logic [BG_WIDTH-1:0]   bg,
@@ -192,6 +193,8 @@ module tb_sledgehammer_multibank;
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

@@ -70,15 +70,30 @@ module qshield_crypto_top
     //=========================================================================
     // 1. Sinh khoa vong AES-256 (Round Keys Expansion)
     //=========================================================================
-    logic [127:0] round_keys [15];
-    assign round_keys[0] = i_key1_data[255:128];
-    assign round_keys[1] = i_key1_data[127:0];
+    // Lịch khoá FIPS-197 thật. Bản cũ đặt round_keys[k] = key ^ k*0x9E3779B9 nên vòng AES thật nhưng mật mã
+    // không phải AES-256 (S27). Khi khoá đang được tính lại, precompute bị chặn (không sinh keystream dở dang).
+    logic [127:0]      round_keys [15];
+    logic [15*128-1:0] round_keys_flat;
+    logic              kx_valid;
+    aes256_key_expand u_key_expand (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .i_key        (i_key1_data),
+        .o_valid      (kx_valid),
+        .o_round_keys (round_keys_flat)
+    );
     genvar k;
     generate
-        for (k = 2; k <= 14; k++) begin : gen_rk
-            assign round_keys[k] = i_key1_data[127:0] ^ {4{32'(k * 32'h9E37_79B9)}};
+        for (k = 0; k <= 14; k++) begin : gen_rk
+            assign round_keys[k] = round_keys_flat[k*128 +: 128];
         end
     endgenerate
+    logic ks_precomp_ready;
+    assign o_precomp_ready = ks_precomp_ready && kx_valid;
+
+    // Profile 3 giữ beat lại tới khi có kết luận MAC (CMAC nhiều chu kỳ): các tín hiệu bắt tay khai báo trước
+    wire  p3 = (i_crypto_profile == 2'b11);
+    logic rd_pop, wr_pop, wr_commit, rd_accept_p3, wr_accept_p3;
 
     //=========================================================================
     // 2. Bang bo dem phan tach (Split-Counter Table)
@@ -99,7 +114,7 @@ module qshield_crypto_top
     ) u_split_counter_table (
         .clk                  (clk),
         .rst_n                (rst_n),
-        .i_lookup_valid       (i_precomp_valid),
+        .i_lookup_valid       (i_precomp_valid && o_precomp_ready),
         .i_lookup_is_write    (i_precomp_is_write),
         .i_lookup_key_id      ((i_precomp_key_id != 8'h0) ? i_precomp_key_id : i_default_key_id),
         .i_lookup_epoch_nonce (i_epoch_nonce),
@@ -108,7 +123,7 @@ module qshield_crypto_top
         .o_ctr_blocks         (sct_ctr_blocks),
         .o_major_ctr          (sct_major_ctr),
         .o_minor_ctr          (sct_minor_ctr),
-        .i_commit_valid       (i_wr_valid && o_wr_ready && (i_crypto_profile >= 2'b10)),
+        .i_commit_valid       (wr_commit),
         .i_commit_addr        (i_wr_addr),
         .o_major_roll_alert   (sct_major_roll_alert),
         .o_major_roll_page    (sct_major_roll_page)
@@ -136,7 +151,7 @@ module qshield_crypto_top
         .cfg_ctr_en           (ctr_active),
         .round_keys           (round_keys),
         .i_precomp_valid      (sct_lookup_valid),
-        .o_precomp_ready      (o_precomp_ready),
+        .o_precomp_ready      (ks_precomp_ready),
         .i_precomp_tag        (i_precomp_tag),
         .i_precomp_ctr_blocks (sct_ctr_blocks),
 
@@ -146,7 +161,7 @@ module qshield_crypto_top
         .i_rd_tag             (i_rd_tag),
         .i_rd_data            (i_rd_data),
         .o_rd_valid           (ctr_rd_valid),
-        .i_rd_pop             (i_rd_ready),
+        .i_rd_pop             (rd_pop),
         .o_rd_data            (ctr_rd_data),
         .o_rd_hit             (ctr_rd_hit),
 
@@ -156,7 +171,7 @@ module qshield_crypto_top
         .i_wr_tag             (i_wr_tag),
         .i_wr_data            (i_wr_data),
         .o_wr_valid           (ctr_wr_valid),
-        .i_wr_pop             (i_wr_ready),
+        .i_wr_pop             (wr_pop),
         .o_wr_data            (ctr_wr_data),
         .o_wr_hit             (ctr_wr_hit)
     );
@@ -166,37 +181,99 @@ module qshield_crypto_top
     //=========================================================================
     logic         mac_wr_valid;
     logic [63:0]  mac_wr_val;
+    logic         mac_rd_valid;
     logic         mac_violation;
+    logic         mac_wr_ready, mac_rd_ready;
 
+    // Bộ đếm ghi của từng dòng được chốt theo tag lúc precompute (tra cứu bảng bộ đếm là tổ hợp, cùng chu kỳ).
+    // Bản cũ dùng bộ đếm của lần tra cứu gần nhất, có thể của một tag khác.
+    logic [31:0] tag_ctr [TAG_ENTRIES];
+    always_ff @(posedge clk)
+        if (sct_lookup_valid && i_precomp_valid && o_precomp_ready && (i_precomp_tag < TAG_WIDTH'(TAG_ENTRIES)))
+            tag_ctr[i_precomp_tag] <= {sct_major_ctr[24:0], sct_minor_ctr};
+
+    // Encrypt-then-MAC trên cả dòng 512 bit bản mã: chiều ghi dùng bản mã vừa tạo, chiều đọc dùng bản mã từ DRAM.
+    // Bản cũ chỉ phủ 128 bit thấp (S25) và chiều đọc kiểm trên bản rõ trong khi chiều ghi ký bản mã (S26).
     integrity_mac_gen #(
-        .DATA_WIDTH (128),
+        .DATA_WIDTH (DATA_WIDTH),
         .ADDR_WIDTH (32),
         .MAC_WIDTH  (MAC_WIDTH)
     ) u_mac_gen (
         .clk                   (clk),
         .rst_n                 (rst_n),
-        .cfg_mac_en            (i_crypto_profile == 2'b11),
+        .cfg_mac_en            (p3),
         .cfg_mac_key           (i_key2_data),
 
-        // Sinh MAC cho Write Path
-        .i_wr_valid            (i_wr_valid && (i_crypto_profile == 2'b11)),
-        .o_wr_ready            (),
+        .i_wr_valid            (wr_accept_p3),
+        .o_wr_ready            (mac_wr_ready),
         .i_wr_addr             (i_wr_addr[31:0]),
-        .i_wr_counter          ({sct_major_ctr[24:0], sct_minor_ctr}),
-        .i_wr_data             (ctr_wr_data[127:0]),
+        .i_wr_counter          (tag_ctr[i_wr_tag]),
+        .i_wr_data             (ctr_wr_data),
         .o_wr_mac_valid        (mac_wr_valid),
         .o_wr_mac              (mac_wr_val),
 
-        // Kiem tra MAC tren Read Path
-        .i_rd_valid            (i_rd_valid && (i_crypto_profile == 2'b11)),
-        .o_rd_ready            (),
+        .i_rd_valid            (rd_accept_p3),
+        .o_rd_ready            (mac_rd_ready),
         .i_rd_addr             (i_rd_addr[31:0]),
-        .i_rd_counter          ({sct_major_ctr[24:0], sct_minor_ctr}),
-        .i_rd_data             (ctr_rd_data[127:0]),
+        .i_rd_counter          (tag_ctr[i_rd_tag]),
+        .i_rd_data             (i_rd_data),
         .i_rd_stored_mac       (i_rd_stored_mac),
-        .o_rd_mac_valid        (),
+        .o_rd_mac_valid        (mac_rd_valid),
         .o_integrity_violation (mac_violation)
     );
+
+    // Bộ giữ beat của profile 3: nhận khi keystream sẵn và lõi MAC rảnh, xuất khi có kết luận MAC
+    logic                  rh_busy, rh_out, rh_viol;
+    logic [TAG_WIDTH-1:0]  rh_tag;
+    logic [ADDR_WIDTH-1:0] rh_addr;
+    logic [DATA_WIDTH-1:0] rh_data;
+    logic                  wh_busy, wh_out;
+    logic [TAG_WIDTH-1:0]  wh_tag;
+    logic [ADDR_WIDTH-1:0] wh_addr;
+    logic [DATA_WIDTH-1:0] wh_data;
+    logic [MAC_WIDTH-1:0]  wh_mac;
+    assign rd_accept_p3 = p3 && i_rd_valid && ctr_rd_valid && !rh_busy && mac_rd_ready;
+    assign wr_accept_p3 = p3 && i_wr_valid && ctr_wr_valid && !wh_busy && mac_wr_ready;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            rh_busy <= 1'b0; rh_out <= 1'b0; rh_viol <= 1'b0; rh_tag <= '0; rh_addr <= '0; rh_data <= '0;
+            wh_busy <= 1'b0; wh_out <= 1'b0; wh_tag <= '0; wh_addr <= '0; wh_data <= '0; wh_mac <= '0;
+        end else begin
+            if (rd_accept_p3) begin
+                rh_busy <= 1'b1;
+                rh_tag  <= i_rd_tag;
+                rh_addr <= i_rd_addr;
+                rh_data <= ctr_rd_data;
+            end
+            if (mac_rd_valid && rh_busy) begin
+                rh_out  <= 1'b1;
+                rh_viol <= mac_violation;
+            end
+            if (rh_out && i_rd_ready) begin
+                rh_out  <= 1'b0;
+                rh_busy <= 1'b0;
+            end
+            if (wr_accept_p3) begin
+                wh_busy <= 1'b1;
+                wh_tag  <= i_wr_tag;
+                wh_addr <= i_wr_addr;
+                wh_data <= ctr_wr_data;
+            end
+            if (mac_wr_valid && wh_busy) begin
+                wh_out <= 1'b1;
+                wh_mac <= mac_wr_val;
+            end
+            if (wh_out && i_wr_ready) begin
+                wh_out  <= 1'b0;
+                wh_busy <= 1'b0;
+            end
+        end
+    end
+
+    assign rd_pop    = p3 ? rd_accept_p3 : i_rd_ready;
+    assign wr_pop    = p3 ? wr_accept_p3 : i_wr_ready;
+    assign wr_commit = p3 ? wr_accept_p3 : (i_wr_valid && o_wr_ready && (i_crypto_profile == 2'b10));
 
     //=========================================================================
     // 5. Page Hit Skid Buffer & Giao dien Xuat Duong Doc (Read Egress)
@@ -224,8 +301,8 @@ module qshield_crypto_top
         end
     end
 
-    // Ghep du lieu doc cuoi cung theo Profile
-    assign o_rd_ready = !skid_rd_valid_q;
+    // Ghep du lieu doc cuoi cung theo Profile; profile 3 báo nhận beat khi đã chốt vào bộ giữ
+    assign o_rd_ready = p3 ? rd_accept_p3 : !skid_rd_valid_q;
 
     always_comb begin
         case (i_crypto_profile)
@@ -257,13 +334,13 @@ module qshield_crypto_top
             end
 
             2'b11: begin // Profile 3: High-Security CTR + MAC + ASIL-D Poisoning
-                o_rd_valid  = ctr_rd_valid;
-                o_rd_tag    = i_rd_tag;
-                o_rd_addr   = i_rd_addr;
-                // Poisoning: Khi MAC violation xay ra, zero-out toan bo rdata de triet tieu du lieu doc
-                o_rd_data   = mac_violation ? '0 : ctr_rd_data;
-                o_rd_poison = mac_violation;
-                o_rd_slverr = mac_violation;
+                // Beat chỉ ra sau khi MAC đã kiểm xong; vi phạm thì xoá dữ liệu và gắn poison/SLVERR
+                o_rd_valid  = rh_out;
+                o_rd_tag    = rh_tag;
+                o_rd_addr   = rh_addr;
+                o_rd_data   = rh_viol ? '0 : rh_data;
+                o_rd_poison = rh_viol;
+                o_rd_slverr = rh_viol;
             end
         endcase
     end
@@ -271,7 +348,7 @@ module qshield_crypto_top
     //=========================================================================
     // 6. Giao dien Xuat Duong Ghi (Write Egress)
     //=========================================================================
-    assign o_wr_ready = i_wr_ready;
+    assign o_wr_ready = p3 ? wr_accept_p3 : i_wr_ready;
 
     always_comb begin
         case (i_crypto_profile)
@@ -291,12 +368,20 @@ module qshield_crypto_top
                 o_wr_mac   = '0;
             end
 
-            default: begin // Profiles 2 & 3: CTR Mode
+            2'b10: begin // Profile 2: CTR
                 o_wr_valid = ctr_wr_valid;
                 o_wr_tag   = i_wr_tag;
                 o_wr_addr  = i_wr_addr;
                 o_wr_data  = ctr_wr_data;
-                o_wr_mac   = mac_wr_val;
+                o_wr_mac   = '0;
+            end
+
+            default: begin // Profile 3: bản mã ra cùng MAC của nó
+                o_wr_valid = wh_out;
+                o_wr_tag   = wh_tag;
+                o_wr_addr  = wh_addr;
+                o_wr_data  = wh_data;
+                o_wr_mac   = wh_mac;
             end
         endcase
     end
@@ -308,10 +393,10 @@ module qshield_crypto_top
         1'b0,                 // Bit 4: Glitch/TMR alert
         1'b0,                 // Bit 3: Multi-VM privilege alert
         sct_major_roll_alert, // Bit 2: Minor counter overflow (Major roll-over)
-        mac_violation,        // Bit 1: MAC integrity violation
+        mac_rd_valid && mac_violation, // Bit 1: MAC integrity violation
         1'b0                  // Bit 0: SDC filter alert
     };
 
-    assign o_fault_addr_log = mac_violation ? i_rd_addr[31:0] : {{(22 - SCT_PAGE_WIDTH){1'b0}}, sct_major_roll_page, 10'h0};
+    assign o_fault_addr_log = rh_viol ? rh_addr[31:0] : {{(22 - SCT_PAGE_WIDTH){1'b0}}, sct_major_roll_page, 10'h0};
 
 endmodule

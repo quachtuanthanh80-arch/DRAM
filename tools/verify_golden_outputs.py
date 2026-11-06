@@ -53,7 +53,6 @@ def main():
 
     checks = [
         ("attack_emulation_summary.json", os.path.join(sim_res_dir, "attack_emulation_summary.json"), os.path.join(golden_dir, "attack_emulation_summary.json")),
-        ("apples_to_apples_cycle_accurate.json", os.path.join(sim_res_dir, "apples_to_apples_cycle_accurate.json"), os.path.join(golden_dir, "apples_to_apples_cycle_accurate.json")),
         ("regression_summary.json", os.path.join(root, "regression_summary.json"), os.path.join(golden_dir, "regression_summary.json")),
     ]
 

@@ -1,20 +1,25 @@
-# Q-Shield Master Hardware Security Audit Report
+# Q-Shield Security Audit Report
 
-- **Execution Timestamp**: 2026-10-26 13:30:35 UTC
-- **Git Commit SHA**: `1d21ae8ea4866712d68ca851322b6501803a3e70`
-- **Overall Security Verdict**: **CERTIFIED_SECURE**
+- Commit: `916b881bb4515185778db15720309957f3380818`
+- Overall verdict: **OPEN_VULNERABILITIES**
 
-## 1. Multi-Tier Security Verification Matrix
+| Tier | Abstraction | Status | Evidence |
+| :--- | :--- | :---: | :--- |
+| 1 | Python architectural model | RAN | 0 escaped flips in model; 7/8 traces never reach HC_FIRST undefended |
+| 2 | RTL (Icarus Verilog) | PASS_WITH_OPEN_GAPS | 30 checks, 0 failed, 12 open-gap checks |
+| 3 | Formal (SymbiYosys) | NOT_RUN | 12 jobs |
 
-| Tier | Level of Abstraction | Scenarios / Beats | Escaped Bit-Flips | Detection Rate | Benign FPR | Status |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Tier 1** | Architectural Emulation | 8 Threat Traces | **0** | **100.0%** | **0.020%** | **PASS** |
-| **Tier 1 (Fuzzer)** | Randomized Fuzzing Stream | 1,000,000 Beats | **0** | **100.0%** | **0.000%** | **PASS** |
-| **Tier 2** | Synthesizable RTL (Iverilog) | 13 Hardware Vectors | **0** | **100.0%** | **0.000%** | **PASS** |
-| **Tier 3** | Formal SVA (SymbiYosys) | 11 Safety Invariants (k=30) | **0** | **100.0%** | **0.000%** | **PASS** |
+## Open vulnerabilities found by the RTL red-team suite
 
-## 2. GTKWave Waveform Instrumentation
-
-- **Waveform Artifact**: `waveform_security_attacks.vcd`
-- **File Size**: 2.53 MB
-- **Signals Tracked**: `clk_axi`, `clk_ddr`, `s_axi_arready`, `o_throttled_events`, `o_coordinated_throttle_active`, `o_tras_clamped_alert`, `s_axi_rresp`, `dfi_cmd`
+- **S10**: V0 effective SDC threshold 514 after hammering (configured 3)
+- **S8**: V2 cumulative hammering across epochs must be mitigated (throttle +0, REF 3)
+- **S14**: V4 RowPress alert raised with curve 2 (equality comparison against falling threshold)
+- **R18**: V8 high-QoS read completed in 217 cycles (bound 2x baseline = 46)
+- **R9**: V10 read-back data equals written (wrote deadbeefcafebabe, read aaaa000000000700)
+- **R17**: V13 distance-2 victim refresh issued (20 REF total)
+- **S11**: V14 every hot aggressor got targeted refresh (15/16)
+- **R18**: V16 high-QoS read served in 183 cycles (bound 2x baseline = 46)
+- **S18**: V17 decoy produced real DRAM activations (0 ACT)
+- **S16**: V6 same logical row maps to same physical row (first 0xd38c, again 0x190f9)
+- **S16**: V15 axi_ddr5_mc_top has no DFI data bus; scrambled/encrypted DRAM data is not observable
+- **R9**: V15 read-back with scrambling enabled equals written data

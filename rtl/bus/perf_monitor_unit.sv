@@ -48,6 +48,14 @@ module perf_monitor_unit #(
         ev_act_cmd            // Index 0
     };
 
+    // Sự kiện được đăng ký trước khi đếm: các nguồn sự kiện (grant, lệnh DFI) nằm cuối các đường dài của
+    // bộ lập lịch, đếm trễ một chu kỳ không đổi giá trị bộ đếm
+    logic [NUM_COUNTERS-1:0] ev_q;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) ev_q <= '0;
+        else        ev_q <= ev_vec;
+    end
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             for (int i = 0; i < NUM_COUNTERS; i++) begin
@@ -59,7 +67,7 @@ module perf_monitor_unit #(
             end
         end else if (cfg_perf_en) begin
             for (int i = 0; i < NUM_COUNTERS; i++) begin
-                if (ev_vec[i]) begin
+                if (ev_q[i]) begin
                     // Kiem tra chong tran (Saturating Counter)
                     if (counters_q[i] != {COUNTER_WIDTH{1'b1}}) begin
                         counters_q[i] <= counters_q[i] + 1'b1;

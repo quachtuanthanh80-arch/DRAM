@@ -1,6 +1,5 @@
-// File: tb_mcsee_autonomous_rfm.sv
-// Chức năng: Kiểm chứng cơ chế tự phát lệnh RFM JEDEC DDR5 khi CPU không gửi lệnh (McSee USENIX'25 defense).
-
+// File:        tb_mcsee_autonomous_rfm.sv
+// Chức năng:   Kiểm chứng cơ chế tự phát lệnh RFM JEDEC DDR5 khi CPU không gửi lệnh (McSee USENIX'25 defense, T-REG-01).
 `timescale 1ns / 1ps
 
 module tb_mcsee_autonomous_rfm;
@@ -32,9 +31,6 @@ module tb_mcsee_autonomous_rfm;
     logic [ROB_PTR_WIDTH-1:0]  i_cmd_tag;
     logic                      i_cmd_is_mitigation;
 
-    logic [15:0]               cfg_rowpress_thresh;
-    logic [1:0]                cfg_rowpress_curve;
-    logic [15:0]               cfg_tras_max_thresh;
     logic                      o_rowpress_alert;
     logic [BG_WIDTH-1:0]       o_rowpress_bg;
     logic [BANK_WIDTH-1:0]     o_rowpress_bank;
@@ -53,9 +49,13 @@ module tb_mcsee_autonomous_rfm;
     logic [7:0]                cfg_raammt_thresh;
     logic [15:0]               o_rfm_auto_cnt;
     logic                      o_rfm_active;
+    logic                      o_cnt_fault;
+    logic [6:1]                o_fault;
 
     logic [BG_COUNT-1:0]       o_bg_ready;
     logic                      o_engine_ready;
+    logic [BG_COUNT*BANK_COUNT-1:0] o_bank_free;
+    logic                      o_engine_mit_only;
     logic                      o_slack_cycle;
 
     logic [2:0]                o_dfi_cmd;
@@ -63,6 +63,10 @@ module tb_mcsee_autonomous_rfm;
     logic [BANK_WIDTH-1:0]     o_dfi_bank;
     logic [ROW_WIDTH-1:0]      o_dfi_row;
     logic [COL_WIDTH-1:0]      o_dfi_col;
+    logic [AXI_LEN_WIDTH-1:0]  o_dfi_len;
+    logic [ROB_PTR_WIDTH-1:0]  o_dfi_tag;
+    logic                      dfi_rddata_valid;
+    logic [AXI_DATA_WIDTH-1:0] dfi_rddata;
 
     logic                      o_wb_valid;
     logic [ROB_PTR_WIDTH-1:0]  o_wb_tag;
@@ -76,6 +80,7 @@ module tb_mcsee_autonomous_rfm;
     localparam logic [2:0] CMD_RD  = 3'b011;
     localparam logic [2:0] CMD_WR  = 3'b100;
     localparam logic [2:0] CMD_REF = 3'b101;
+    localparam logic [2:0] CMD_RFM = 3'b110;
 
     ddr5_cmd_engine #(
         .BG_COUNT        (BG_COUNT),
@@ -85,13 +90,7 @@ module tb_mcsee_autonomous_rfm;
         .AXI_ID_WIDTH    (AXI_ID_WIDTH),
         .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
         .AXI_LEN_WIDTH   (AXI_LEN_WIDTH),
-        .ROB_PTR_WIDTH   (ROB_PTR_WIDTH),
-        .T_RCD           (2),
-        .T_RP            (2),
-        .T_RAS           (4),
-        .T_CCD_L         (2),
-        .T_CCD_S         (1),
-        .T_CL            (2)
+        .ROB_PTR_WIDTH   (ROB_PTR_WIDTH)
     ) u_dut (
         .clk                 (clk),
         .rst_n               (rst_n),
@@ -109,7 +108,7 @@ module tb_mcsee_autonomous_rfm;
         .cfg_rowpress_thresh (16'd5000),
         .cfg_rowpress_curve  (2'b00),
         .cfg_decoy_en        (1'b0),
-        .cfg_tras_max_thresh (16'd28000),
+        .cfg_tras_max_thresh (16'd8775),
         .o_rowpress_alert    (o_rowpress_alert),
         .o_rowpress_bg       (o_rowpress_bg),
         .o_rowpress_bank     (o_rowpress_bank),
@@ -128,9 +127,13 @@ module tb_mcsee_autonomous_rfm;
         .cfg_raammt_thresh   (cfg_raammt_thresh),
         .o_rfm_auto_cnt      (o_rfm_auto_cnt),
         .o_rfm_active        (o_rfm_active),
+        .o_cnt_fault         (o_cnt_fault),
+        .o_fault             (o_fault),
 
         .o_bg_ready          (o_bg_ready),
         .o_engine_ready      (o_engine_ready),
+        .o_bank_free         (o_bank_free),
+        .o_engine_mit_only   (o_engine_mit_only),
         .o_slack_cycle       (o_slack_cycle),
         .o_decoy_active      (),
         .o_decoy_cnt         (),
@@ -140,6 +143,10 @@ module tb_mcsee_autonomous_rfm;
         .o_dfi_bank          (o_dfi_bank),
         .o_dfi_row           (o_dfi_row),
         .o_dfi_col           (o_dfi_col),
+        .o_dfi_len           (o_dfi_len),
+        .o_dfi_tag           (o_dfi_tag),
+        .i_dfi_rddata_valid  (dfi_rddata_valid),
+        .i_dfi_rddata        (dfi_rddata),
 
         .o_wb_valid          (o_wb_valid),
         .o_wb_tag            (o_wb_tag),
@@ -148,15 +155,45 @@ module tb_mcsee_autonomous_rfm;
         .o_wb_last           (o_wb_last)
     );
 
+    dram_model #(.COL_W(COL_WIDTH), .RL(9), .WL(9)) u_dram (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .cmd          (o_dfi_cmd),
+        .bg           (o_dfi_bg),
+        .bank         (o_dfi_bank),
+        .row          (o_dfi_row),
+        .col          (o_dfi_col),
+        .len          (o_dfi_len),
+        .wrdata_en    (1'b0),
+        .wrdata       ('0),
+        .wrdata_mask  ('0),
+        .wrdata_ecc   ('0),
+        .rddata_valid (dfi_rddata_valid),
+        .rddata       (dfi_rddata),
+        .rddata_ecc   ()
+    );
+
     int tests_run = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     int rfm_cmd_seen = 0;
+
+    dfi_jedec_checker #(.TCK_PS(2500)) u_jchk (
+        .clk  (clk),
+        .rst_n(rst_n),
+        .cmd  (o_dfi_cmd),
+        .bg   (o_dfi_bg),
+        .bank (o_dfi_bank),
+        .row  (o_dfi_row),
+        .len  (o_dfi_len)
+    );
+
     always @(posedge clk) begin
-        if (rst_n && o_dfi_cmd == CMD_REF && o_dfi_bg == 3'd1) begin
+        if (rst_n && o_dfi_cmd == CMD_RFM) begin
             rfm_cmd_seen <= 1;
-            $display("[PASS] Autonomous RFM command CMD_REF emitted for BG 1 at time %0t", $time);
+            $display("[PASS] Autonomous RFMab command emitted at time %0t", $time);
         end
     end
 
@@ -173,7 +210,7 @@ module tb_mcsee_autonomous_rfm;
         i_cmd_tag           = 0;
         i_cmd_is_mitigation = 0;
         i_dram_abo_alert    = 0;
-        cfg_raammt_thresh   = 8'd4; // Low threshold for fast simulation verification
+        cfg_raammt_thresh   = 8'd4;
 
         #(ClkPeriod * 4);
         rst_n = 1;
@@ -181,8 +218,14 @@ module tb_mcsee_autonomous_rfm;
 
         $display("[TB_MCSEE] Testing Autonomous JEDEC DDR5 RFM Generation...");
 
-        // Issue 4 row-conflict accesses to Bank Group 1 to trigger 4 ACT commands
+        // Phát 4 lệnh đọc row-conflict tới BG 1, Bank 0, tôn trọng hợp đồng I-T1 (chờ o_bank_free[{1,0}])
         for (int i = 0; i < 4; i++) begin
+            int w;
+            w = 0;
+            while ((!o_bank_free[{3'd1, 2'd0}] || o_engine_mit_only) && w < 500) begin
+                @(posedge clk);
+                w++;
+            end
             @(negedge clk);
             i_cmd_valid    = 1;
             i_cmd_is_write = 0;
@@ -193,16 +236,15 @@ module tb_mcsee_autonomous_rfm;
             i_cmd_tag      = 5'(i);
 
             @(posedge clk);
-            #1;
             @(negedge clk);
             i_cmd_valid = 0;
-
-            // Wait for command pipeline to finish (PRE -> ACT -> RD)
-            repeat (8) @(posedge clk);
         end
 
-        // Wait extra slack cycles to allow RFM if not already executed
-        repeat (10) @(posedge clk);
+        // Chờ có cận K_RFM cho RFMab tự động phát ra
+        for (int c = 0; c < 400 && !rfm_cmd_seen; c++) begin
+            @(posedge clk);
+        end
+        repeat (20) @(posedge clk);
 
         tests_run++;
         if (rfm_cmd_seen && o_rfm_auto_cnt >= 16'd1) begin
@@ -219,6 +261,15 @@ module tb_mcsee_autonomous_rfm;
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        u_jchk.report("mcsee");
+        tb_check(u_jchk.n_rfm > 0 && u_jchk.viol_ref_open == 0,
+                 $sformatf("RFM uses its own RFMab opcode and is issued only with all banks precharged (%0d RFM, %0d REF/RFM-open)",
+                           u_jchk.n_rfm, u_jchk.viol_ref_open));
+        tb_check(u_jchk.timing_violations() == 0,
+                 $sformatf("No JEDEC timing violation around RFM (%0d)", u_jchk.timing_violations()));
+        tb_check(o_fault == 6'd0, $sformatf("No engine fault flags during clean run (o_fault=%b)", o_fault));
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

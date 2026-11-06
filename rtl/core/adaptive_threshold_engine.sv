@@ -37,14 +37,36 @@ module adaptive_threshold_engine #(
     logic [31:0] prev_accesses;
     logic [31:0] prev_throttles;
 
-    wire [3:0] alpha_shift = (cfg_alpha_shift != 4'd0) ? cfg_alpha_shift : 4'(ALPHA_SHIFT_DEF);
-    wire [COUNT_WIDTH-1:0] base_thresh = (cfg_base_thresh != '0) ? cfg_base_thresh : 16'd2048;
-    wire [COUNT_WIDTH-1:0] max_thresh  = (cfg_max_thresh != '0)  ? cfg_max_thresh  : 16'd8192;
+    // Cấu hình CSR gần như tĩnh: đăng ký một lần (giá trị mặc định khi trường bằng 0) để tách khỏi phép tính ngưỡng
+    logic [3:0]             alpha_shift;
+    logic [COUNT_WIDTH-1:0] base_thresh, max_thresh;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            alpha_shift <= 4'(ALPHA_SHIFT_DEF);
+            base_thresh <= 16'd2048;
+            max_thresh  <= 16'd8192;
+        end else begin
+            alpha_shift <= (cfg_alpha_shift != 4'd0) ? cfg_alpha_shift : 4'(ALPHA_SHIFT_DEF);
+            base_thresh <= (cfg_base_thresh != '0) ? cfg_base_thresh : 16'd2048;
+            max_thresh  <= (cfg_max_thresh != '0)  ? cfg_max_thresh  : 16'd8192;
+        end
+    end
 
     assign o_dynamic_thresh = (cfg_ate_en && (epoch_counter != 16'd0)) ? dynamic_thresh_reg : base_thresh;
     assign o_sample_epochs  = epoch_counter;
 
     localparam int WINDOW_LIMIT = WINDOW_CYCLES - 1;
+
+    // Cập nhật mỗi cửa sổ chia 3 pha thanh ghi (lấy mẫu delta -> tính bước EWMA -> cập nhật ngưỡng): cả chuỗi
+    // trừ 32 bit, dịch biến, cộng và so sánh trước đây nằm trong một chu kỳ. Cửa sổ dài WINDOW_CYCLES nên trễ
+    // thêm 2 chu kỳ không ảnh hưởng thuật toán.
+    logic                   ph2, ph3;
+    logic [31:0]            d_acc, d_thr;
+    logic [COUNT_WIDTH-1:0] cur_q, st_up_q, st_dn_q;
+    logic                   relax_q, tight_q;
+    // Bước phạt RowPress tính sẵn từ ngưỡng hiện tại (đăng ký): cảnh báo chỉ còn một phép trừ và so sánh
+    logic [COUNT_WIDTH-1:0] pen_step_q;
+    logic                   pen_floor_q;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -53,74 +75,69 @@ module adaptive_threshold_engine #(
             window_timer       <= 16'd0;
             prev_accesses      <= 32'd0;
             prev_throttles     <= 32'd0;
+            ph2                <= 1'b0;
+            ph3                <= 1'b0;
+            d_acc              <= '0;
+            d_thr              <= '0;
+            cur_q              <= '0;
+            st_up_q            <= '0;
+            st_dn_q            <= '0;
+            relax_q            <= 1'b0;
+            tight_q            <= 1'b0;
+            pen_step_q         <= 16'd1;
+            pen_floor_q        <= 1'b1;
         end else begin
+            begin
+                logic [COUNT_WIDTH-1:0] st;
+                st = (dynamic_thresh_reg - base_thresh) >> alpha_shift;
+                if (st == '0) st = 16'd1;
+                pen_step_q  <= st;
+                pen_floor_q <= !(dynamic_thresh_reg > (base_thresh + st));
+            end
+            ph2 <= 1'b0;
+            ph3 <= ph2;
             if (!cfg_ate_en) begin
                 dynamic_thresh_reg <= base_thresh;
                 epoch_counter      <= 16'd0;
                 window_timer       <= 16'd0;
                 prev_accesses      <= i_telemetry_accesses;
                 prev_throttles     <= i_telemetry_throttles;
+                ph3                <= 1'b0;
+            end else if (int'(window_timer) >= WINDOW_LIMIT) begin
+                // Pha 1: lấy mẫu số truy cập / số throttle của cửa sổ và ngưỡng tham chiếu
+                d_acc          <= i_telemetry_accesses - prev_accesses;
+                d_thr          <= i_telemetry_throttles - prev_throttles;
+                prev_accesses  <= i_telemetry_accesses;
+                prev_throttles <= i_telemetry_throttles;
+                cur_q          <= (epoch_counter == 16'd0) ? base_thresh : dynamic_thresh_reg;
+                window_timer   <= 16'd0;
+                epoch_counter  <= epoch_counter + 1'b1;
+                ph2            <= 1'b1;
             end else begin
-                if (int'(window_timer) >= WINDOW_LIMIT) begin
-                    // Sample Epoch Triggered
-                    logic [31:0] delta_access;
-                    logic [31:0] delta_thrtl;
-                    logic [COUNT_WIDTH-1:0] curr_thresh;
-                    logic [COUNT_WIDTH-1:0] step_up;
-                    logic [COUNT_WIDTH-1:0] step_dn;
-
-                    delta_access = i_telemetry_accesses - prev_accesses;
-                    delta_thrtl  = i_telemetry_throttles - prev_throttles;
-
-                    prev_accesses  <= i_telemetry_accesses;
-                    prev_throttles <= i_telemetry_throttles;
-                    window_timer   <= 16'd0;
-                    epoch_counter  <= epoch_counter + 1'b1;
-
-                    // Reference threshold for this epoch's adaptation
-                    curr_thresh = (epoch_counter == 16'd0) ? base_thresh : dynamic_thresh_reg;
-
-                    // EWMA step calculations
-                    step_up = (max_thresh - curr_thresh) >> alpha_shift;
-                    step_dn = (curr_thresh - base_thresh) >> alpha_shift;
-                    if (step_up == '0) step_up = 16'd1;
-                    if (step_dn == '0) step_dn = 16'd1;
-
-                    // If throttle rate > 3.125% (delta_thrtl > delta_access >> 5) and >= 4 throttles:
-                    // Relax threshold (increase)
-                    if ((delta_thrtl > (delta_access >> 5)) && (delta_thrtl >= 32'd4)) begin
-                        if ((curr_thresh + step_up) <= max_thresh) begin
-                            dynamic_thresh_reg <= curr_thresh + step_up;
-                        end else begin
-                            dynamic_thresh_reg <= max_thresh;
-                        end
-                    end
-                    // Otherwise, if throttles are negligible: tighten threshold towards baseline
-                    else if (delta_thrtl <= 32'd2) begin
-                        if (curr_thresh > (base_thresh + step_dn)) begin
-                            dynamic_thresh_reg <= curr_thresh - step_dn;
-                        end else begin
-                            dynamic_thresh_reg <= base_thresh;
-                        end
-                    end else begin
-                        dynamic_thresh_reg <= curr_thresh;
-                    end
-                end else begin
-                    window_timer <= window_timer + 1'b1;
-                    if (epoch_counter == 16'd0) begin
-                        dynamic_thresh_reg <= base_thresh;
-                    end else if (i_rowpress_clamp_alert) begin
-                        // Phạt tức thời: Hạ ngưỡng an toàn khi phát hiện tấn công mở hàng kéo dài RowPress
-                        logic [COUNT_WIDTH-1:0] cur_th;
-                        logic [COUNT_WIDTH-1:0] dn_step;
-                        cur_th  = dynamic_thresh_reg;
-                        dn_step = (cur_th - base_thresh) >> alpha_shift;
-                        if (dn_step == '0) dn_step = 16'd1;
-                        if (cur_th > (base_thresh + dn_step))
-                            dynamic_thresh_reg <= cur_th - dn_step;
-                        else
-                            dynamic_thresh_reg <= base_thresh;
-                    end
+                window_timer <= window_timer + 1'b1;
+                if (ph2) begin
+                    // Pha 2: bước EWMA alpha = 2^-shift về phía max (nới) hoặc về base (siết)
+                    logic [COUNT_WIDTH-1:0] su, sd;
+                    su = (max_thresh - cur_q) >> alpha_shift;
+                    sd = (cur_q - base_thresh) >> alpha_shift;
+                    st_up_q <= (su == '0) ? 16'd1 : su;
+                    st_dn_q <= (sd == '0) ? 16'd1 : sd;
+                    // Tỉ lệ throttle > 3,125 % (và >= 4 lần): nới ngưỡng; gần như không throttle: siết về base
+                    relax_q <= (d_thr > (d_acc >> 5)) && (d_thr >= 32'd4);
+                    tight_q <= (d_thr <= 32'd2);
+                end else if (ph3) begin
+                    // Pha 3: cập nhật ngưỡng
+                    if (relax_q)
+                        dynamic_thresh_reg <= ((cur_q + st_up_q) <= max_thresh) ? cur_q + st_up_q : max_thresh;
+                    else if (tight_q)
+                        dynamic_thresh_reg <= (cur_q > (base_thresh + st_dn_q)) ? cur_q - st_dn_q : base_thresh;
+                    else
+                        dynamic_thresh_reg <= cur_q;
+                end else if (epoch_counter == 16'd0) begin
+                    dynamic_thresh_reg <= base_thresh;
+                end else if (i_rowpress_clamp_alert) begin
+                    // Phạt tức thời: Hạ ngưỡng an toàn khi phát hiện tấn công mở hàng kéo dài RowPress
+                    dynamic_thresh_reg <= pen_floor_q ? base_thresh : dynamic_thresh_reg - pen_step_q;
                 end
             end
         end

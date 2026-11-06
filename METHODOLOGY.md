@@ -1,5 +1,7 @@
 # Q-Shield Evaluation Methodology & Experimental Rigor
 
+> **Provenance note (2026-10-30).** Ramulator-based throughput/overhead figures (SPEC CPU2017/PARSEC, ±σ), the "apples-to-apples" table and the Nangate 45 nm gate counts were not reproducible from this repository and are withdrawn. See `sim/results/PROVENANCE.md` for what each result file is, and the README section "What has been measured" for the numbers that are backed by runs.
+
 This document details the scientific evaluation methodology, benchmark suites, fairness criteria, and statistical models governing the empirical validation of the **Q-Shield** memory controller.
 
 ---

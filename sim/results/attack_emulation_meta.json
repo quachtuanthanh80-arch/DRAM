@@ -1,6 +1,6 @@
 {
   "script": "run_attack_emulation.py",
-  "commit_sha": "37c213c0559925e8092bc1e19dac99e9b3f0a1c0",
+  "commit_sha": "916b881bb4515185778db15720309957f3380818",
   "python_version": "3.13.15",
   "platform": "Windows-11-10.0.22631-SP0",
   "hardware_parameters": {
@@ -9,6 +9,17 @@
     "rowpress_tact_thresh_cycles": 120,
     "epoch_window_cycles": 64000
   },
+  "model_assumptions": {
+    "hc_first": 4800,
+    "t_access_cycles": 15,
+    "t_throttle_cycles": 100
+  },
+  "model_fidelity_notes": [
+    "Python architectural model, not RTL simulation.",
+    "hash1/hash2 are not the RTL PXOR hash (rtl/core/pxor_hash_engine.sv).",
+    "Trace address mapping (BG=addr[17:16], bank=addr[15:14]) differs from rtl/frontend (BG=addr[8:6]^addr[20:18], bank=addr[17:16]).",
+    "Bit flips are modelled as victim rows reaching HC_FIRST neighbour activations without an intervening refresh."
+  ],
   "attacks_evaluated": [
     "Benign_Standard",
     "Standard_RowHammer",
@@ -21,5 +32,5 @@
   ],
   "fuzzer_evaluated": true,
   "fuzzer_transactions": 1000000,
-  "timestamp_epoch": 1793082262.0979712
+  "timestamp_epoch": 1793295799.018194
 }

@@ -23,12 +23,14 @@ module tb_multi_vm_key_table;
     wire  [255:0]          o_wr_key;
     wire  [127:0]          o_wr_tweak_key;
     wire                   o_wr_bypass;
+    wire                   o_wr_valid;
 
     logic [ASID_WIDTH-1:0] i_rd_asid;
     logic                  i_rd_c_bit;
     wire  [255:0]          o_rd_key;
     wire  [127:0]          o_rd_tweak_key;
     wire                   o_rd_bypass;
+    wire                   o_rd_valid;
 
     multi_vm_key_table #(
         .ASID_WIDTH (ASID_WIDTH)
@@ -49,17 +51,19 @@ module tb_multi_vm_key_table;
         .o_wr_key        (o_wr_key),
         .o_wr_tweak_key  (o_wr_tweak_key),
         .o_wr_bypass     (o_wr_bypass),
+        .o_wr_valid      (o_wr_valid),
         .i_rd_asid       (i_rd_asid),
         .i_rd_c_bit      (i_rd_c_bit),
         .o_rd_key        (o_rd_key),
         .o_rd_tweak_key  (o_rd_tweak_key),
-        .o_rd_bypass     (o_rd_bypass)
+        .o_rd_bypass     (o_rd_bypass),
+        .o_rd_valid      (o_rd_valid)
     );
 
     initial clk = 0;
     always #1.25 clk = ~clk;
 
-    int test_errors = 0;
+    `include "tb_check.svh"
 
     initial begin
         rst_n = 0;
@@ -68,7 +72,7 @@ module tb_multi_vm_key_table;
         s_apb_pwrite = 0;
         s_apb_paddr = '0;
         s_apb_pwdata = '0;
-        s_apb_pprot = 3'b010; // Privileged
+        s_apb_pprot = 3'b001; // AMBA APB4: secure + privileged
         i_wr_asid = 0;
         i_wr_c_bit = 1;
         i_rd_asid = 1;
@@ -79,24 +83,27 @@ module tb_multi_vm_key_table;
         #10;
 
         $display("=== [TEST 1] Kiểm tra cô lập khóa giữa các máy ảo (Key Isolation) ===");
-        #5;
-        if (o_wr_key === o_rd_key) begin
-            $display("[FAIL] Khóa của VM0 và VM1 trùng lặp!");
-            test_errors++;
-        end else begin
-            $display("[PASS] Cô lập khóa thành công: VM0 Key[31:0]=0x%08x, VM1 Key[31:0]=0x%08x",
-                     o_wr_key[31:0], o_rd_key[31:0]);
+        // Sau reset không có khoá dùng được: valid = 0 cho mọi ASID
+        tb_check(o_wr_valid === 1'b0 && o_rd_valid === 1'b0, "No usable key after reset (valid = 0 for VM0 and VM1)");
+        // Nạp hai khoá khác nhau cho VM0 và VM1 rồi kiểm tra mỗi VM chỉ thấy khoá của mình
+        for (int v = 0; v < 2; v++) begin
+            s_apb_psel = 1; s_apb_penable = 1; s_apb_pwrite = 1;
+            s_apb_paddr = {4'(v), 4'h0};
+            s_apb_pwdata = 32'hC0DE_0000 | 32'(v);
+            @(posedge clk); #0.1;
+            s_apb_paddr = {4'(v), 4'hC};
+            s_apb_pwdata = 32'h1;
+            @(posedge clk); #0.1;
         end
+        s_apb_psel = 0; s_apb_penable = 0; s_apb_pwrite = 0;
+        #5;
+        tb_check(o_wr_valid === 1'b1 && o_rd_valid === 1'b1, "Both VMs valid after programming");
+        tb_check(!(o_wr_key === o_rd_key), $sformatf("Cô lập khóa thành công: VM0 Key[31:0]=0x%08x, VM1 Key[31:0]=0x%08x" , o_wr_key[31:0], o_rd_key[31:0]));
 
         $display("=== [TEST 2] Kiểm tra logic Bypass theo C-Bit ===");
         i_wr_c_bit = 0; // DMA unencrypted
         #5;
-        if (!o_wr_bypass) begin
-            $display("[FAIL] C-bit = 0 nhưng o_wr_bypass không tích cực!");
-            test_errors++;
-        end else begin
-            $display("[PASS] C-bit = 0 kích hoạt bypass thành công!");
-        end
+        tb_check(!(!o_wr_bypass), "C-bit = 0 kích hoạt bypass thành công!");
 
         $display("=== [TEST 3] Kiểm tra bảo vệ quyền đặc quyền APB4 (Privilege Protection) ===");
         // Ghi với non-privileged access (pprot[1] = 0)
@@ -108,12 +115,7 @@ module tb_multi_vm_key_table;
         s_apb_pwdata = 32'hDEAD_BEEF;
         #2.5;
 
-        if (!s_apb_pslverr) begin
-            $display("[FAIL] Không báo lỗi PSLVERR khi truy cập trái phép!");
-            test_errors++;
-        end else begin
-            $display("[PASS] Từ chối truy cập không đặc quyền và báo PSLVERR thành công!");
-        end
+        tb_check(!(!s_apb_pslverr), "Từ chối truy cập không đặc quyền và báo PSLVERR thành công!");
 
         s_apb_psel = 0;
         s_apb_penable = 0;
@@ -123,7 +125,7 @@ module tb_multi_vm_key_table;
         s_apb_psel = 1;
         s_apb_penable = 1;
         s_apb_pwrite = 1;
-        s_apb_pprot = 3'b010; // Privileged mode
+        s_apb_pprot = 3'b001; // Secure privileged
         s_apb_paddr = 8'h00; // ASID 0, Word 0
         s_apb_pwdata = 32'h1234_5678;
         #2.5;
@@ -134,20 +136,32 @@ module tb_multi_vm_key_table;
         i_wr_c_bit = 1;
         #5;
 
-        if (o_wr_key[31:0] !== 32'h1234_5678) begin
-            $display("[FAIL] Cập nhật khóa không thành công: Got 0x%08x", o_wr_key[31:0]);
-            test_errors++;
-        end else begin
-            $display("[PASS] Cập nhật khóa thành công từ mức đặc quyền: New Key[31:0]=0x%08x", o_wr_key[31:0]);
-        end
+        tb_check(!(o_wr_key[31:0] !== 32'h1234_5678), $sformatf("Cập nhật khóa thành công từ mức đặc quyền: New Key[31:0]=0x%08x" , o_wr_key[31:0]));
 
-        if (test_errors == 0) begin
-            $display("\n>>> [ALL TESTS PASSED] Multi-VM Key Table hoạt động hoàn hảo! <<<\n");
-            $finish(0);
-        end else begin
-            $display("\n>>> [FAIL] Phát hiện %0d lỗi! <<<\n", test_errors);
-            $finish(1);
-        end
+        // Red team S7: AMBA PPROT[0]=privileged, PPROT[1]=non-secure. Truy cập non-secure/unprivileged phải bị từ chối,
+        // và khóa không bao giờ được đọc ngược qua APB (write-only key).
+        $display("=== [TEST 5] S7: AMBA PPROT semantics & key readback ===");
+        s_apb_psel = 1;
+        s_apb_penable = 1;
+        s_apb_pwrite = 0;
+        s_apb_paddr = 8'h00;
+        s_apb_pprot = 3'b010;
+        #1;
+        tb_check(s_apb_pslverr === 1'b1, "Non-secure unprivileged access (PPROT=3'b010) must get PSLVERR");
+        s_apb_pprot = 3'b001;
+        #1;
+        tb_check(s_apb_pslverr === 1'b0, "Secure privileged access (PPROT=3'b001) must be accepted");
+        // Khóa phải là write-only với mọi giá trị PPROT, kể cả secure privileged; còn bản non-secure privileged phải bị từ chối
+        tb_check(s_apb_prdata === 32'h0, $sformatf("Key word must not be readable over APB (secure privileged), got 0x%08x", s_apb_prdata));
+        s_apb_pprot = 3'b011;
+        #1;
+        tb_check(s_apb_pslverr === 1'b1 && s_apb_prdata === 32'h0,
+                 $sformatf("Non-secure privileged access (PPROT=3'b011) rejected, prdata 0x%08x", s_apb_prdata));
+        s_apb_psel = 0;
+        s_apb_penable = 0;
+
+        tb_report();
+        $finish;
     end
 
 endmodule

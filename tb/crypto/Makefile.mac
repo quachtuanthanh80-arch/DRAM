@@ -6,7 +6,7 @@ SIM_BUILD ?= sim_build_mac
 
 ROOT_DIR ?= $(abspath $(CURDIR)/../..)
 
-VERILOG_SOURCES ?= $(ROOT_DIR)/rtl/crypto/integrity_mac_gen.sv
+VERILOG_SOURCES ?= $(ROOT_DIR)/rtl/crypto/aes_sbox.sv $(ROOT_DIR)/rtl/crypto/aes128_enc_iter.sv $(ROOT_DIR)/rtl/crypto/integrity_mac_gen.sv
 TOPLEVEL ?= integrity_mac_gen
 MODULE ?= test_integrity_mac
 

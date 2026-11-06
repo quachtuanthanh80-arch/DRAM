@@ -11,10 +11,15 @@ set_property target_language Verilog [current_project]
 set_property default_lib xil_defaultlib [current_project]
 
 add_files -fileset sources_1 -norecurse {
-    D:/RAM/rtl/backend/gf16_arith_pkg.sv
+    D:/RAM/rtl/backend/gf256_arith_pkg.sv
+    D:/RAM/rtl/backend/secded_72_64_pkg.sv
     D:/RAM/rtl/backend/ddr5_cmd_engine.sv
     D:/RAM/rtl/backend/directed_refresh_manager.sv
     D:/RAM/rtl/backend/ecc_scrubber.sv
+    D:/RAM/rtl/crypto/aes128_enc_iter.sv
+    D:/RAM/rtl/frontend/wr_data_store.sv
+    D:/RAM/rtl/frontend/axi_burst_splitter.sv
+    D:/RAM/rtl/frontend/rd_issue_queue.sv
     D:/RAM/rtl/backend/rs_chipkill_decoder.sv
     D:/RAM/rtl/backend/rs_chipkill_encoder.sv
     D:/RAM/rtl/backend/slack_aware_arbiter.sv
@@ -50,26 +55,56 @@ add_files -fileset sources_1 -norecurse {
     D:/RAM/rtl/interfaces/pcie_cxl_io_apb_shim.sv
     D:/RAM/rtl/interfaces/ucie_fdi_axi_shim.sv
     D:/RAM/rtl/memory/bus_scrambler.sv
+    D:/RAM/rtl/memory/scrambler_ks_pipe.sv
     D:/RAM/rtl/memory/ddr5_subchannel_scheduler.sv
     D:/RAM/rtl/memory/dfi_phy_adapter.sv
+    D:/RAM/rtl/top/bank_credit_ctrl.sv
     D:/RAM/rtl/top/axi_ddr5_mc_top.sv
     D:/RAM/rtl/top/sec_ddr5_controller_top.sv
 }
 
 add_files -fileset sim_1 -norecurse {
+    D:/RAM/tb/common/ddr5_jedec_bin_pkg.sv
+    D:/RAM/tb/common/dfi_jedec_checker.sv
+    D:/RAM/tb/common/dram_model.sv
+    D:/RAM/tb/common/dfi_rd_fault_shim.sv
+    D:/RAM/tb/common/qs_rd_beat_model.sv
+    D:/RAM/tb/common/qs_engine_port_chk.sv
+    D:/RAM/tb/common/qs_axi_txn_chk.sv
+    D:/RAM/tb/common/qs_top_probe_chk.sv
     D:/RAM/tb/top/tb_standard_benchmarks.sv
     D:/RAM/tb/top/tb_security_attacks_vcd.sv
     D:/RAM/tb/top/tb_axi_ddr5_mc_top.sv
+    D:/RAM/tb/top/tb_axi_ddr5_mc_top_400.sv
+    D:/RAM/tb/top/tb_e2e_scoreboard.sv
+    D:/RAM/tb/top/tb_e2e_scoreboard_400.sv
+    D:/RAM/tb/top/tb_rt01_ref_starvation.sv
+    D:/RAM/tb/top/tb_rt02_credit_race.sv
+    D:/RAM/tb/top/tb_rt03_rd_integrity.sv
+    D:/RAM/tb/top/tb_rt04_jedec_400mhz.sv
+    D:/RAM/tb/top/tb_rt05_fault_agg.sv
+    D:/RAM/tb/top/tb_rt06_xbg_channel.sv
+    D:/RAM/tb/top/tb_rt07_phys_bank_credit.sv
+    D:/RAM/tb/top/tb_rt08_cfg_change.sv
+    D:/RAM/tb/top/tb_rt09_decoy_prf.sv
+    D:/RAM/tb/top/tb_rt12_param_corners.sv
     D:/RAM/tb/top/tb_sec_ddr5_controller_top.sv
     D:/RAM/tb/backend/tb_prac_abo_phoenix.sv
     D:/RAM/tb/backend/tb_eccfail_zem_scrubber.sv
     D:/RAM/tb/backend/tb_rs_chipkill_selfcheck.sv
+    D:/RAM/tb/backend/tb_eng_ref_starve.sv
+    D:/RAM/tb/backend/tb_eng_rd_sync.sv
+    D:/RAM/tb/backend/tb_eng_fault_inject.sv
+    D:/RAM/tb/backend/tb_drm_fault_inject.sv
+    D:/RAM/tb/backend/tb_eng_v2_random.sv
+    D:/RAM/tb/backend/tb_eng_edge_cases.sv
 }
 
+set_property include_dirs {D:/RAM/tb/common} [get_filesets sim_1]
 set_property file_type SystemVerilog [get_files *.sv]
 add_files -fileset constrs_1 -norecurse D:/RAM/syn/constraints.xdc
 set_property top $TOP_MODULE [get_filesets sources_1]
-set_property top tb_standard_benchmarks [get_filesets sim_1]
+set_property top tb_axi_ddr5_mc_top [get_filesets sim_1]
 update_compile_order -fileset sources_1
 update_compile_order -fileset sim_1
 set_property -name {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} -value {-mode out_of_context} -objects [get_runs synth_1]

@@ -39,6 +39,10 @@ module slack_aware_arbiter #(
     //-------------------------------------------------------------------------
     input  logic [BG_COUNT-1:0]                          i_bg_ready,
     input  logic                                         i_engine_ready,
+    // Slot lệnh từng bank của engine còn trống ({bg, bank})
+    input  logic [BG_COUNT*(1<<BANK_WIDTH)-1:0]          i_bank_free = '1,
+    // ABO: engine chỉ nhận lệnh giảm thiểu
+    input  logic                                         i_engine_mit_only = 1'b0,
     input  logic                                         i_slack_cycle,
 
     //-------------------------------------------------------------------------
@@ -51,13 +55,10 @@ module slack_aware_arbiter #(
     output logic                                         o_mitigation_grant,
 
     //-------------------------------------------------------------------------
-    // In-Flight Blacklist Checking (PROQ from MORDOR MICRO 2026)
+    // In-Flight Blacklist (PROQ, MORDOR MICRO 2026): kết quả kiểm tra đã đăng ký cho ứng viên từng BG
     //-------------------------------------------------------------------------
-    output logic                                         o_check_cand_valid,
-    output logic [BG_WIDTH-1:0]                          o_check_cand_bg,
-    output logic [BANK_WIDTH-1:0]                        o_check_cand_bank,
-    output logic [ROW_WIDTH-1:0]                         o_check_cand_row,
-    input  logic                                         i_proq_row_hit = 1'b0,
+    input  logic [BG_COUNT-1:0]                          i_proq_blk = '0,  // không được phát (chạm PROQ hoặc kết quả cũ)
+    input  logic [BG_COUNT-1:0]                          i_proq_hit = '0,  // chạm PROQ thật: ưu tiên lệnh giảm thiểu
 
     //-------------------------------------------------------------------------
     // Arbitration Issue Grant to qos_scheduler_queue
@@ -73,6 +74,8 @@ module slack_aware_arbiter #(
     output logic                                         o_cmd_is_write,
     output logic [AXI_ID_WIDTH-1:0]                      o_cmd_id,
     output logic [BG_WIDTH-1:0]                          o_cmd_bg,
+    // BG của lệnh dạng one-hot (lấy thẳng từ vector thắng, không mã hoá rồi giải mã lại ở phía dùng)
+    output logic [BG_COUNT-1:0]                          o_cmd_bg_oh,
     output logic [BANK_WIDTH-1:0]                        o_cmd_bank,
     output logic [ROW_WIDTH-1:0]                         o_cmd_row,
     output logic [COL_WIDTH-1:0]                         o_cmd_col,
@@ -104,8 +107,22 @@ module slack_aware_arbiter #(
         end
     end
 
-    // Mask candidates with Bank Group timing readiness
-    wire [BG_COUNT-1:0] eligible_cand = i_cand_valid & i_bg_ready;
+    // Grant tới hàng đợi được đăng ký (dequeue ở cạnh sau): BG vừa cấp bị che một chu kỳ vì ứng viên của nó
+    // (thanh ghi trong hàng đợi) vẫn có thể là entry vừa cấp. Lệnh tới engine vẫn đi thẳng trong chu kỳ chọn.
+    logic                       grant_r_v;
+    logic [BG_WIDTH-1:0]        grant_r_bg;
+    logic [QUEUE_PTR_WIDTH-1:0] grant_r_idx;
+    wire  [BG_COUNT-1:0]        grant_mask = grant_r_v ? (BG_COUNT'(1) << grant_r_bg) : '0;
+
+    // Slot của bank đích còn trống (engine giữ một giao dịch mỗi bank)
+    logic [BG_COUNT-1:0] cand_bank_free;
+    always_comb
+        for (int bg = 0; bg < BG_COUNT; bg++)
+            cand_bank_free[bg] = i_bank_free[bg * (1 << BANK_WIDTH) + int'(i_cand_bank[bg*BANK_WIDTH +: BANK_WIDTH])];
+    wire mit_bank_free = i_bank_free[{i_mitigation_bg, i_mitigation_bank}];
+
+    // Ứng viên đủ điều kiện: slot bank trống, tCCD của BG đã hết và không chạm hàng đang chờ refresh nạn nhân
+    wire [BG_COUNT-1:0] eligible_cand = i_cand_valid & i_bg_ready & cand_bank_free & ~i_proq_blk & ~grant_mask;
 
     //=========================================================================
     // Write-Drain / Read-Burst Mode State Machine
@@ -113,191 +130,131 @@ module slack_aware_arbiter #(
     logic [3:0] eligible_write_count;
     always_comb begin
         eligible_write_count = '0;
-        for (int bg = 0; bg < BG_COUNT; bg++) begin
-            if (eligible_cand[bg] && i_cand_is_write[bg]) begin
+        for (int bg = 0; bg < BG_COUNT; bg++)
+            // Đếm cả BG đang bị che sau grant: mặt nạ một chu kỳ không phản ánh lượng lệnh ghi đang chờ
+            if (i_cand_valid[bg] && i_bg_ready[bg] && !i_proq_blk[bg] && i_cand_is_write[bg])
                 eligible_write_count = eligible_write_count + 1'b1;
-            end
-        end
     end
 
     logic reg_drain_mode;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             reg_drain_mode <= 1'b0;
+        end else if (!reg_drain_mode) begin
+            if (int'(eligible_write_count) >= DRAIN_HIGH_THRESH) reg_drain_mode <= 1'b1;
         end else begin
-            if (!reg_drain_mode) begin
-                if (int'(eligible_write_count) >= DRAIN_HIGH_THRESH) begin
-                    reg_drain_mode <= 1'b1;
-                end
-            end else begin
-                if (int'(eligible_write_count) <= DRAIN_LOW_THRESH) begin
-                    reg_drain_mode <= 1'b0;
-                end
-            end
+            if (int'(eligible_write_count) <= DRAIN_LOW_THRESH) reg_drain_mode <= 1'b0;
         end
     end
-
     assign o_drain_mode = reg_drain_mode;
 
-    // Round-Robin state for fairness when QoS levels tie
+    //=========================================================================
+    // Chọn ứng viên song song (thay 5 lượt quét nối tiếp 8 BG).
+    // Khoá: ứng viên đói > không throttle > đúng hướng drain/burst > QoS cao. Ứng viên đói chỉ xét round-robin
+    // (khoá chung), giống Tier 1 cũ. Hoà khoá thì BG đứng trước trong thứ tự round-robin (bắt đầu sau BG phục vụ gần
+    // nhất) thắng. Thắng = không có BG đủ điều kiện nào thắng nó trong so sánh cặp: một mức so sánh + một mức AND.
+    //=========================================================================
     logic [BG_WIDTH-1:0] last_served_bg;
-
-    //=========================================================================
-    // 4-Tier Selection Logic (with Write-Drain / Read-Burst Directional Bias)
-    //=========================================================================
-    logic                winner_found;
-    logic [BG_WIDTH-1:0] winner_bg;
-    logic [BG_WIDTH-1:0] cur_bg;
-    logic [3:0]          max_qos;
-
+    logic [6:0]          key [BG_COUNT];
+    logic [BG_COUNT-1:0] win, win_all;
+    // beats[j][i] = 1: BG j đứng trước BG i (khoá lớn hơn, hoặc bằng khoá và đứng trước trong vòng round-robin)
+    logic [BG_COUNT-1:0] beats [BG_COUNT];
+    wire  [BG_COUNT-1:0] ready_cand = i_cand_valid & i_bg_ready & cand_bank_free & ~grant_mask;
     always_comb begin
-        winner_found = 1'b0;
-        winner_bg    = '0;
-        cur_bg       = '0;
-        max_qos      = '0;
-
-        // Tier 1: Check Starved Candidates (Emergency Boost - Strict Priority)
+        for (int i = 0; i < BG_COUNT; i++)
+            key[i] = i_cand_starved[i] ? 7'b100_0000 :
+                     {1'b0, !i_cand_throttled[i], i_cand_is_write[i] == reg_drain_mode, cand_qos[i]};
+        for (int j = 0; j < BG_COUNT; j++)
+            for (int i = 0; i < BG_COUNT; i++) begin
+                logic [BG_WIDTH-1:0] pos_i, pos_j;
+                pos_i = BG_WIDTH'(i) - last_served_bg - 1'b1;
+                pos_j = BG_WIDTH'(j) - last_served_bg - 1'b1;
+                beats[j][i] = (j != i) && (key[j] > key[i] || (key[j] == key[i] && pos_j < pos_i));
+            end
+        // win: thắng trong số ứng viên được phép phát; win_all: ứng viên ưu tiên nhất kể cả ứng viên bị PROQ chặn
         for (int i = 0; i < BG_COUNT; i++) begin
-            cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
-            if (eligible_cand[cur_bg] && i_cand_starved[cur_bg] && !winner_found) begin
-                winner_found = 1'b1;
-                winner_bg    = cur_bg;
-            end
-        end
-
-        // Tier 2: Unthrottled Normal Traffic
-        if (!winner_found) begin
-            // Sub-pass 2A: Preferred direction (Writes if drain_mode, Reads if !drain_mode)
-            max_qos = 4'd0;
-            for (int i = 0; i < BG_COUNT; i++) begin
-                cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
-                if (eligible_cand[cur_bg] && !i_cand_throttled[cur_bg]) begin
-                    if (i_cand_is_write[cur_bg] == reg_drain_mode) begin
-                        if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
-                            winner_found = 1'b1;
-                            winner_bg    = cur_bg;
-                            max_qos      = cand_qos[cur_bg];
-                        end
-                    end
-                end
-            end
-
-            // Sub-pass 2B: Fallback to opposite direction if preferred direction not present
-            if (!winner_found) begin
-                max_qos = 4'd0;
-                for (int i = 0; i < BG_COUNT; i++) begin
-                    cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
-                    if (eligible_cand[cur_bg] && !i_cand_throttled[cur_bg]) begin
-                        if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
-                            winner_found = 1'b1;
-                            winner_bg    = cur_bg;
-                            max_qos      = cand_qos[cur_bg];
-                        end
-                    end
-                end
-            end
-        end
-
-        // Tier 3: Throttled RowHammer Traffic (Degraded service)
-        if (!winner_found) begin
-            // Sub-pass 3A: Preferred direction
-            max_qos = 4'd0;
-            for (int i = 0; i < BG_COUNT; i++) begin
-                cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
-                if (eligible_cand[cur_bg] && i_cand_throttled[cur_bg]) begin
-                    if (i_cand_is_write[cur_bg] == reg_drain_mode) begin
-                        if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
-                            winner_found = 1'b1;
-                            winner_bg    = cur_bg;
-                            max_qos      = cand_qos[cur_bg];
-                        end
-                    end
-                end
-            end
-
-            // Sub-pass 3B: Fallback
-            if (!winner_found) begin
-                max_qos = 4'd0;
-                for (int i = 0; i < BG_COUNT; i++) begin
-                    cur_bg = BG_WIDTH'((int'(last_served_bg) + 1 + i) % BG_COUNT);
-                    if (eligible_cand[cur_bg] && i_cand_throttled[cur_bg]) begin
-                        if (!winner_found || (cand_qos[cur_bg] > max_qos)) begin
-                            winner_found = 1'b1;
-                            winner_bg    = cur_bg;
-                            max_qos      = cand_qos[cur_bg];
-                        end
-                    end
-                end
+            win[i]     = eligible_cand[i];
+            win_all[i] = ready_cand[i];
+            for (int j = 0; j < BG_COUNT; j++) begin
+                if (eligible_cand[j] && beats[j][i]) win[i]     = 1'b0;
+                if (ready_cand[j]    && beats[j][i]) win_all[i] = 1'b0;
             end
         end
     end
+    wire winner_found = |win;
 
-    // Candidate broadcast to PROQ CAM in directed_refresh_manager
-    assign o_check_cand_valid = winner_found;
-    assign o_check_cand_bg    = winner_bg;
-    assign o_check_cand_bank  = cand_bank[winner_bg];
-    assign o_check_cand_row   = cand_row[winner_bg];
+    // Lệnh giảm thiểu thắng khi ứng viên ưu tiên nhất đang bị PROQ chặn (chính lệnh này gỡ chặn), khi ABO đòi chỉ
+    // nhận lệnh giảm thiểu, hoặc khi không còn lệnh người dùng nào phát được và bus có khe hở / có ứng viên bị chặn.
+    // Ứng viên bị chặn ở BG khác không được giữ lệnh QoS cao tới BG rảnh (R20).
+    wire can_issue_mitigation = i_mitigation_req && i_engine_ready && mit_bank_free &&
+                                (i_engine_mit_only || (|(win_all & i_proq_hit)) ||
+                                 (!winner_found && (i_slack_cycle || (|(i_cand_valid & i_proq_hit)))));
+    wire can_issue_user_cmd   = winner_found && i_engine_ready && !i_engine_mit_only && !can_issue_mitigation;
 
-    // Tier 4: MORDOR (MICRO 2026) Elastic Scheduling & In-Flight PROQ Invariant:
-    // If the winning candidate targets a row currently in PROQ waiting for preventive refresh,
-    // it is blacklisted from issuing normal demand command until PRO completes!
-    wire cand_proq_blocked    = winner_found && i_proq_row_hit;
-    wire can_issue_user_cmd   = winner_found && !cand_proq_blocked && i_engine_ready;
-    wire can_issue_mitigation = (cand_proq_blocked && i_mitigation_req && i_engine_ready) ||
-                                (!winner_found && i_slack_cycle && i_mitigation_req && i_engine_ready);
+    assign o_mitigation_grant  = can_issue_mitigation;
+    assign o_issue_grant_valid = grant_r_v;
 
-    // Grant back to mitigation source
-    assign o_mitigation_grant = can_issue_mitigation;
-
-    // Dequeue grant back to winning Bank Group queue
-    assign o_issue_grant_valid = can_issue_user_cmd;
-    assign o_issue_grant_bg    = winner_bg;
-    assign o_issue_grant_idx   = cand_queue_idx[winner_bg];
-
-    // Output command multiplexing to DDR5 Command Engine
+    // Trường lệnh chọn bằng one-hot AND-OR
+    logic [BG_WIDTH-1:0]        w_bg;
+    logic [QUEUE_PTR_WIDTH-1:0] w_idx;
+    logic                       w_wr;
+    logic [AXI_ID_WIDTH-1:0]    w_id;
+    logic [BANK_WIDTH-1:0]      w_bank;
+    logic [ROW_WIDTH-1:0]       w_row;
+    logic [COL_WIDTH-1:0]       w_col;
+    logic [AXI_LEN_WIDTH-1:0]   w_len;
     always_comb begin
-        if (can_issue_user_cmd) begin
-            o_cmd_valid         = 1'b1;
-            o_cmd_is_write      = i_cand_is_write[winner_bg];
-            o_cmd_id            = cand_id[winner_bg];
-            o_cmd_bg            = winner_bg;
-            o_cmd_bank          = cand_bank[winner_bg];
-            o_cmd_row           = cand_row[winner_bg];
-            o_cmd_col           = cand_col[winner_bg];
-            o_cmd_len           = cand_len[winner_bg];
-            o_cmd_is_mitigation = 1'b0;
-        end else if (can_issue_mitigation) begin
-            o_cmd_valid         = 1'b1;
-            o_cmd_is_write      = 1'b0; // Mitigation typically treated as refresh/precharge
-            o_cmd_id            = '0;
-            o_cmd_bg            = i_mitigation_bg;
-            o_cmd_bank          = i_mitigation_bank;
-            o_cmd_row           = i_mitigation_row;
-            o_cmd_col           = '0;
-            o_cmd_len           = '0;
-            o_cmd_is_mitigation = 1'b1;
+        w_bg = '0; w_idx = '0; w_wr = 1'b0; w_id = '0; w_bank = '0; w_row = '0; w_col = '0; w_len = '0;
+        for (int i = 0; i < BG_COUNT; i++)
+            if (win[i]) begin
+                w_bg   = w_bg   | BG_WIDTH'(i);
+                w_idx  = w_idx  | cand_queue_idx[i];
+                w_wr   = w_wr   | i_cand_is_write[i];
+                w_id   = w_id   | cand_id[i];
+                w_bank = w_bank | cand_bank[i];
+                w_row  = w_row  | cand_row[i];
+                w_col  = w_col  | cand_col[i];
+                w_len  = w_len  | cand_len[i];
+            end
+    end
+    assign o_issue_grant_bg  = grant_r_bg;
+    assign o_issue_grant_idx = grant_r_idx;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) grant_r_v <= 1'b0;
+        else        grant_r_v <= can_issue_user_cmd;
+    end
+    always_ff @(posedge clk) begin
+        grant_r_bg  <= w_bg;
+        grant_r_idx <= w_idx;
+    end
+
+    always_comb begin
+        o_cmd_valid         = can_issue_user_cmd || can_issue_mitigation;
+        o_cmd_is_mitigation = can_issue_mitigation;
+        if (can_issue_mitigation) begin
+            o_cmd_is_write = 1'b0;
+            o_cmd_id       = '0;
+            o_cmd_bg       = i_mitigation_bg;
+            o_cmd_bg_oh    = BG_COUNT'(1) << i_mitigation_bg;
+            o_cmd_bank     = i_mitigation_bank;
+            o_cmd_row      = i_mitigation_row;
+            o_cmd_col      = '0;
+            o_cmd_len      = '0;
         end else begin
-            o_cmd_valid         = 1'b0;
-            o_cmd_is_write      = 1'b0;
-            o_cmd_id            = '0;
-            o_cmd_bg            = '0;
-            o_cmd_bank          = '0;
-            o_cmd_row           = '0;
-            o_cmd_col           = '0;
-            o_cmd_len           = '0;
-            o_cmd_is_mitigation = 1'b0;
+            o_cmd_is_write = w_wr;
+            o_cmd_id       = w_id;
+            o_cmd_bg       = w_bg;
+            o_cmd_bg_oh    = win;
+            o_cmd_bank     = w_bank;
+            o_cmd_row      = w_row;
+            o_cmd_col      = w_col;
+            o_cmd_len      = w_len;
         end
     end
 
-    // Sequential update of round-robin state
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            last_served_bg <= '0;
-        end else begin
-            if (can_issue_user_cmd) begin
-                last_served_bg <= winner_bg;
-            end
-        end
+        if (!rst_n)                  last_served_bg <= '0;
+        else if (can_issue_user_cmd) last_served_bg <= w_bg;
     end
 
 `ifdef FORMAL
@@ -307,11 +264,11 @@ module slack_aware_arbiter #(
     always_comb begin
         if (rst_n) begin
             // 1. Mutual Exclusion: Mitigation grant and User Issue grant are strictly mutually exclusive
-            assert (!(o_issue_grant_valid && o_mitigation_grant));
+            assert (!(can_issue_user_cmd && o_mitigation_grant));
 
             // 2. Mitigation Command Integrity
             if (o_cmd_valid && o_cmd_is_mitigation) begin
-                assert (!o_issue_grant_valid);
+                assert (!can_issue_user_cmd);
                 assert (o_mitigation_grant);
                 assert (o_cmd_bg == i_mitigation_bg);
                 assert (o_cmd_bank == i_mitigation_bank);
@@ -320,15 +277,15 @@ module slack_aware_arbiter #(
 
             // 3. User Command Integrity: Issued BG must have had valid candidate
             if (o_cmd_valid && !o_cmd_is_mitigation) begin
-                assert (o_issue_grant_valid);
-                assert (o_cmd_bg == o_issue_grant_bg);
-                assert (i_cand_valid[o_cmd_bg]);
+                assert (can_issue_user_cmd);
+                assert (o_cmd_bg == w_bg);
+                assert (i_cand_valid[o_cmd_bg] && !i_proq_blk[o_cmd_bg] && i_bg_ready[o_cmd_bg]);
+                assert ($onehot(win));
             end
 
             // 4. Idle Bus Invariant: When neither user nor mitigation is legal, o_cmd_valid must be 0
             if (!can_issue_user_cmd && !can_issue_mitigation) begin
                 assert (!o_cmd_valid);
-                assert (!o_issue_grant_valid);
                 assert (!o_mitigation_grant);
             end
         end

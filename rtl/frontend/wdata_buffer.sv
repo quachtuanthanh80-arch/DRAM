@@ -28,6 +28,8 @@ module wdata_buffer #(
     input  logic [1:0]                    i_wr_burst,
     input  logic [AXI_QOS_WIDTH-1:0]      i_wr_qos,
     input  logic                          i_wr_addr_cross_4kb,
+    // Đoạn cuối của burst AXI (sau axi_burst_splitter); mặc định 1 khi AW không bị tách
+    input  logic                          i_wr_chunk_last = 1'b1,
 
     // W Staged Stream
     input  logic                          i_wr_data_valid,
@@ -49,6 +51,7 @@ module wdata_buffer #(
     output logic [1:0]                    o_cmd_burst,
     output logic [AXI_QOS_WIDTH-1:0]      o_cmd_qos,
     output logic                          o_cmd_cross_4kb,
+    output logic                          o_cmd_last,
 
     // Synchronized Write Data Stream
     output logic                          o_data_valid,
@@ -65,7 +68,7 @@ module wdata_buffer #(
     //=========================================================================
     // 1. Write Command FIFO (Stages AW entries)
     //=========================================================================
-    localparam int CMD_W = AXI_ID_WIDTH + AXI_ADDR_WIDTH + 8 + 3 + 2 + AXI_QOS_WIDTH + 1;
+    localparam int CMD_W = AXI_ID_WIDTH + AXI_ADDR_WIDTH + 8 + 3 + 2 + AXI_QOS_WIDTH + 1 + 1;
     localparam int CMD_PTR_W = $clog2(CMD_FIFO_DEPTH);
 
     logic [CMD_W-1:0] cmd_mem [CMD_FIFO_DEPTH-1:0];
@@ -79,7 +82,8 @@ module wdata_buffer #(
         i_wr_size,
         i_wr_burst,
         i_wr_qos,
-        i_wr_addr_cross_4kb
+        i_wr_addr_cross_4kb,
+        i_wr_chunk_last
     };
 
     assign cmd_full  = (cmd_wr_ptr[CMD_PTR_W] != cmd_rd_ptr[CMD_PTR_W]) &&
@@ -111,7 +115,8 @@ module wdata_buffer #(
         o_cmd_size,
         o_cmd_burst,
         o_cmd_qos,
-        o_cmd_cross_4kb
+        o_cmd_cross_4kb,
+        o_cmd_last
     } = cmd_out;
 
     assign o_cmd_valid = !cmd_empty;

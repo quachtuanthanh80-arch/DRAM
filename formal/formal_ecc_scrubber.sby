@@ -6,8 +6,10 @@ depth 5
 smtbmc z3
 
 [script]
+read -formal -sv secded_72_64_pkg.sv
 read -formal -sv ecc_scrubber.sv
 prep -top ecc_scrubber
 
 [files]
+/mnt/d/RAM/rtl/backend/secded_72_64_pkg.sv
 /mnt/d/RAM/rtl/backend/ecc_scrubber.sv

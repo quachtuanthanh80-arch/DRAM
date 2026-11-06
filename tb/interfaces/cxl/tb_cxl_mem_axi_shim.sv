@@ -200,6 +200,8 @@ module tb_cxl_mem_axi_shim;
             end
         end
     end
+    `include "tb_check.svh"
+
 
     initial begin
         rst_n               = 0;
@@ -240,10 +242,7 @@ module tb_cxl_mem_axi_shim;
         cxl_m2s_rwd_valid <= 1'b0;
 
         while (!cxl_s2m_ndr_valid) @(posedge clk);
-        if (cxl_s2m_ndr_opcode !== 4'h0 || cxl_s2m_ndr_tag !== 16'h0011) begin
-            $display("[FAIL] CXL NDR mismatch");
-            $fatal(1);
-        end
+        tb_check(!(cxl_s2m_ndr_opcode !== 4'h0 || cxl_s2m_ndr_tag !== 16'h0011), "CXL NDR mismatch");
         @(posedge clk);
 
         // 2. M2S-Req Read
@@ -258,10 +257,7 @@ module tb_cxl_mem_axi_shim;
         cxl_m2s_req_valid <= 1'b0;
 
         while (!cxl_s2m_drs_valid) @(posedge clk);
-        if (cxl_s2m_drs_data[63:0] !== 64'hCAFE_BABE_0123_4567 || cxl_s2m_drs_poison !== 1'b0) begin
-            $display("[FAIL] CXL DRS data mismatch: %h", cxl_s2m_drs_data);
-            $fatal(1);
-        end
+        tb_check(!(cxl_s2m_drs_data[63:0] !== 64'hCAFE_BABE_0123_4567 || cxl_s2m_drs_poison !== 1'b0), $sformatf("CXL DRS data mismatch: %h", cxl_s2m_drs_data));
         @(posedge clk);
 
         // 3. Poison Forwarding test at Block 14 (4'hE)
@@ -272,12 +268,9 @@ module tb_cxl_mem_axi_shim;
         cxl_m2s_req_valid <= 1'b0;
 
         while (!cxl_s2m_drs_valid) @(posedge clk);
-        if (cxl_s2m_drs_poison !== 1'b1) begin
-            $display("[FAIL] Expected Poison = 1");
-            $fatal(1);
-        end
+        tb_check(!(cxl_s2m_drs_poison !== 1'b1), "Expected Poison = 1");
 
-        $display("[PASS] CXL.mem 3.0 Flit Expander Verification Completed Successfully");
+        tb_report();
         $finish;
     end
 

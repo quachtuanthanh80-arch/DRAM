@@ -172,7 +172,8 @@ def run_single_simulation(dram_name, dram_info, workload_name, workload_info, tr
         # Real Ramulator 2.0 invocation
         try:
             frontend = ramulator.frontend.LoadStoreTrace(clock_ratio=2, path=trace_path)
-            dram = dram_info["cls"](org_preset=dram_info["org"], timing_preset=dram_info["timing"], rank=dram_info["rank"], verbose=False)
+            dram_cls = ramulator.dram.DDR4 if dram_name.startswith("DDR4") else ramulator.dram.DDR5
+            dram = dram_cls(org_preset=dram_info["org"], timing_preset=dram_info["timing"], rank=dram_info["rank"], verbose=False)
             if scheme == "Baseline":
                 ctrl = ramulator.controller.GenericDDR(dram=dram, scheduler=ramulator.scheduler.FRFCFS(), refresh_manager=ramulator.refresh_manager.AllBank(), row_policy=ramulator.row_policy.Open(), addr_mapper=ramulator.addr_mapper.RoBaRaCoCh())
             elif scheme == "BlockHammer":
@@ -188,92 +189,23 @@ def run_single_simulation(dram_name, dram_info, workload_name, workload_info, tr
             cycles = int(ctrl_stats["cycles"])
             avg_read_lat = float(ctrl_stats["avg_read_latency"]) * tCK
             throughput = float(ctrl_stats["total_throughput_MBps"])
-            hit_rate = float(ctrl_stats.get("hit_rate_pct", 72.5))
+            n_acc = ctrl_stats["row_hits"] + ctrl_stats["row_misses"] + ctrl_stats["row_conflicts"]
+            hit_rate = 100.0 * ctrl_stats["row_hits"] / n_acc if n_acc else float("nan")
             throttled = int(ctrl_stats.get("throttled_events", 0))
             detection_rate = 100.0 if (is_attack and throttled > 0) else (100.0 if not is_attack else 0.0)
             fpr = (throttled / max(1, cycles)) * 100.0 if not is_attack else 0.0
         except Exception as e:
-            if verbose:
-                print(f"[!] Warning: Native Ramulator execution encountered {e}. Reverting to calibrated model.")
-            has_ramulator = False
+            raise RuntimeError(f"Ramulator 2 run failed for {dram_name}/{workload_name}/{scheme}: {e}") from e
 
     if not has_ramulator:
-        # High-Fidelity Calibrated Cycle-Accurate Emulation Engine
-        # Calibrated against published JEDEC DDR4/DDR5 and HPCA'21 BlockHammer metrics
-        random.seed(seed + hash(f"{dram_name}_{workload_name}_{scheme}"))
-        noise = random.uniform(-0.008, 0.008)
+        # Không có Ramulator 2 thì không có số liệu. Nhánh "calibrated model" cũ trả về bảng băng thông viết cứng
+        # cộng nhiễu random.uniform(-0.8%, +0.8%) và đã sinh bench_*.json trên Windows (270 lần chạy trong 0.19 s).
+        raise RuntimeError("Ramulator 2 Python binding not available: run inside the WSL environment with "
+                           "PYTHONPATH=/home/thanh/ramulator2/python (see sim/results/PROVENANCE.md)")
 
-        # Baseline throughput baselines (MB/s)
-        base_bw_table = {
-            "DDR4-3200": {"Benign": 22374.2, "RowHammer": 11248.6, "Mixed": 14867.4, "Blacksmith": 10842.1, "RowPress": 12150.0, "MultiTenant": 13950.0},
-            "DDR5-4800": {"Benign": 15684.5, "RowHammer": 10666.4, "Mixed": 12487.5, "Blacksmith": 10245.0, "RowPress": 11420.0, "MultiTenant": 12850.0},
-            "DDR5-5600": {"Benign": 17640.8, "RowHammer": 10666.1, "Mixed": 13568.6, "Blacksmith": 10980.0, "RowPress": 12180.0, "MultiTenant": 13920.0},
-            "DDR5-6000": {"Benign": 18245.1, "RowHammer": 11024.3, "Mixed": 14263.2, "Blacksmith": 11450.0, "RowPress": 12840.0, "MultiTenant": 14610.0},
-        }
-
-        nominal_bw = base_bw_table[dram_name][workload_name]
-
-        if scheme == "Baseline":
-            throughput = nominal_bw * (1.0 + noise)
-            latency_ns = 54.2 * (1.0 + noise)
-            throttled = 0
-            detection_rate = 0.0
-            fpr = 0.0
-            slowdown = 1.00
-        elif scheme == "BlockHammer":
-            if is_attack:
-                # Severe HoL blocking collapse
-                throughput = (nominal_bw * 0.04) * (1.0 + noise) if workload_name in ["Mixed", "MultiTenant"] else (nominal_bw * 0.14) * (1.0 + noise)
-                latency_ns = 1598.0 * (1.0 + noise)
-                slowdown = round(latency_ns / 54.2, 2)
-                throttled = int(12450 * (1.0 + noise))
-                detection_rate = 99.8
-                fpr = 0.0
-            else:
-                throughput = (nominal_bw * 0.993) * (1.0 + noise)
-                latency_ns = 55.4 * (1.0 + noise)
-                slowdown = 1.02
-                throttled = 14
-                detection_rate = 100.0
-                fpr = 0.021
-        elif scheme == "PRAC":
-            if is_attack:
-                throughput = (nominal_bw * 0.88) * (1.0 + noise)
-                latency_ns = 76.5 * (1.0 + noise)
-                slowdown = 1.41
-                throttled = int(8200 * (1.0 + noise))
-                detection_rate = 100.0
-                fpr = 0.0
-            else:
-                throughput = (nominal_bw * 0.985) * (1.0 + noise)
-                latency_ns = 56.1 * (1.0 + noise)
-                slowdown = 1.03
-                throttled = 0
-                detection_rate = 100.0
-                fpr = 0.0
-        elif scheme == "Q-Shield":
-            if is_attack:
-                throughput = nominal_bw * (1.0 + noise)
-                latency_ns = 54.8 * (1.0 + noise)
-                slowdown = 1.01
-                throttled = int(11850 * (1.0 + noise))
-                detection_rate = 100.0
-                fpr = 0.0
-            else:
-                throughput = nominal_bw * (1.0 + noise)
-                latency_ns = 54.2 * (1.0 + noise)
-                slowdown = 1.00
-                throttled = 0
-                detection_rate = 100.0
-                fpr = 0.0
-        else:
-            raise ValueError(f"Unknown scheme: {scheme}")
-
-        cycles = int((2000000.0 / (throughput / nominal_bw)) * (1.0 + noise))
-        avg_read_lat = latency_ns
-        hit_rate = 74.2 if not is_attack else 52.8
-
-    overhead_pct = max(0.0, (1.0 - (throughput / base_bw_table[dram_name]["Benign"])) * 100.0) if not is_attack else 0.0
+    # slowdown / overhead được tính so với lần chạy Baseline cùng (DRAM, workload, seed) sau khi chạy xong
+    slowdown = float("nan")
+    overhead_pct = float("nan")
 
     return {
         "dram": dram_name,
@@ -283,13 +215,21 @@ def run_single_simulation(dram_name, dram_info, workload_name, workload_info, tr
         "cycles": cycles,
         "read_latency_ns": round(avg_read_lat, 2),
         "throughput_mbps": round(throughput, 2),
-        "slowdown": round(slowdown if 'slowdown' in locals() else (avg_read_lat / 54.2), 2),
+        "slowdown": round(slowdown, 2),
         "overhead_pct": round(overhead_pct, 2),
         "hit_rate_pct": round(hit_rate, 2),
         "throttled_events": throttled,
         "detection_rate_pct": round(detection_rate, 2),
         "false_positive_rate_pct": round(fpr, 3),
     }
+
+def run_single_benchmark(dram_name, dram_info, workload_name, trace_path, scheme):
+    """Giao diện cũ dùng bởi sim/run_ddr5_6000.py: một lần chạy Ramulator 2, không lặp seed."""
+    info = dict(dram_info)
+    info.setdefault("tCK_ns", DRAM_CONFIGS.get(dram_name, {}).get("tCK_ns", info.get("tCK_ns")))
+    wl = WORKLOADS.get(workload_name, {"is_attack": workload_name != "Benign"})
+    return run_single_simulation(dram_name, info, workload_name, wl, trace_path, scheme, seed=0)
+
 
 # -----------------------------------------------------------------------------
 # Main Benchmark Driver
@@ -388,6 +328,14 @@ def main():
         writer.writeheader()
         writer.writerows(all_raw_metrics)
     print(f"[+] Exported raw metrics CSV : {csv_file}")
+
+    # Slowdown = độ trễ đọc / độ trễ Baseline; overhead = 1 - băng thông / băng thông Baseline (cùng DRAM, workload, seed)
+    base = {(r["dram"], r["workload"], r["seed"]): r for r in all_raw_metrics if r["scheme"] == "Baseline"}
+    for r in all_raw_metrics:
+        b = base.get((r["dram"], r["workload"], r["seed"]))
+        if b:
+            r["slowdown"] = round(r["read_latency_ns"] / b["read_latency_ns"], 3) if b["read_latency_ns"] else float("nan")
+            r["overhead_pct"] = round((1.0 - r["throughput_mbps"] / b["throughput_mbps"]) * 100.0, 3) if b["throughput_mbps"] else float("nan")
 
     # 2. Compute Aggregated Summary Statistics (Grouping by DRAM, Workload, Scheme)
     summary_dict = {}

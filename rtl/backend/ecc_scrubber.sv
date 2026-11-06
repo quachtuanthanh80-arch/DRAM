@@ -6,7 +6,7 @@
 
 module ecc_scrubber #(
     parameter int DATA_WIDTH     = 64,
-    parameter int ECC_WIDTH      = 8,   // 72-bit SEC-DED codeword
+    parameter int ECC_WIDTH      = DATA_WIDTH / 8,   // SEC-DED (72,64) cho mỗi làn 64 bit
     parameter int BG_COUNT       = 8,
     parameter int BG_WIDTH       = $clog2(BG_COUNT),
     parameter int BANK_COUNT     = 4,
@@ -33,6 +33,10 @@ module ecc_scrubber #(
     input  logic                                         i_data_valid,
     input  logic [DATA_WIDTH-1:0]                        i_raw_data,
     input  logic [ECC_WIDTH-1:0]                         i_raw_ecc,
+    // Địa chỉ của beat đang kiểm (ZEM ghi đúng hàng có lỗi, không phải toạ độ patrol)
+    input  logic [BG_WIDTH-1:0]                          i_data_bg   = '0,
+    input  logic [BANK_WIDTH-1:0]                        i_data_bank = '0,
+    input  logic [ROW_WIDTH-1:0]                         i_data_row  = '0,
 
     // OpenTitan-inspired Fault Injection Interface (for Verification & Diagnostic Testing)
     input  logic                                         i_fault_inject_en,
@@ -94,72 +98,50 @@ module ecc_scrubber #(
     end
 
     //=========================================================================
-    // SEC-DED Syndrome & Parity Matrix (Standard 64-bit data + 8-bit ECC)
-    // Parity bits P[0..6] check Hamming code subsets, P[7] is overall parity.
+    // Giải mã SEC-DED (72,64) thật (secded_72_64_pkg). Ma trận cũ không phải mã Hamming: sửa bit syn-1 với
+    // mặt nạ kiểu chẵn lẻ vị trí cho dữ liệu không đặt ở vị trí Hamming nên đảo nhầm bit, và cổng ECC ở top
+    // được nối 8'h00 nên mọi lần đọc đều "có lỗi" (R30).
     //=========================================================================
-    // Hamming syndrome parity equations using folded XOR trees
-    logic overall_parity;
-    logic [6:0] syn;
-    logic syn_zero;
-
-    assign overall_parity = (^effective_data) ^ (^effective_ecc);
-    assign syn_zero       = (syn == 7'd0);
-
-    always_comb begin
-        syn[0] = effective_ecc[0] ^ ^(effective_data & 64'h5555_5555_5555_5555);
-        syn[1] = effective_ecc[1] ^ ^(effective_data & 64'h6666_6666_6666_6666);
-        syn[2] = effective_ecc[2] ^ ^(effective_data & 64'h7878_7878_7878_7878);
-        syn[3] = effective_ecc[3] ^ ^(effective_data & 64'h7F80_7F80_7F80_7F80);
-        syn[4] = effective_ecc[4] ^ ^(effective_data & 64'h7FFF_8000_7FFF_8000);
-        syn[5] = effective_ecc[5] ^ ^(effective_data & 64'h7FFF_FFFF_8000_0000);
-        syn[6] = effective_ecc[6] ^ ^(effective_data & 64'h8000_0000_0000_0000);
-    end
-
-    // SEC-DED Classification:
-    // syn == 0 and overall parity == 0 -> No Error
-    // syn != 0 and overall parity == 1 -> Single-Bit Error (Correctable)
-    // syn != 0 and overall parity == 0 -> Double-Bit Error (SDC Alert)
-    wire is_single_err = !syn_zero && overall_parity;
-    wire is_double_err = !syn_zero && !overall_parity;
-
-    // Single-bit correction mask
+    localparam int LANES = DATA_WIDTH / 64;
+    localparam int CBW   = $clog2(DATA_WIDTH);
+    logic [7:0]            syn;
     logic [DATA_WIDTH-1:0] bit_correction_mask;
+    logic                  is_single_err, is_double_err, is_miscorrect;
+
     always_comb begin
-        bit_correction_mask = '0;
-        if (is_single_err && (syn > 7'd0) && (syn <= 7'd64)) begin
-            bit_correction_mask[6'(syn - 1'b1)] = 1'b1;
+        logic ce_any;
+        ce_any        = 1'b0;
+        is_double_err = 1'b0;
+        is_miscorrect = 1'b0;
+        syn           = '0;
+        for (int l = 0; l < LANES; l++) begin
+            logic [7:0] s;
+            s = secded_72_64_pkg::secded72_syndrome(effective_data[l*64 +: 64], effective_ecc[l*8 +: 8]);
+            bit_correction_mask[l*64 +: 64] = secded_72_64_pkg::secded72_flip(s);
+            ce_any        = ce_any | secded_72_64_pkg::secded72_ce(s);
+            // Lỗi lẻ ở vị trí Hamming không tồn tại: >=3 bit giả dạng lỗi đơn (ECCfail), không được sửa
+            is_miscorrect = is_miscorrect | (s[7] && !secded_72_64_pkg::secded72_ce(s));
+            is_double_err = is_double_err | ((s != 8'h00) && !s[7]);
+            syn           = syn | s;
         end
+        // Beat có một làn không sửa được thì cả beat bị coi là hỏng (poison), không đếm là lỗi đã sửa
+        is_single_err = ce_any && !is_double_err && !is_miscorrect;
     end
 
-    // Corrected data
     assign o_corrected_valid = i_data_valid;
     assign o_corrected_data  = effective_data ^ bit_correction_mask;
     assign o_single_err      = i_data_valid && is_single_err;
     assign o_double_err      = i_data_valid && is_double_err;
 
-    //=========================================================================
-    // Scrub-and-Verify Engine (ECCfail USENIX'25 Anti-Miscorrection Defense)
-    // Re-evaluates parity and syndrome over corrected data to detect multi-bit
-    // clusters masquerading as single-bit flips.
-    //=========================================================================
-    logic [6:0] verify_syn;
-    logic       verify_overall_parity;
-    always_comb begin
-        verify_syn[0] = effective_ecc[0] ^ ^(o_corrected_data & 64'h5555_5555_5555_5555);
-        verify_syn[1] = effective_ecc[1] ^ ^(o_corrected_data & 64'h6666_6666_6666_6666);
-        verify_syn[2] = effective_ecc[2] ^ ^(o_corrected_data & 64'h7878_7878_7878_7878);
-        verify_syn[3] = effective_ecc[3] ^ ^(o_corrected_data & 64'h7F80_7F80_7F80_7F80);
-        verify_syn[4] = effective_ecc[4] ^ ^(o_corrected_data & 64'h7FFF_8000_7FFF_8000);
-        verify_syn[5] = effective_ecc[5] ^ ^(o_corrected_data & 64'h7FFF_FFFF_8000_0000);
-        verify_syn[6] = effective_ecc[6] ^ ^(o_corrected_data & 64'h8000_0000_0000_0000);
-        verify_overall_parity = (^o_corrected_data) ^ (^effective_ecc);
-    end
-
-    wire verify_clean = (verify_syn == 7'd0) && (verify_overall_parity == 1'b0);
-    wire is_miscorrect = is_single_err && (!verify_clean || (syn > 7'd64));
-
-    assign o_ecc_miscorrect_alert  = i_data_valid && (is_miscorrect || (is_single_err && (syn > 7'd64)) || (i_fault_inject_en && (i_fault_inject_type == 2'b11)));
+    assign o_ecc_miscorrect_alert  = i_data_valid && is_miscorrect;
     assign o_chipkill_fallback_req = o_ecc_miscorrect_alert || o_double_err;
+
+    // Vị trí bit dữ liệu đã sửa (cho ZEM)
+    logic [CBW-1:0] corr_bit;
+    always_comb begin
+        corr_bit = '0;
+        for (int j = 0; j < DATA_WIDTH; j++) if (bit_correction_mask[j]) corr_bit = CBW'(j);
+    end
 
     //=========================================================================
     // Patrol Memory Address Scanner & Scrubbing Interval Counter
@@ -230,7 +212,7 @@ module ecc_scrubber #(
                     if (is_double_err) begin
                         double_err_counter <= double_err_counter + 1'b1;
                     end
-                    if (o_ecc_miscorrect_alert) begin
+                    if (is_miscorrect) begin
                         miscorrect_counter <= miscorrect_counter + 1'b1;
                     end
                 end
@@ -251,7 +233,7 @@ module ecc_scrubber #(
     logic [BG_WIDTH-1:0]             zem_bg   [ZEM_ENTRIES];
     logic [BANK_WIDTH-1:0]           zem_bank [ZEM_ENTRIES];
     logic [ROW_WIDTH-1:0]            zem_row  [ZEM_ENTRIES];
-    logic [5:0]                      zem_bit  [ZEM_ENTRIES];
+    logic [CBW-1:0]                  zem_bit  [ZEM_ENTRIES];
     logic [ZEM_PTR_W-1:0]            zem_alloc_ptr;
     logic [15:0]                     zem_hit_counter;
 
@@ -292,25 +274,25 @@ module ecc_scrubber #(
             end
 
             // Record single-bit error into ZEM Cache upon detection
-            if (i_data_valid && is_single_err && !o_ecc_miscorrect_alert && (syn > 7'd0) && (syn <= 7'd64)) begin
+            if (i_data_valid && is_single_err && (|bit_correction_mask)) begin
                 logic already_exists;
                 already_exists = 1'b0;
                 for (int k = 0; k < ZEM_ENTRIES; k++) begin
                     if (zem_valid[k] &&
-                        (zem_bg[k]   == patrol_bg) &&
-                        (zem_bank[k] == patrol_bank) &&
-                        (zem_row[k]  == patrol_row)) begin
+                        (zem_bg[k]   == i_data_bg) &&
+                        (zem_bank[k] == i_data_bank) &&
+                        (zem_row[k]  == i_data_row)) begin
                         already_exists = 1'b1;
-                        zem_bit[k]    <= 6'(syn - 1'b1);
+                        zem_bit[k]    <= corr_bit;
                     end
                 end
 
                 if (!already_exists) begin
                     zem_valid[zem_alloc_ptr] <= 1'b1;
-                    zem_bg[zem_alloc_ptr]    <= patrol_bg;
-                    zem_bank[zem_alloc_ptr]  <= patrol_bank;
-                    zem_row[zem_alloc_ptr]   <= patrol_row;
-                    zem_bit[zem_alloc_ptr]   <= 6'(syn - 1'b1);
+                    zem_bg[zem_alloc_ptr]    <= i_data_bg;
+                    zem_bank[zem_alloc_ptr]  <= i_data_bank;
+                    zem_row[zem_alloc_ptr]   <= i_data_row;
+                    zem_bit[zem_alloc_ptr]   <= corr_bit;
                     zem_alloc_ptr            <= zem_alloc_ptr + 1'b1;
                 end
             end
@@ -326,15 +308,8 @@ module ecc_scrubber #(
     end
 
     // Giả định codeword ECC hợp lệ trên bus đọc DRAM gốc
-    wire [ECC_WIDTH-1:0] expected_ecc;
-    assign expected_ecc[0] = ^(i_raw_data & 64'h5555_5555_5555_5555);
-    assign expected_ecc[1] = ^(i_raw_data & 64'h6666_6666_6666_6666);
-    assign expected_ecc[2] = ^(i_raw_data & 64'h7878_7878_7878_7878);
-    assign expected_ecc[3] = ^(i_raw_data & 64'h7F80_7F80_7F80_7F80);
-    assign expected_ecc[4] = ^(i_raw_data & 64'h7FFF_8000_7FFF_8000);
-    assign expected_ecc[5] = ^(i_raw_data & 64'h7FFF_FFFF_8000_0000);
-    assign expected_ecc[6] = ^(i_raw_data & 64'h8000_0000_0000_0000);
-    assign expected_ecc[7] = (^i_raw_data) ^ (^expected_ecc[6:0]);
+    logic [ECC_WIDTH-1:0] expected_ecc;
+    always_comb for (int l = 0; l < LANES; l++) expected_ecc[l*8 +: 8] = secded_72_64_pkg::secded72_enc(i_raw_data[l*64 +: 64]);
 
     always_comb begin
         if (i_data_valid) begin
@@ -357,6 +332,20 @@ module ecc_scrubber #(
             assert (!o_single_err);
             assert (!o_double_err);
             assert (o_corrected_data == i_raw_data);
+        end
+    end
+
+    // 2b. SEC: lỗi 1 bit ở bất kỳ vị trí dữ liệu nào của codeword sạch được sửa về đúng dữ liệu gốc (mọi giá trị dữ liệu)
+    always_comb begin
+        if (rst_n && i_data_valid && i_fault_inject_en && i_fault_inject_type == 2'b01) begin
+            assert (o_single_err && !o_double_err && o_corrected_data == i_raw_data);
+        end
+    end
+
+    // 2c. DED: lỗi 2 bit luôn bị phát hiện và không bao giờ bị "sửa" như lỗi đơn
+    always_comb begin
+        if (rst_n && i_data_valid && i_fault_inject_en && i_fault_inject_type == 2'b10) begin
+            assert (o_double_err && !o_single_err);
         end
     end
 
@@ -392,7 +381,7 @@ module ecc_scrubber #(
     // 6. SOTA ECCfail Miscorrection Trap Invariant
     always_comb begin
         if (rst_n && i_data_valid) begin
-            if (is_single_err && (!verify_clean || (syn > 7'd64))) begin
+            if (is_miscorrect) begin
                 assert (o_ecc_miscorrect_alert);
                 assert (o_chipkill_fallback_req);
             end
@@ -420,6 +409,7 @@ module ecc_scrubber #(
         cover (o_single_err);
         cover (o_double_err);
         cover (o_ecc_miscorrect_alert);
+        cover (o_single_err && o_corrected_data == i_raw_data);
         cover (o_chipkill_fallback_req);
         cover (o_scrub_req);
         cover (patrol_row > '0);

@@ -62,11 +62,7 @@ module tb_slack_aware_arbiter;
     logic [COL_WIDTH-1:0]                o_cmd_col;
     logic [AXI_LEN_WIDTH-1:0]            o_cmd_len;
     logic                                o_cmd_is_mitigation;
-    logic                                i_proq_row_hit;
-    logic                                o_check_cand_valid;
-    logic [BG_WIDTH-1:0]                 o_check_cand_bg;
-    logic [BANK_WIDTH-1:0]               o_check_cand_bank;
-    logic [ROW_WIDTH-1:0]                o_check_cand_row;
+    logic [BG_COUNT-1:0]                 i_proq_blk, i_proq_hit;
 
     // Instantiate DUT
     slack_aware_arbiter #(
@@ -101,11 +97,9 @@ module tb_slack_aware_arbiter;
         .i_mitigation_bank   (i_mitigation_bank),
         .i_mitigation_row    (i_mitigation_row),
         .o_mitigation_grant  (o_mitigation_grant),
-        .o_check_cand_valid  (o_check_cand_valid),
-        .o_check_cand_bg     (o_check_cand_bg),
-        .o_check_cand_bank   (o_check_cand_bank),
-        .o_check_cand_row    (o_check_cand_row),
-        .i_proq_row_hit      (i_proq_row_hit),
+        .i_proq_blk          (i_proq_blk),
+        .i_proq_hit          (i_proq_hit),
+        .i_bank_free         ({(BG_COUNT*(1<<BANK_WIDTH)){1'b1}}),
         .o_issue_grant_valid (o_issue_grant_valid),
         .o_issue_grant_bg    (o_issue_grant_bg),
         .o_issue_grant_idx   (o_issue_grant_idx),
@@ -124,6 +118,7 @@ module tb_slack_aware_arbiter;
     int tests_run = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
 
     initial begin
         $display("================================================================");
@@ -150,7 +145,8 @@ module tb_slack_aware_arbiter;
         i_mitigation_bg = '0;
         i_mitigation_bank = '0;
         i_mitigation_row = '0;
-        i_proq_row_hit = 1'b0;
+        i_proq_blk = '0;
+        i_proq_hit = '0;
 
         #(ClkPeriod * 2);
         rst_n = 1;
@@ -248,7 +244,8 @@ module tb_slack_aware_arbiter;
         i_cand_qos   = (4'd10 << 0);
         i_cand_starved = 8'b0;
         i_cand_throttled = 8'b0;
-        i_proq_row_hit = 1'b1;       // Target row is pending preventive refresh in PROQ!
+        i_proq_blk = 8'b0000_0001;   // Ứng viên BG0 chạm hàng đang chờ refresh nạn nhân trong PROQ
+        i_proq_hit = 8'b0000_0001;
         i_mitigation_req = 1'b1;     // DRM needs to issue mitigation
         #1;
         if (o_issue_grant_valid == 1'b0 && o_mitigation_grant == 1'b1 && o_cmd_valid == 1'b1 && o_cmd_is_mitigation == 1'b1) begin
@@ -259,7 +256,8 @@ module tb_slack_aware_arbiter;
                      o_issue_grant_valid, o_mitigation_grant, o_cmd_valid, o_cmd_is_mitigation);
             tests_failed++;
         end
-        i_proq_row_hit = 1'b0;
+        i_proq_blk = '0;
+        i_proq_hit = '0;
         i_mitigation_req = 1'b0;
 
         #(ClkPeriod * 4);
@@ -268,6 +266,8 @@ module tb_slack_aware_arbiter;
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
         if (tests_failed == 0) begin
             $display("[ALL TESTS PASSED SUCCESSFULLY]");
             $finish;

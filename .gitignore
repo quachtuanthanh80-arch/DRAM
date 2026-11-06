@@ -89,3 +89,11 @@ tools/download_hcmute_papers.py
 tools/generate_architecture_docx.py
 synth/asic/baselines/
 DRAM/
+
+.mcp.json
+
+external_refs/
+
+# Thư mục build tạm của tools/run_one_tb.py
+build/
+syn/reports/build/

@@ -6,9 +6,13 @@ WAVES ?= 1
 ROOT_DIR ?= $(abspath $(CURDIR)/../..)
 
 VERILOG_SOURCES = \
+    $(ROOT_DIR)/rtl/backend/secded_72_64_pkg.sv \
     $(ROOT_DIR)/rtl/bus/axi4_skid_buffer.sv \
     $(ROOT_DIR)/rtl/frontend/axi_slave_frontend.sv \
     $(ROOT_DIR)/rtl/frontend/wdata_buffer.sv \
+    $(ROOT_DIR)/rtl/frontend/wr_data_store.sv \
+    $(ROOT_DIR)/rtl/frontend/axi_burst_splitter.sv \
+    $(ROOT_DIR)/rtl/frontend/rd_issue_queue.sv \
     $(ROOT_DIR)/rtl/frontend/domain_bank_coloring.sv \
     $(ROOT_DIR)/rtl/core/scarf_dram_randomizer.sv \
     $(ROOT_DIR)/rtl/frontend/addr_mapper_ddr5.sv \
@@ -26,6 +30,7 @@ VERILOG_SOURCES = \
     $(ROOT_DIR)/rtl/backend/ddr5_cmd_engine.sv \
     $(ROOT_DIR)/rtl/backend/ecc_scrubber.sv \
     $(ROOT_DIR)/rtl/memory/bus_scrambler.sv \
+    $(ROOT_DIR)/rtl/memory/scrambler_ks_pipe.sv \
     $(ROOT_DIR)/rtl/bus/perf_monitor_unit.sv \
     $(ROOT_DIR)/rtl/top/axi_ddr5_mc_top.sv
 

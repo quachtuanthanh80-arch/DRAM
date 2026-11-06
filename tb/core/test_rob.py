@@ -2,7 +2,7 @@
 # Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
 # Testbench:   test_rob.py
 # Description: Verifies reorder_buffer_rob:
-#              1. Out-of-Order DRAM Data Reassembly & In-Order AXI R Retirement.
+#              1. Out-of-Order DRAM Data Reassembly & per-ID In-Order AXI R Retirement.
 #              2. Read-After-Write (RAW) Hazard Detection against active writes.
 #              3. Zero-Bubble Flow Control and Skid Buffer backpressure resilience.
 #=============================================================================
@@ -36,7 +36,7 @@ async def reset_dut(dut):
 
 @cocotb.test()
 async def test_ooo_writeback_inorder_retirement(dut):
-    """Verify Out-of-Order DRAM writebacks are retired in strict in-order sequence"""
+    """Same-ID reads must retire in AXI issue order even when DRAM returns them out of order"""
     clock = Clock(dut.clk, 2.5, unit="ns")
     cocotb.start_soon(clock.start())
 
@@ -51,15 +51,15 @@ async def test_ooo_writeback_inorder_retirement(dut):
     await RisingEdge(dut.clk)
     tag0 = int(dut.o_alloc_tag.value)
 
-    # Req 1: ID=0x2, Addr=0x2000, Len=0 (1 beat)
-    dut.i_alloc_id.value = 0x2
+    # Req 1: same ID=0x1, Addr=0x2000, Len=0 (1 beat)
+    dut.i_alloc_id.value = 0x1
     dut.i_alloc_addr.value = 0x2000
     dut.i_alloc_len.value = 0
     await RisingEdge(dut.clk)
     tag1 = int(dut.o_alloc_tag.value)
 
-    # Req 2: ID=0x3, Addr=0x3000, Len=1 (2 beats)
-    dut.i_alloc_id.value = 0x3
+    # Req 2: same ID=0x1, Addr=0x3000, Len=1 (2 beats)
+    dut.i_alloc_id.value = 0x1
     dut.i_alloc_addr.value = 0x3000
     dut.i_alloc_len.value = 1
     await RisingEdge(dut.clk)
@@ -88,10 +88,10 @@ async def test_ooo_writeback_inorder_retirement(dut):
     dut.i_wb_last.value = 1
     await RisingEdge(dut.clk)
 
-    # Note: Even though Req 1 and Req 2 arrived, ROB head is Req 0!
+    # Req 1 and Req 2 share ID 0x1 with the still-pending Req 0, so AXI ordering holds them back.
     # Since Req 0 has not arrived yet, o_rvalid must be 0!
     await Timer(1, unit="ns")
-    assert int(dut.o_rvalid.value) == 0, "ROB leaked out-of-order data before head transaction arrived!"
+    assert int(dut.o_rvalid.value) == 0, "ROB released a same-ID read before the older one arrived (AXI ID ordering violated)"
     dut._log.info("Verified: ROB holds back later transactions until head arrives.")
 
     # Req 0 (tag 0) arrives LAST (2 beats)
@@ -108,15 +108,15 @@ async def test_ooo_writeback_inorder_retirement(dut):
     # Expected retired beats:
     # Beat 0: ID=0x1, data=0xAAAA_1111_0000_0001, last=0
     # Beat 1: ID=0x1, data=0xAAAA_1111_0000_0002, last=1
-    # Beat 2: ID=0x2, data=0xBBBB_2222_BBBB_2222, last=1
-    # Beat 3: ID=0x3, data=0xCCCC_3333_0000_0001, last=0
-    # Beat 4: ID=0x3, data=0xCCCC_3333_0000_0002, last=1
+    # Beat 2: ID=0x1, data=0xBBBB_2222_BBBB_2222, last=1
+    # Beat 3: ID=0x1, data=0xCCCC_3333_0000_0001, last=0
+    # Beat 4: ID=0x1, data=0xCCCC_3333_0000_0002, last=1
     expected = [
         (0x1, 0xAAAA_1111_0000_0001, 0),
         (0x1, 0xAAAA_1111_0000_0002, 1),
-        (0x2, 0xBBBB_2222_BBBB_2222, 1),
-        (0x3, 0xCCCC_3333_0000_0001, 0),
-        (0x3, 0xCCCC_3333_0000_0002, 1)
+        (0x1, 0xBBBB_2222_BBBB_2222, 1),
+        (0x1, 0xCCCC_3333_0000_0001, 0),
+        (0x1, 0xCCCC_3333_0000_0002, 1)
     ]
 
     received = []
@@ -139,6 +139,42 @@ async def test_ooo_writeback_inorder_retirement(dut):
         assert exp == rec, f"Beat {idx} mismatch: expected {exp}, got {rec}"
 
     dut._log.info("Out-of-order reassembly and in-order retirement verified successfully!")
+
+@cocotb.test()
+async def test_cross_id_bypass(dut):
+    """AXI4 only orders reads within an ID: a younger read of another ID must not wait for an older pending one"""
+    clock = Clock(dut.clk, 2.5, unit="ns")
+    cocotb.start_soon(clock.start())
+
+    await reset_dut(dut)
+
+    dut.i_alloc_valid.value = 1
+    dut.i_alloc_id.value = 0x1
+    dut.i_alloc_addr.value = 0x1000
+    dut.i_alloc_len.value = 3
+    await RisingEdge(dut.clk)
+    dut.i_alloc_id.value = 0x2
+    dut.i_alloc_addr.value = 0x2000
+    dut.i_alloc_len.value = 0
+    await RisingEdge(dut.clk)
+    tag_young = int(dut.o_alloc_tag.value)
+    dut.i_alloc_valid.value = 0
+
+    dut.i_wb_valid.value = 1
+    dut.i_wb_tag.value = tag_young
+    dut.i_wb_data.value = 0x2222_0000_0000_0001
+    dut.i_wb_resp.value = 0
+    dut.i_wb_last.value = 1
+    await RisingEdge(dut.clk)
+    dut.i_wb_valid.value = 0
+
+    for _ in range(10):
+        await Timer(1, unit="ns")
+        if int(dut.o_rvalid.value) == 1:
+            break
+        await RisingEdge(dut.clk)
+    assert int(dut.o_rvalid.value) == 1, "Read of ID 0x2 blocked behind pending read of ID 0x1 (head-of-line blocking)"
+    assert int(dut.o_rid.value) == 0x2 and int(dut.o_rdata.value) == 0x2222_0000_0000_0001
 
 @cocotb.test()
 async def test_raw_hazard_detection(dut):

@@ -28,6 +28,8 @@ module addr_mapper_ddr5 #(
     input  logic                      i_req_valid,
     output logic                      o_req_ready,
     input  logic [AXI_ID_WIDTH-1:0]   i_req_id,
+    // Định danh miền bảo mật tách khỏi i_req_id: với lệnh đọc i_req_id mang ROB tag, không phải tenant.
+    input  logic [AXI_ID_WIDTH-1:0]   i_req_tenant,
     input  logic                      i_req_is_write,
     input  logic [AXI_ADDR_WIDTH-1:0] i_req_addr,
     input  logic [7:0]                i_req_len,
@@ -43,7 +45,8 @@ module addr_mapper_ddr5 #(
     output logic [ROW_WIDTH-1:0]      o_cmd_row,
     output logic [COL_WIDTH-1:0]      o_cmd_col,
     output logic [7:0]                o_cmd_len,
-    output logic [AXI_QOS_WIDTH-1:0]  o_cmd_qos
+    output logic [AXI_QOS_WIDTH-1:0]  o_cmd_qos,
+    output logic                      o_busy
 );
 
     // Byte offset within 64-byte burst (handled by PHY/Data path)
@@ -51,27 +54,23 @@ module addr_mapper_ddr5 #(
     wire [5:0] unused_byte_offset = i_req_addr[5:0];
     /* verilator lint_on UNUSEDSIGNAL */
 
-    // Skid Buffer / Stage Register
-    logic                      cmd_valid_reg;
-    logic [AXI_ID_WIDTH-1:0]   cmd_id_reg;
-    logic                      cmd_is_write_reg;
-    logic [BG_WIDTH-1:0]       cmd_bg_reg;
-    logic [BANK_WIDTH-1:0]     cmd_bank_reg;
-    logic [ROW_WIDTH-1:0]      cmd_row_reg;
-    logic [COL_WIDTH-1:0]      cmd_col_reg;
-    logic [7:0]                cmd_len_reg;
-    logic [AXI_QOS_WIDTH-1:0]  cmd_qos_reg;
+    //=========================================================================
+    // Pipeline ánh xạ: tầng giải mã (bank coloring/hash BG) + SCARF Feistel 10 vòng chia 2 vòng/tầng.
+    // Toàn tuyến dừng cùng lúc khi đầu ra bị giữ (en = 0), nên thứ tự lệnh và mọi lệnh đều được bảo toàn;
+    // độ trễ cố định 1 + SCARF_LAT chu kỳ kể cả khi SCARF tắt (không có đường tắt làm đảo thứ tự).
+    //=========================================================================
+    localparam int SCARF_RPS = 2;
+    localparam int SCARF_LAT = (10 + SCARF_RPS - 1) / SCARF_RPS;
 
-    assign o_req_ready = !cmd_valid_reg || i_cmd_ready;
+    logic out_valid;
+    wire  en = !out_valid || i_cmd_ready;
+    assign o_req_ready = en;
 
-    // Decoding Combinational Logic
-    // Column address: Addr[15:6] (10 bits)
-    wire [COL_WIDTH-1:0] dec_col = i_req_addr[COL_WIDTH+5:6];
+    // Cột theo word 8 byte: bỏ addr[5:3] làm hai word cùng dòng 64B trùng một ô DRAM
+    wire [COL_WIDTH-1:0] dec_col = i_req_addr[COL_WIDTH+2:3];
 
-    // Bank & Bank Group Decoding qua Domain Bank Coloring Module
     wire [BG_WIDTH-1:0]   dec_bg;
     wire [BANK_WIDTH-1:0] dec_bank;
-
     domain_bank_coloring #(
         .AXI_ID_WIDTH   (AXI_ID_WIDTH),
         .AXI_ADDR_WIDTH (AXI_ADDR_WIDTH),
@@ -81,7 +80,7 @@ module addr_mapper_ddr5 #(
         .cfg_bank_coloring_en (cfg_bank_coloring_en),
         .cfg_mapping_mode     (cfg_mapping_mode),
         .cfg_is_ddr5          (cfg_is_ddr5),
-        .i_req_id             (i_req_id),
+        .i_req_id             (i_req_tenant),
         .i_req_addr           (i_req_addr),
         .o_bg                 (dec_bg),
         .o_bank               (dec_bank)
@@ -92,67 +91,61 @@ module addr_mapper_ddr5 #(
     wire [RAW_ROW_BITS-1:0] raw_row = (AXI_ADDR_WIDTH > 18) ? i_req_addr[AXI_ADDR_WIDTH-1:18] : '0;
     wire [ROW_WIDTH-1:0]    dec_row = {{(ROW_WIDTH > RAW_ROW_BITS ? (ROW_WIDTH - RAW_ROW_BITS) : 0){1'b0}}, raw_row};
 
-    // Tích hợp bộ xáo trộn SCARF Feistel phá hủy tính quy luật vật lý của ZenHammer/Phoenix
+    // Tầng 0: thanh ghi giải mã. Sideband mỗi tầng: {valid, id, is_write, bg, bank, col, len, qos}
+    localparam int SB_W = 1 + AXI_ID_WIDTH + 1 + BG_WIDTH + BANK_WIDTH + COL_WIDTH + 8 + AXI_QOS_WIDTH;
+    logic [SB_W-2:0]      sb_pay [0:SCARF_LAT];
+    logic [SCARF_LAT:0]   sb_vld;
+    logic [ROW_WIDTH-1:0] d_row;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)  sb_vld <= '0;
+        else if (en) sb_vld <= {sb_vld[SCARF_LAT-1:0], i_req_valid};
+    end
+    always_ff @(posedge clk)
+        if (en) begin
+            sb_pay[0] <= {i_req_id, i_req_is_write, dec_bg, dec_bank, dec_col, i_req_len, i_req_qos};
+            d_row     <= dec_row;
+        end
+    wire [BG_WIDTH-1:0]   d_bg   = sb_pay[0][BANK_WIDTH + COL_WIDTH + 8 + AXI_QOS_WIDTH +: BG_WIDTH];
+    wire [BANK_WIDTH-1:0] d_bank = sb_pay[0][COL_WIDTH + 8 + AXI_QOS_WIDTH +: BANK_WIDTH];
+
+    // Tầng 1..SCARF_LAT: SCARF phá quy luật vật lý của ZenHammer/Phoenix; sideband đi song song cùng độ trễ
     wire [ROW_WIDTH-1:0]  scarf_row;
     wire [BANK_WIDTH-1:0] scarf_bank;
-
+    wire                  scarf_on = cfg_scramble_en && (cfg_scramble_mode == 2'b10);
     scarf_dram_randomizer #(
         .ROW_WIDTH   (ROW_WIDTH),
         .BANK_WIDTH  (BANK_WIDTH),
         .TWEAK_WIDTH (16),
-        .ROUNDS      (10)
+        .ROUNDS      (10),
+        .RPS         (SCARF_RPS)
     ) u_scarf_randomizer (
         .clk               (clk),
         .rst_n             (rst_n),
-        .cfg_scramble_en   (cfg_scramble_en && (cfg_scramble_mode == 2'b10)),
+        .cfg_scramble_en   (scarf_on),
         .cfg_scramble_seed (cfg_scramble_seed),
-        .i_tweak           ({{(16-BG_WIDTH){1'b0}}, dec_bg}),
-        .i_row             (dec_row),
-        .i_bank            (dec_bank),
+        .i_en              (en),
+        .i_tweak           ({{(16-BG_WIDTH){1'b0}}, d_bg}),
+        .i_row             (d_row),
+        .i_bank            (d_bank),
         .o_scrambled_row   (scarf_row),
         .o_scrambled_bank  (scarf_bank)
     );
 
-    // Khi Bank Coloring kích hoạt, ngân hàng Bank được bảo toàn tuyệt đối để phân vùng QoS xác định; SCARF chỉ hoán vị Row
-    wire [ROW_WIDTH-1:0]  final_row  = (cfg_scramble_en && cfg_scramble_mode == 2'b10) ? scarf_row  : dec_row;
-    wire [BANK_WIDTH-1:0] final_bank = (cfg_bank_coloring_en) ? dec_bank :
-                                       ((cfg_scramble_en && cfg_scramble_mode == 2'b10) ? scarf_bank : dec_bank);
-
-    // Pipeline Register
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            cmd_valid_reg    <= 1'b0;
-            cmd_id_reg       <= '0;
-            cmd_is_write_reg <= 1'b0;
-            cmd_bg_reg       <= '0;
-            cmd_bank_reg     <= '0;
-            cmd_row_reg      <= '0;
-            cmd_col_reg      <= '0;
-            cmd_len_reg      <= '0;
-            cmd_qos_reg      <= '0;
-        end else if (o_req_ready) begin
-            cmd_valid_reg <= i_req_valid;
-            if (i_req_valid) begin
-                cmd_id_reg       <= i_req_id;
-                cmd_is_write_reg <= i_req_is_write;
-                cmd_bg_reg       <= dec_bg;
-                cmd_bank_reg     <= final_bank;
-                cmd_row_reg      <= final_row;
-                cmd_col_reg      <= dec_col;
-                cmd_len_reg      <= i_req_len;
-                cmd_qos_reg      <= i_req_qos;
-            end
-        end
+    for (genvar k = 0; k < SCARF_LAT; k++) begin : g_side
+        always_ff @(posedge clk)
+            if (en) sb_pay[k+1] <= sb_pay[k];
     end
 
-    assign o_cmd_valid    = cmd_valid_reg;
-    assign o_cmd_id       = cmd_id_reg;
-    assign o_cmd_is_write = cmd_is_write_reg;
-    assign o_cmd_bg       = cmd_bg_reg;
-    assign o_cmd_bank     = cmd_bank_reg;
-    assign o_cmd_row      = cmd_row_reg;
-    assign o_cmd_col      = cmd_col_reg;
-    assign o_cmd_len      = cmd_len_reg;
-    assign o_cmd_qos      = cmd_qos_reg;
+    wire [SB_W-2:0] q = sb_pay[SCARF_LAT];
+    assign out_valid      = sb_vld[SCARF_LAT];
+    assign o_cmd_valid    = out_valid;
+    assign {o_cmd_id, o_cmd_is_write, o_cmd_bg} = q[SB_W-2 -: AXI_ID_WIDTH + 1 + BG_WIDTH];
+    assign o_cmd_col      = q[8 + AXI_QOS_WIDTH +: COL_WIDTH];
+    assign o_cmd_len      = q[AXI_QOS_WIDTH +: 8];
+    assign o_cmd_qos      = q[AXI_QOS_WIDTH-1:0];
+    // Khi Bank Coloring bật, bank được giữ nguyên để phân vùng xác định; SCARF chỉ hoán vị Row
+    assign o_cmd_bank     = cfg_bank_coloring_en ? q[COL_WIDTH + 8 + AXI_QOS_WIDTH +: BANK_WIDTH] : scarf_bank;
+    assign o_cmd_row      = scarf_row;
+    assign o_busy         = |sb_vld;
 
 endmodule

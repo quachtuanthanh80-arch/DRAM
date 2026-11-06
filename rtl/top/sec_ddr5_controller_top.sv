@@ -229,15 +229,18 @@ module sec_ddr5_controller_top #(
         .pmu_counters          (csr_pmu_counters)
     );
 
-    // Expand 15 Round Keys for AES-256 (Simplified Key Expansion Wiring)
-    logic [127:0] round_keys [15];
-    always_comb begin
-        round_keys[0] = key1_cipher[255:128];
-        round_keys[1] = key1_cipher[127:0];
-        for (int k = 2; k <= 14; k++) begin
-            round_keys[k] = key1_cipher[127:0] ^ {4{32'(k * 32'h9E37_79B9)}};
-        end
-    end
+    // Lịch khoá AES-256 FIPS-197 thật cho đường XTS (bản cũ: key ^ k*0x9E3779B9, không phải AES-256 - S27)
+    logic [127:0]      round_keys [15];
+    logic [15*128-1:0] round_keys_flat;
+    logic              xts_keys_ready;
+    aes256_key_expand u_xts_key_expand (
+        .clk          (clk_axi),
+        .rst_n        (rst_axi_n),
+        .i_key        (key1_cipher),
+        .o_valid      (xts_keys_ready),
+        .o_round_keys (round_keys_flat)
+    );
+    always_comb for (int k = 0; k <= 14; k++) round_keys[k] = round_keys_flat[k*128 +: 128];
 
     //-------------------------------------------------------------------------
     // 2. AXI4 Slave Adapter with Subchannel Splitting
@@ -317,6 +320,11 @@ module sec_ddr5_controller_top #(
     logic [DataWidth-1:0]  enc_b_data;
     logic [15:0]           enc_b_meta;
 
+    // Làn chỉ vào đường XTS khi khoá vòng đã tính xong; adapter thấy ready = 0 trong lúc đó
+    logic pipe_a_ready, pipe_b_ready;
+    assign split_a_ready = pipe_a_ready && xts_keys_ready;
+    assign split_b_ready = pipe_b_ready && xts_keys_ready;
+
     subchannel_aes_xts_pipe #(
         .NumRounds (14),
         .DataWidth (DataWidth),
@@ -328,8 +336,8 @@ module sec_ddr5_controller_top #(
         .enc_enable      (enc_enable),
         .pipe_busy       (pipe_busy),
         .round_keys      (round_keys),
-        .lane_a_valid_in (split_a_valid),
-        .lane_a_ready_in (split_a_ready),
+        .lane_a_valid_in (split_a_valid && xts_keys_ready),
+        .lane_a_ready_in (pipe_a_ready),
         .lane_a_data_in  (split_a_data),
         .lane_a_tweak_in (split_a_tweak),
         .lane_a_meta_in  (split_a_meta),
@@ -337,8 +345,8 @@ module sec_ddr5_controller_top #(
         .lane_a_ready_out(enc_a_ready),
         .lane_a_data_out (enc_a_data),
         .lane_a_meta_out (enc_a_meta),
-        .lane_b_valid_in (split_b_valid),
-        .lane_b_ready_in (split_b_ready),
+        .lane_b_valid_in (split_b_valid && xts_keys_ready),
+        .lane_b_ready_in (pipe_b_ready),
         .lane_b_data_in  (split_b_data),
         .lane_b_tweak_in (split_b_tweak),
         .lane_b_meta_in  (split_b_meta),

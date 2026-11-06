@@ -95,6 +95,7 @@ module tb_aes_xts_pipe;
     int tests_run    = 0;
     int tests_passed = 0;
     int tests_failed = 0;
+    `include "tb_check.svh"
     int lane_a_count = 0;
     int lane_b_count = 0;
 
@@ -324,18 +325,86 @@ module tb_aes_xts_pipe;
             tests_failed++;
         end
 
+        // TEST 6: AES-256-XTS KAT thật (IEEE 1619 Vector 10, sector 0xFF, 4 block đầu) với tweak T_j = AES_K2(i)·α^j khác 0.
+        // Round key mở rộng theo FIPS-197 và tweak được tính sẵn bằng mô hình Python đối chiếu OpenSSL XTS.
+        // Kiểm chứng pipeline round thực sự đúng khi được cấp khóa/tweak chuẩn (tách khỏi lỗi key schedule R6 ở top).
+        begin
+            logic [127:0] xts_rk [15];
+            logic [127:0] xts_pt [4];
+            logic [127:0] xts_tw [4];
+            logic [127:0] xts_ct [4];
+            logic [127:0] got [4];
+            int n_out;
+            xts_rk[0] = {32'h26357174, 32'h28605323, 32'h45904528, 32'h18281827};
+            xts_rk[1] = {32'h27769666, 32'h49575999, 32'h69937024, 32'h57774962};
+            xts_rk[2] = {32'h602147c9, 32'h461436bd, 32'h6e74659e, 32'h2be420b6};
+            xts_rk[3] = {32'h80385664, 32'ha74ec002, 32'hee19999b, 32'h878ae9bf};
+            xts_rk[4] = {32'h206833ef, 32'h40497426, 32'h065d429b, 32'h68292705};
+            xts_rk[5] = {32'hf9a0259d, 32'h799873f9, 32'hded6b3fb, 32'h30cf2a60};
+            xts_rk[6] = {32'h50ccc26c, 32'h70a4f183, 32'h30ed85a5, 32'h36b0c73e};
+            xts_rk[7] = {32'h3d6aeaaf, 32'hc4cacf32, 32'hbd52bccb, 32'h63840f30};
+            xts_rk[8] = {32'h5f1273fb, 32'h0fdeb197, 32'h7f7a4014, 32'h4f97c5b1};
+            xts_rk[9] = {32'he8bf1969, 32'hd5d5f3c6, 32'h111f3cf4, 32'hac4d803f};
+            xts_rk[10] = {32'h99ba4f0d, 32'hc6a83cf6, 32'hc9768d61, 32'hb60ccd75};
+            xts_rk[11] = {32'h6eccd2b3, 32'h8673cbda, 32'h53a6381c, 32'h42b904e8};
+            xts_rk[12] = {32'h4df7787a, 32'hd44d3777, 32'h12e50b81, 32'hdb9386e0};
+            xts_rk[13] = {32'h1ac89947, 32'h74044bf4, 32'hf277802e, 32'ha1d1b832};
+            xts_rk[14] = {32'hf06e2ac2, 32'hbd9952b8, 32'h69d465cf, 32'h7b316e4e};
+            xts_pt[0] = {32'h0f0e0d0c, 32'h0b0a0908, 32'h07060504, 32'h03020100};
+            xts_tw[0] = {32'h8b2b4a71, 32'h228e98ae, 32'hd6aa0ca9, 32'h7775261a};
+            xts_ct[0] = {32'h9bcf70e3, 32'h996c83e4, 32'h8603772f, 32'h103a3b1c};
+            xts_pt[1] = {32'h1f1e1d1c, 32'h1b1a1918, 32'h17161514, 32'h13121110};
+            xts_tw[1] = {32'h165694e2, 32'h451d315d, 32'had541952, 32'heeea4cb3};
+            xts_ct[1] = {32'h3be6a314, 32'hd412aea4, 32'h5723485e, 32'h3f8000ea};
+            xts_pt[2] = {32'h2f2e2d2c, 32'h2b2a2928, 32'h27262524, 32'h23222120};
+            xts_tw[2] = {32'h2cad29c4, 32'h8a3a62bb, 32'h5aa832a5, 32'hddd49966};
+            xts_ct[2] = {32'h443f68ac, 32'hf917b366, 32'h8d4afef8, 32'h76e2315d};
+            xts_pt[3] = {32'h3f3e3d3c, 32'h3b3a3938, 32'h37363534, 32'h33323130};
+            xts_tw[3] = {32'h595a5389, 32'h1474c576, 32'hb550654b, 32'hbba932cc};
+            xts_ct[3] = {32'hfd88b14b, 32'hcbfebe45, 32'h33fcad35, 32'hac860a68};
+            for (int r = 0; r < 15; r++) round_keys[r] = xts_rk[r];
+            enc_enable = 1'b1;
+            n_out = 0;
+            fork
+                begin
+                    for (int j = 0; j < 4; j++) begin
+                        @(posedge clk);
+                        #1;
+                        lane_a_data_in  = xts_pt[j];
+                        lane_a_tweak_in = xts_tw[j];
+                        lane_a_meta_in  = 16'hC000 + 16'(j);
+                        lane_a_valid_in = 1'b1;
+                    end
+                    @(posedge clk);
+                    #1;
+                    lane_a_valid_in = 1'b0;
+                end
+                begin
+                    for (int c = 0; c < 100 && n_out < 4; c++) begin
+                        @(posedge clk);
+                        if (lane_a_valid_out && lane_a_ready_out) begin
+                            got[n_out] = lane_a_data_out;
+                            n_out++;
+                        end
+                    end
+                end
+            join
+            tb_check(n_out == 4, $sformatf("Test 6: 4 XTS blocks emerged from the pipeline (%0d)", n_out));
+            for (int j = 0; j < 4; j++) begin
+                tb_check(got[j] == xts_ct[j], $sformatf("Test 6: IEEE 1619 vector 10 block %0d: got %032h expected %032h",
+                                                        j, got[j], xts_ct[j]));
+            end
+        end
+
         #(ClkPeriod * 10);
         $display("================================================================");
         $display("[TB_AES_XTS] SUMMARY: %0d/%0d TESTS PASSED, %0d FAILED",
                  tests_passed, tests_run, tests_failed);
         $display("================================================================");
 
-        if (tests_failed == 0) begin
-            $display("[ALL TESTS PASSED SUCCESSFULLY]");
-            $finish;
-        end else begin
-            $fatal(1, "[TESTBENCH COMPLETED WITH FAILURES]");
-        end
+        tb_merge_legacy(tests_passed + tests_failed, tests_failed);
+        tb_report();
+        $finish;
     end
 
 endmodule: tb_aes_xts_pipe

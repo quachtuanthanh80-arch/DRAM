@@ -12,29 +12,29 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
 
+def hamming_positions():
+    """Data bit j sits at the j-th Hamming position that is not a power of two (3, 5, 6, 7, 9, ...)."""
+    pos, p = [], 3
+    while len(pos) < 64:
+        if p & (p - 1):
+            pos.append(p)
+        p += 1
+    return pos
+
+
 def compute_hamming_ecc(data):
-    p = [0] * 7
-    masks = [
-        0x5555_5555_5555_5555,
-        0x6666_6666_6666_6666,
-        0x7878_7878_7878_7878,
-        0x7F80_7F80_7F80_7F80,
-        0x7FFF_8000_7FFF_8000,
-        0x7FFF_FFFF_8000_0000,
-        0x8000_0000_0000_0000
-    ]
-    for i in range(7):
-        p[i] = (bin(data & masks[i]).count("1")) % 2
-
-    overall_data_parity = bin(data).count("1") % 2
-    overall_p_parity = sum(p) % 2
-    p7 = (overall_data_parity ^ overall_p_parity) % 2
-
+    """Independent reference for SEC-DED (72,64): check bit i = XOR of data bits whose position has bit i set,
+    bit 7 = overall parity, then the check byte is stored inverted (XOR 0xAA, as OpenTitan prim_secded_inv).
+    Does not reuse the RTL mask constants."""
     ecc = 0
     for i in range(7):
-        ecc |= (p[i] << i)
-    ecc |= (p7 << 7)
-    return ecc
+        par = 0
+        for j, p in enumerate(hamming_positions()):
+            if (p >> i) & 1:
+                par ^= (data >> j) & 1
+        ecc |= par << i
+    ecc |= (bin(data).count("1") + bin(ecc).count("1")) % 2 << 7
+    return ecc ^ 0xAA
 
 async def reset_dut(dut):
     dut.rst_n.value = 0
@@ -166,7 +166,11 @@ async def test_zem_zero_cycle_fault_masking(dut):
     fault_bit = 42
     corrupted_data = orig_data ^ (1 << fault_bit)
 
-    # 1. Provide single-bit corrupted read data to trigger SEC-DED syndrome & ZEM allocation
+    # 1. Provide single-bit corrupted read data (with its DRAM address) to trigger SEC-DED correction & ZEM allocation
+    target_bg, target_bank, target_row = 5, 2, 0x1234
+    dut.i_data_bg.value = target_bg
+    dut.i_data_bank.value = target_bank
+    dut.i_data_row.value = target_row
     dut.i_data_valid.value = 1
     dut.i_raw_data.value = corrupted_data
     dut.i_raw_ecc.value = clean_ecc
@@ -175,11 +179,6 @@ async def test_zem_zero_cycle_fault_masking(dut):
 
     assert int(dut.o_single_err.value) == 1, "Single-bit error was not detected by syndrome!"
     assert int(dut.o_corrected_data.value) == orig_data, "Syndrome failed to correct data!"
-
-    # Current patrol address where error was caught
-    target_bg   = int(dut.o_scrub_bg.value)
-    target_bank = int(dut.o_scrub_bank.value)
-    target_row  = int(dut.o_scrub_row.value)
 
     # 2. Perform 0-Cycle ZEM Lookup on matching coordinates
     dut.i_data_valid.value = 0
@@ -230,11 +229,12 @@ async def test_ondie_ecc_miscorrection_resilience(dut):
     await RisingEdge(dut.clk)
     await Timer(0.5, unit="ns")
 
-    # In our dual-tier controller ECC, multi-bit faults MUST be flagged as uncorrectable
-    # (either o_double_err or not falsely reported as clean data)
-    assert int(dut.o_double_err.value) == 1 or int(dut.o_corrected_data.value) != orig_data, \
-        "On-die ECC 3-bit miscorrection went completely undetected!"
-    dut._log.info("[PASS] BEER/EINSim 3-bit on-die ECC fault caught by controller ECC engine!")
+    # A 3-bit error has odd weight, so SEC-DED never reports it as clean: it is either trapped (non-existent
+    # position) or miscorrected (looks like a single-bit error). It must never pass as an error-free word.
+    flagged = int(dut.o_single_err.value) or int(dut.o_ecc_miscorrect_alert.value)
+    assert flagged, "3-bit error produced a zero syndrome (impossible for SEC-DED)"
+    dut._log.info(f"3-bit error: single={int(dut.o_single_err.value)} trapped={int(dut.o_ecc_miscorrect_alert.value)} "
+                  f"(SEC-DED d=4 cannot guarantee detection of 3-bit errors)")
 
     # Inject 4-bit error: bits 2, 9, 17, 31 (severe multi-bit fault)
     miscorrected_data_4bit = orig_data ^ (1 << 2) ^ (1 << 9) ^ (1 << 17) ^ (1 << 31)

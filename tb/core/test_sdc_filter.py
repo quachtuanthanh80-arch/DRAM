@@ -4,7 +4,7 @@
 # Description: Verifies Novelty Pillar #1 (Configurable Dual-Hash SDC Filter):
 #              1. RowHammer activation threshold detection & throttle flag assertion.
 #              2. Dual-Hash false-positive collision suppression.
-#              3. O(1) instantaneous window reset via epoch tagging.
+#              3. O(1) epoch reset tied to tREFW (8192 REFab) via epoch tagging.
 #=============================================================================
 
 import cocotb
@@ -20,6 +20,7 @@ async def reset_dut(dut):
     dut.cfg_pxor_seed.value = 0xA5A5_5A5A_0123_4567
     dut.cfg_multibank_thresh.value = 2
     dut.i_rowpress_weight.value = 0
+    dut.i_ref_tick.value = 0
 
     dut.i_cmd_valid.value = 0
     dut.i_cmd_id.value = 0
@@ -68,9 +69,12 @@ async def test_rowhammer_threshold_detection(dut):
 
         dut._log.info(f"Access {access+1}: Throttled={is_throttled}, MitigationReq={mit_req}, Alert={alert}")
 
-        if access >= 4:
-            assert is_throttled == 1, f"Expected access {access+1} to be throttled!"
+        # Access thứ T+1 bị throttle và phát giảm thiểu; sau khi nạn nhân được làm tươi, hàng đếm lại từ 0
+        if access == 4:
+            assert is_throttled == 1 and mit_req == 1, f"Expected access {access+1} to be throttled with mitigation!"
             throttled_observed = True
+        else:
+            assert is_throttled == 0, f"Access {access+1} must not be throttled (count restarts after mitigation)"
 
     dut.i_cmd_valid.value = 0
     await RisingEdge(dut.clk)
@@ -80,42 +84,46 @@ async def test_rowhammer_threshold_detection(dut):
     dut._log.info("RowHammer threshold detection and throttle flag verified successfully!")
 
 @cocotb.test()
-async def test_instant_o1_window_reset(dut):
-    """Verify O(1) instantaneous epoch reset unthrottles row after window expiration"""
+async def test_epoch_reset_tied_to_trefw(dut):
+    """Counts survive any split shorter than tREFW (8192 REFab) and reset in O(1) once a full tREFW has elapsed"""
     clock = Clock(dut.clk, 2.5, unit="ns")
     cocotb.start_soon(clock.start())
 
     await reset_dut(dut)
-    dut.cfg_sdc_thresh.value = 3
-    dut.cfg_window_size.value = 20  # Window expires after 20 cycles
+    dut.i_ref_tick.value = 0
+    thresh = 3
+    dut.cfg_sdc_thresh.value = thresh
+    refw = int(dut.REFW_REFS.value)
 
-    target_row = 0x0CDEF
-
-    # Attack until throttled
-    for i in range(4):
+    async def access(row):
         dut.i_cmd_valid.value = 1
-        dut.i_cmd_row.value = target_row
+        dut.i_cmd_row.value = row
+        await RisingEdge(dut.clk)
+        dut.i_cmd_valid.value = 0
+        await Timer(1, unit="ns")
+        return int(dut.o_cmd_throttled.value)
+
+    async def ref_ticks(n):
+        for _ in range(n):
+            dut.i_ref_tick.value = 1
+            await RisingEdge(dut.clk)
+        dut.i_ref_tick.value = 0
         await RisingEdge(dut.clk)
 
-    dut.i_cmd_valid.value = 0
-    await Timer(1, unit="ns")
-    assert dut.o_cmd_throttled.value == 1, "Should be throttled before window expiration"
-    dut._log.info("Row throttled before window expiration.")
+    # Cross-epoch split (S8): T ACT, then refw-1 REF (less than one tREFW), then one more ACT -> must still be throttled
+    row_a = 0x0CDEF
+    for _ in range(thresh):
+        assert await access(row_a) == 0
+    await ref_ticks(refw - 1)
+    assert await access(row_a) == 1, "Count was dropped before a full tREFW elapsed (split hammering escapes)"
 
-    # Advance time past window size (25 cycles)
-    for _ in range(25):
-        await RisingEdge(dut.clk)
-
-    # Next access to target row in new window should NOT be throttled
-    dut.i_cmd_valid.value = 1
-    dut.i_cmd_row.value = target_row
-    await RisingEdge(dut.clk)
-    await Timer(1, unit="ns")
-
-    assert dut.o_cmd_throttled.value == 0, "Row must be un-throttled after O(1) epoch reset!"
-    dut.i_cmd_valid.value = 0
-    await RisingEdge(dut.clk)
-    dut._log.info("O(1) epoch window reset verified successfully!")
+    # Full tREFW: T ACT, then the remaining REFs to complete the epoch -> counter reset, next ACT not throttled
+    row_b = 0x01234
+    for _ in range(thresh):
+        assert await access(row_b) == 0
+    await ref_ticks(1)
+    assert await access(row_b) == 0, "Row must start a fresh count after a full tREFW"
+    dut._log.info(f"Epoch reset tied to tREFW ({refw} REFab) verified")
 
 #=============================================================================
 # Golden Reference Model (HPCA '24 CoMeT / HPCA '21 BlockHammer inspired)
@@ -157,11 +165,8 @@ class CountMinSketchGoldenModel:
         return crc & 0xFF
 
     def step_window_timer(self):
-        if self.window_timer >= self.window_size:
-            self.window_timer = 0
-            self.current_epoch = 1 - self.current_epoch
-        else:
-            self.window_timer += 1
+        # Epoch chỉ đổi theo REFab (tREFW); traffic thuần không làm đổi epoch
+        pass
 
     def evaluate_and_update(self, bg, bank, row, valid):
         if not valid:
@@ -177,14 +182,11 @@ class CountMinSketchGoldenModel:
         effective_count = min(cnt_a, cnt_b)
         will_throttle = (effective_count >= self.threshold)
 
-        # Update tables on handshake
-        if cnt_a < self.max_count:
-            self.table_a[ha] = cnt_a + 1
-            self.table_a_epoch[ha] = self.current_epoch
-
-        if cnt_b < self.max_count:
-            self.table_b[hb] = cnt_b + 1
-            self.table_b_epoch[hb] = self.current_epoch
+        # Update tables on handshake: reaching the threshold triggers mitigation and restarts the row's count
+        self.table_a[ha] = 0 if will_throttle else min(cnt_a + 1, self.max_count)
+        self.table_a_epoch[ha] = self.current_epoch
+        self.table_b[hb] = 0 if will_throttle else min(cnt_b + 1, self.max_count)
+        self.table_b_epoch[hb] = self.current_epoch
 
         self.step_window_timer()
         return effective_count, will_throttle

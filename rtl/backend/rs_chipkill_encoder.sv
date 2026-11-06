@@ -1,51 +1,46 @@
 // File: rs_chipkill_encoder.sv
-// Chức năng: Bộ mã hóa Reed-Solomon RS(18,16) trên trường GF(2^4) bảo vệ Chipkill cho chip nhớ DRAM x4.
+// Chức năng: Bộ mã hóa Reed-Solomon RS(18,16) trên GF(2^8) cho Chipkill x4: mỗi symbol 8 bit là phần của một chip x4 qua 2 beat.
 
 `timescale 1ns / 1ps
 
 module rs_chipkill_encoder
-    import gf16_arith_pkg::*;
+    import gf256_arith_pkg::*;
 #(
-    parameter int DATA_SYMBOLS   = 16, // 16 symbols x 4-bit = 64-bit data
-    parameter int PARITY_SYMBOLS = 2   // 2 symbols x 4-bit = 8-bit parity (RS(18,16))
+    parameter int DATA_SYMBOLS   = 16, // 16 symbol x 8 bit = 128 bit dữ liệu (2 beat x 64 bit)
+    parameter int PARITY_SYMBOLS = 2   // 2 chip x4 kiểm tra
 )(
     input  logic                                clk,
     input  logic                                rst_n,
 
-    // Giao diện dữ liệu vào
     input  logic                                i_valid,
     output logic                                o_ready,
-    input  logic [DATA_SYMBOLS*4-1:0]           i_data,
+    input  logic [DATA_SYMBOLS*8-1:0]           i_data,
 
-    // Giao diện dữ liệu ra đã ghép mã parity
     output logic                                o_valid,
     input  logic                                i_ready,
-    output logic [(DATA_SYMBOLS+PARITY_SYMBOLS)*4-1:0] o_codeword
+    output logic [(DATA_SYMBOLS+PARITY_SYMBOLS)*8-1:0] o_codeword
 );
 
     assign o_ready = i_ready || !o_valid;
 
-    // Tính toán trực tiếp 2 parity symbols bằng phép nhân-cộng Galois GF(2^4) trong 1 chu kỳ:
-    // P0 = sum(msg_i), P1 = sum(msg_i * x_i) với x_i = i
-    gf16_t p0_comb, p1_comb;
-    gf16_t prod_term [DATA_SYMBOLS];
+    // Parity chọn sao cho hai hội chứng của cả codeword bằng 0: S0 = Σ c_i, S1 = Σ c_i·α^i.
+    // Với A = Σ d_i, B = Σ d_i·α^i: c17 = (B + α^16·A)·K, c16 = A + c17 (K = (α^16 + α^17)^-1).
+    // Nhân hằng tách thành assign theo từng symbol (ma trận XOR cố định), cộng dồn bằng XOR
+    gf256_t prod [DATA_SYMBOLS];
+    gf256_t acc_a [DATA_SYMBOLS+1];
+    gf256_t acc_b [DATA_SYMBOLS+1];
+    assign acc_a[0] = '0;
+    assign acc_b[0] = '0;
+    for (genvar i = 0; i < DATA_SYMBOLS; i++) begin : g_sum
+        assign prod[i]      = gf256_mul(i_data[i*8 +: 8], RS_ALPHA[i*8 +: 8]);
+        assign acc_a[i + 1] = acc_a[i] ^ i_data[i*8 +: 8];
+        assign acc_b[i + 1] = acc_b[i] ^ prod[i];
+    end
 
-    genvar gi;
-    generate
-        for (gi = 0; gi < DATA_SYMBOLS; gi = gi + 1) begin : gen_gf_mul
-            assign prod_term[gi] = gf16_mul(i_data[gi*4 +: 4], gf16_t'(gi));
-        end
-    endgenerate
-
-    assign p0_comb = i_data[0*4 +: 4]  ^ i_data[1*4 +: 4]  ^ i_data[2*4 +: 4]  ^ i_data[3*4 +: 4]  ^
-                     i_data[4*4 +: 4]  ^ i_data[5*4 +: 4]  ^ i_data[6*4 +: 4]  ^ i_data[7*4 +: 4]  ^
-                     i_data[8*4 +: 4]  ^ i_data[9*4 +: 4]  ^ i_data[10*4 +: 4] ^ i_data[11*4 +: 4] ^
-                     i_data[12*4 +: 4] ^ i_data[13*4 +: 4] ^ i_data[14*4 +: 4] ^ i_data[15*4 +: 4];
-
-    assign p1_comb = prod_term[0]  ^ prod_term[1]  ^ prod_term[2]  ^ prod_term[3]  ^
-                     prod_term[4]  ^ prod_term[5]  ^ prod_term[6]  ^ prod_term[7]  ^
-                     prod_term[8]  ^ prod_term[9]  ^ prod_term[10] ^ prod_term[11] ^
-                     prod_term[12] ^ prod_term[13] ^ prod_term[14] ^ prod_term[15];
+    wire gf256_t a_sum = acc_a[DATA_SYMBOLS];
+    wire gf256_t b_sum = acc_b[DATA_SYMBOLS];
+    wire gf256_t p17   = gf256_mul(b_sum ^ gf256_mul(a_sum, RS_ALPHA[16*8 +: 8]), RS_K);
+    wire gf256_t p16   = a_sum ^ p17;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -53,9 +48,7 @@ module rs_chipkill_encoder
             o_codeword <= '0;
         end else if (o_ready) begin
             o_valid <= i_valid;
-            if (i_valid) begin
-                o_codeword <= {p1_comb, p0_comb, i_data};
-            end
+            if (i_valid) o_codeword <= {p17, p16, i_data};
         end
     end
 

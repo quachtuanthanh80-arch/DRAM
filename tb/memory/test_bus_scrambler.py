@@ -1,107 +1,67 @@
 # test_bus_scrambler.py
-# Cocotb verification suite cho module bus_scrambler
+# Cocotb: bộ xáo trộn dữ liệu không trạng thái, keystream theo seed và địa chỉ word vật lý
 
-import cocotb
-from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, Timer
 import random
 
-async def reset_dut(dut):
-    dut.rst_n.value = 0
-    dut.cfg_scramble_en.value = 0
-    dut.cfg_reseed.value = 0
-    dut.cfg_seed.value = 0
-    dut.step_en.value = 0
-    dut.i_data.value = 0
-    dut.i_addr.value = 0
-    await Timer(20, unit="ns")
-    dut.rst_n.value = 1
-    await RisingEdge(dut.clk)
-    await Timer(5, unit="ns")
+import cocotb
+from cocotb.triggers import Timer
+
+
+async def apply(dut, en, seed, key, data):
+    dut.cfg_scramble_en.value = en
+    dut.cfg_seed.value = seed
+    dut.i_key.value = key
+    dut.i_data.value = data
+    await Timer(1, unit="ns")
+    return dut.o_data.value.to_unsigned()
+
 
 @cocotb.test()
 async def test_scrambler_bypass(dut):
-    """Kiem tra che do bypass (cfg_scramble_en=0): Du lieu va dia chi ra phai y het vao."""
-    clock = Clock(dut.clk, 2.5, unit="ns") # 400 MHz
-    cocotb.start_soon(clock.start())
-    await reset_dut(dut)
-
-    dut.cfg_scramble_en.value = 0
-
+    """Tắt xáo trộn: dữ liệu ra bằng dữ liệu vào"""
     for _ in range(50):
-        data_in = random.getrandbits(128)
-        addr_in = random.getrandbits(18)
-        dut.i_data.value = data_in
-        dut.i_addr.value = addr_in
-        await Timer(1, unit="ns")
+        d = random.getrandbits(64)
+        assert await apply(dut, 0, random.getrandbits(64), random.getrandbits(40), d) == d
 
-        assert dut.o_data.value.to_unsigned() == data_in, f"Bypass loi data: in=0x{data_in:X} != out=0x{dut.o_data.value.to_unsigned():X}"
-        assert dut.o_addr.value.to_unsigned() == addr_in, f"Bypass loi addr: in=0x{addr_in:X} != out=0x{dut.o_addr.value.to_unsigned():X}"
 
 @cocotb.test()
-async def test_scrambler_symmetric_identity(dut):
-    """Kiem tra tinh doi xung toan hoc: Scramble(Scramble(Data)) == Data."""
-    clock = Clock(dut.clk, 2.5, unit="ns")
-    cocotb.start_soon(clock.start())
-    await reset_dut(dut)
+async def test_scrambler_involution(dut):
+    """Cùng seed và địa chỉ: xáo hai lần trả lại dữ liệu gốc (chiều ghi và chiều đọc dùng chung một hàm)"""
+    seed = 0x1357_9BDF_2468_ACE0
+    for _ in range(200):
+        key = random.getrandbits(40)
+        d = random.getrandbits(64)
+        s = await apply(dut, 1, seed, key, d)
+        assert s != d, "Mặt nạ bằng 0 cho địa chỉ ngẫu nhiên"
+        assert await apply(dut, 1, seed, key, s) == d, "Không giải xáo được bằng cùng seed và địa chỉ"
 
-    # Bat xao tron
-    dut.cfg_scramble_en.value = 1
-
-    for _ in range(50):
-        data_orig = random.getrandbits(128)
-        addr_orig = random.getrandbits(18)
-
-        # Chieu ghi: Scramble
-        dut.step_en.value = 0 # Giu nguyen trang thai LFSR de kiem tra tinh doi xung
-        dut.i_data.value = data_orig
-        dut.i_addr.value = addr_orig
-        await Timer(1, unit="ns")
-
-        scrambled_data = dut.o_data.value.to_unsigned()
-        scrambled_addr = dut.o_addr.value.to_unsigned()
-
-        # Du lieu da xao tron phai khac du lieu goc (tru truong hop dac biet mask=0)
-        assert scrambled_data != data_orig, "Loi: Data sau xao tron bi trung voi data goc"
-
-        # Chieu doc: Descramble bang cach dua data da xao tron quay lai
-        dut.i_data.value = scrambled_data
-        dut.i_addr.value = scrambled_addr
-        await Timer(1, unit="ns")
-
-        recovered_data = dut.o_data.value.to_unsigned()
-        recovered_addr = dut.o_addr.value.to_unsigned()
-
-        assert recovered_data == data_orig, f"Loi giai ma data: goc=0x{data_orig:X}, khoi phuc=0x{recovered_data:X}"
-        assert recovered_addr == addr_orig, f"Loi giai ma addr: goc=0x{addr_orig:X}, khoi phuc=0x{recovered_addr:X}"
-
-        # Buoc nhay LFSR cho chu ky tiep theo
-        dut.step_en.value = 1
-        await RisingEdge(dut.clk)
-        dut.step_en.value = 0
 
 @cocotb.test()
-async def test_scrambler_reseed(dut):
-    """Kiem tra tinh nang nap lai seed moi tu thanh ghi CSR."""
-    clock = Clock(dut.clk, 2.5, unit="ns")
-    cocotb.start_soon(clock.start())
-    await reset_dut(dut)
+async def test_scrambler_address_and_seed_dependence(dut):
+    """Mặt nạ phụ thuộc địa chỉ và seed: hai địa chỉ kề nhau hay hai seed khác nhau cho mặt nạ khác nhau"""
+    seed = 0xA5A5_5A5A_0123_4567
+    masks = set()
+    for key in range(256):
+        masks.add(await apply(dut, 1, seed, key, 0))
+    assert len(masks) == 256, f"Chỉ có {len(masks)} mặt nạ khác nhau cho 256 địa chỉ liên tiếp"
+    m1 = await apply(dut, 1, seed, 0x1234, 0)
+    m2 = await apply(dut, 1, seed ^ 1, 0x1234, 0)
+    assert m1 != m2, "Đổi seed không đổi mặt nạ"
+    # Khuếch tán: lật 1 bit địa chỉ làm đổi trung bình khoảng nửa số bit mặt nạ
+    flips = []
+    for b in range(40):
+        a = await apply(dut, 1, seed, 0x5A5A5A5A5A, 0)
+        c = await apply(dut, 1, seed, 0x5A5A5A5A5A ^ (1 << b), 0)
+        flips.append(bin(a ^ c).count("1"))
+    avg = sum(flips) / len(flips)
+    assert 20 <= avg <= 44, f"Khuếch tán kém: trung bình {avg:.1f}/64 bit đổi khi lật 1 bit địa chỉ"
 
-    dut.cfg_scramble_en.value = 1
-    fixed_data = 0xAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444
 
-    # Lay output voi default seed
-    dut.i_data.value = fixed_data
-    await Timer(1, unit="ns")
-    out_default_seed = dut.o_data.value.to_unsigned()
-
-    # Nap seed moi
-    new_seed = 0x1234_5678_9ABC_DEF0
-    dut.cfg_seed.value = new_seed
-    dut.cfg_reseed.value = 1
-    await RisingEdge(dut.clk)
-    dut.cfg_reseed.value = 0
-    await Timer(1, unit="ns")
-
-    out_new_seed = dut.o_data.value.to_unsigned()
-    assert out_new_seed != out_default_seed, "Loi reseed: Keystream khong doi sau khi nap seed moi"
+@cocotb.test()
+async def test_scrambler_stateless(dut):
+    """Mặt nạ không phụ thuộc thời gian hay số lệnh đã phát (LFSR bước theo lệnh cũ làm hỏng giải xáo, S16)"""
+    seed = 0x0F0F_F0F0_1234_5678
+    first = await apply(dut, 1, seed, 0x777, 0)
+    for _ in range(100):
+        await apply(dut, 1, seed, random.getrandbits(40), random.getrandbits(64))
+    assert await apply(dut, 1, seed, 0x777, 0) == first

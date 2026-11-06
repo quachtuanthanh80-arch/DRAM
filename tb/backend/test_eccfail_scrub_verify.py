@@ -11,29 +11,29 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
 
+def hamming_positions():
+    """Data bit j sits at the j-th Hamming position that is not a power of two (3, 5, 6, 7, 9, ...)."""
+    pos, p = [], 3
+    while len(pos) < 64:
+        if p & (p - 1):
+            pos.append(p)
+        p += 1
+    return pos
+
+
 def compute_hamming_ecc(data):
-    p = [0] * 7
-    masks = [
-        0x5555_5555_5555_5555,
-        0x6666_6666_6666_6666,
-        0x7878_7878_7878_7878,
-        0x7F80_7F80_7F80_7F80,
-        0x7FFF_8000_7FFF_8000,
-        0x7FFF_FFFF_8000_0000,
-        0x8000_0000_0000_0000
-    ]
-    for i in range(7):
-        p[i] = (bin(data & masks[i]).count("1")) % 2
-
-    overall_data_parity = bin(data).count("1") % 2
-    overall_p_parity = sum(p) % 2
-    p7 = (overall_data_parity ^ overall_p_parity) % 2
-
+    """Independent reference for SEC-DED (72,64): check bit i = XOR of data bits whose position has bit i set,
+    bit 7 = overall parity, then the check byte is stored inverted (XOR 0xAA, as OpenTitan prim_secded_inv).
+    Does not reuse the RTL mask constants."""
     ecc = 0
     for i in range(7):
-        ecc |= (p[i] << i)
-    ecc |= (p7 << 7)
-    return ecc
+        par = 0
+        for j, p in enumerate(hamming_positions()):
+            if (p >> i) & 1:
+                par ^= (data >> j) & 1
+        ecc |= par << i
+    ecc |= (bin(data).count("1") + bin(ecc).count("1")) % 2 << 7
+    return ecc ^ 0xAA
 
 async def reset_dut(dut):
     dut.rst_n.value = 0
@@ -87,16 +87,16 @@ async def test_eccfail_3bit_miscorrect_trap(dut):
     dut.cfg_enable.value = 1
     initial_miscorrect_cnt = int(dut.o_ecc_miscorrect_cnt.value)
 
-    # Use hardware fault injector with type 2'b11 (3-bit flip cluster)
+    # Data bits 0, 4, 58 sit at Hamming positions 3, 9, 66: their syndromes XOR to position 72, which does not
+    # exist in a (72,64) code. The decoder must trap this instead of flipping a bit.
+    pos = hamming_positions()
+    assert pos[0] ^ pos[4] ^ pos[58] > 71
     orig_data = 0x55AA_33CC_0F0F_A5A5
     clean_ecc = compute_hamming_ecc(orig_data)
 
     dut.i_data_valid.value = 1
-    dut.i_raw_data.value = orig_data
+    dut.i_raw_data.value = orig_data ^ (1 << 0) ^ (1 << 4) ^ (1 << 58)
     dut.i_raw_ecc.value = clean_ecc
-    dut.i_fault_inject_en.value = 1
-    dut.i_fault_inject_type.value = 3 # 3-bit fault cluster
-    dut.i_fault_inject_bit.value = 8
     await RisingEdge(dut.clk)
     await Timer(100, unit="ps")
 

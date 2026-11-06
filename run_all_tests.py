@@ -84,7 +84,8 @@ def main():
             "cwd": os.path.join(root_dir, "tb", "backend"),
             "makefile": "Makefile",
             "env_overrides": {
-                "VERILOG_SOURCES": os.path.join(root_dir, "rtl", "backend", "ecc_scrubber.sv"),
+                "VERILOG_SOURCES": " ".join([os.path.join(root_dir, "rtl", "backend", "secded_72_64_pkg.sv"),
+                                             os.path.join(root_dir, "rtl", "backend", "ecc_scrubber.sv")]),
                 "TOPLEVEL": "ecc_scrubber",
                 "MODULE": "test_eccfail_scrub_verify",
                 "SIM_BUILD": "sim_build_eccfail"

@@ -1,5 +1,7 @@
 # Q-Shield Architectural Design Specification
 
+> **Provenance note (2026-10-30).** Ramulator-based throughput/overhead figures (SPEC CPU2017/PARSEC, ±σ), the "apples-to-apples" table and the Nangate 45 nm gate counts were not reproducible from this repository and are withdrawn. See `sim/results/PROVENANCE.md` for what each result file is, and the README section "What has been measured" for the numbers that are backed by runs.
+
 This document provides the microarchitectural specification, operational mechanisms, module decompositions, and physical implementation trade-offs of **Q-Shield: A High-Throughput, Zero-Bubble & SDC-Resilient DDR5/DDR4 Secure Memory Controller**.
 
 ---
@@ -85,7 +87,7 @@ Q-Shield integrates RowHammer mitigation, Silent Data Corruption (SDC) resilienc
 
 ### 2.6 SEC-DED (72, 64) Hamming Engine & Autonomous Scrubber
 - **Source Module**: [`rtl/backend/ecc_scrubber.sv`](rtl/backend/ecc_scrubber.sv)
-- **Coding Scheme**: Standard (72, 64) Hsiao SEC-DED matrix providing single-error correction and double-error detection.
+- **Coding Scheme**: Extended Hamming (72, 64) SEC-DED (masks equal to OpenTitan `prim_secded_hamming_72_64`) providing single-error correction and double-error detection. Check bits are stored inverted (XOR `0xAA`, OpenTitan `prim_secded_inv` style) so all-zero / all-one words are never valid codewords.
 - **Patrol Scrubbing**: An autonomous hardware engine steps through physical memory addresses during idle command slots, correcting single-bit soft errors before accumulation into uncorrectable multi-bit errors.
 
 ### 2.7 SCARF 1-Cycle Low-Latency DRAM Address Randomizer
