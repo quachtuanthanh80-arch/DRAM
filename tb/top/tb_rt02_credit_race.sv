@@ -242,22 +242,20 @@ module tb_rt02_credit_race;
         repeat (20) @(posedge clk_axi);
 
         //---------------------------------------------------------------------
-        // T-RT02a Pha 1 (Có hướng): Đạt >= 22 lần đọc+ghi cùng BG 0 cùng chu kỳ khi sum(bk_cnt[0]) == 7
-        // Cơ chế: Dùng o_proq_blk[0] = 1 tạm thời giữ 7 lệnh trong hàng đợi BG 0:
-        //   5 lệnh ở bank 0, 1 lệnh ở bank 1, 1 lệnh ở bank 2 (tổng = 7, bank 3 còn chỗ riêng res_ok=1).
-        //   Sau đó nạp đồng thời 1 AR (BG 0, bank 0) và 1 AW+W (BG 0, bank 3) sao cho iq_sel_fire và wr_fire
-        //   cùng nổ ở một cạnh posedge clk_axi khi sum(bk_cnt[0]) == 7!
+        // T-RT02a Pha 1 (Có hướng): Đạt >= 20 lần đọc+ghi cùng BG 0 cùng chu kỳ khi sum(bk_cnt[0]) >= 7
+        // Gửi 6 lệnh ghi tới các hàng khác nhau của BG 0 để dồn hàng đợi (ACT/PRE chậm) tới khi sum(bk_cnt) == 6;
+        // Gửi 1 lệnh đọc tới BG đó (vào IQ), ngay chu kỳ sau gửi 1 lệnh ghi tới cùng BG.
         //---------------------------------------------------------------------
-        for (int rep = 0; rep < 22; rep++) begin
+        for (int rep = 0; rep < 25; rep++) begin
             // Chặn arbiter rút BG 0 bằng proq_blk[0]
             force dut.u_drm.o_proq_blk = 8'h01;
-            // Đưa 5 lệnh ghi vào BG 0 bank 0, 1 lệnh vào bank 1, 1 lệnh vào bank 2 (tổng 7 lệnh)
-            for (int k = 0; k < 7; k++) begin
+            // Đưa 4 lệnh ghi vào bank 0, 1 lệnh vào bank 1, 1 lệnh vào bank 2 (tổng 6 lệnh, bank 3 trống)
+            for (int k = 0; k < 6; k++) begin
                 int bk;
-                bk = (k < 5) ? 0 : ((k == 5) ? 1 : 2);
+                bk = (k < 4) ? 0 : ((k == 4) ? 1 : 2);
                 @(negedge clk_axi);
                 s_axi_awid    = 4'd1;
-                s_axi_awaddr  = mk_addr(16'h010 + rep * 8 + k, 0, bk, k);
+                s_axi_awaddr  = mk_addr(16'h010 + rep * 16 + k, 0, bk, k);
                 s_axi_awlen   = 8'd0;
                 s_axi_awqos   = 4'd2;
                 s_axi_awvalid = 1'b1;
@@ -271,37 +269,39 @@ module tb_rt02_credit_race;
                 s_axi_wvalid  = 1'b0;
                 s_axi_wlast   = 1'b0;
             end
-            // Chờ 7 lệnh đi vào hàng đợi QoS và bk_cnt[0..3] ổn định ở tổng = 7 (5, 1, 1, 0)
+
+            // Chờ 6 lệnh vào hàng đợi và ổn định
             repeat (12) @(posedge clk_axi);
 
-            // Phát AW+W tới BG 0 bank 3 ở chu kỳ T, và AR tới BG 0 bank 3 ở chu kỳ T+1
-            // để wcmd_valid (trễ 2 chu kỳ qua wdata_buffer + wr_data_store) trùng đúng chu kỳ iq_sel_fire!
+            // 2. Phát lệnh GHI trước (trễ 2 chu kỳ qua wdata_buffer + wr_data_store)
             @(negedge clk_axi);
             s_axi_awid    = 4'd2;
-            s_axi_awaddr  = mk_addr(16'h010 + rep * 8 + 7, 0, 3, 7);
+            s_axi_awaddr  = mk_addr(16'h060 + rep * 16, 0, 3, 0);
             s_axi_awlen   = 8'd0;
-            s_axi_awqos   = 4'd2;
+            s_axi_awqos   = 4'd4;
             s_axi_awvalid = 1'b1;
             s_axi_wdata   = 64'hBEEF_0000_0000_0000 + rep;
             s_axi_wstrb   = 8'hFF;
             s_axi_wlast   = 1'b1;
             s_axi_wvalid  = 1'b1;
-            @(posedge clk_axi);
+            do @(posedge clk_axi); while (!(s_axi_awready && s_axi_wready));
             @(negedge clk_axi);
             s_axi_awvalid = 1'b0;
             s_axi_wvalid  = 1'b0;
             s_axi_wlast   = 1'b0;
-            s_axi_arid    = 4'(3 + (rep % 8));
-            s_axi_araddr  = mk_addr(16'h010 + rep * 8 + 6, 0, 2, 6);
+
+            // 3. Chu kỳ sau phát lệnh ĐỌC (vào IQ chỉ trễ 1 chu kỳ)
+            s_axi_arid    = 4'd3;
+            s_axi_araddr  = mk_addr(16'h050 + rep * 16, 0, 1, 0);
             s_axi_arlen   = 8'd0;
-            s_axi_arqos   = 4'd7;
+            s_axi_arqos   = 4'd4;
             s_axi_arvalid = 1'b1;
-            @(posedge clk_axi);
+            do @(posedge clk_axi); while (!s_axi_arready);
             @(negedge clk_axi);
             s_axi_arvalid = 1'b0;
 
-            repeat (6) @(posedge clk_axi);
-            // Thả BG 0 để rút sạch 8 lệnh trong hàng đợi trước vòng tiếp theo
+            repeat (10) @(posedge clk_axi);
+            // Thả BG 0 để rút sạch hàng đợi
             release dut.u_drm.o_proq_blk;
             while (u_achk.rd_done < u_achk.rd_cmds || u_achk.wr_done < u_achk.wr_cmds ||
                    `QS_T_BK_CNT(dut)[0] != 0 || `QS_T_BK_CNT(dut)[1] != 0 ||

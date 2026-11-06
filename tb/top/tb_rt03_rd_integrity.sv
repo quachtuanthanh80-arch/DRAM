@@ -482,9 +482,10 @@ module tb_rt03_rd_integrity;
         axi_write_len0(4'd7, mk_addr(17'h040, 3, 1, 0), 64'h1122_3344_5566_7788, 8'hFF);
         repeat (20) @(posedge clk_axi);
 
-        u_shim.arm_drop(0, 1);
-        $display("[DBG_RT03D] Before partial write at time %0t", $time);
+        // Gửi ghi từng phần trước, rồi chờ cmd_engine phát CAS RD của RMW (cas_rmw_q=1) để arm drop chính xác beat này
         axi_write_len0(4'd7, mk_addr(17'h040, 3, 1, 0), 64'h0000_0000_AABB_CCDD, 8'h0F);
+        while (!dut.u_cmd_engine.cas_rmw_q) @(posedge clk_axi);
+        u_shim.arm_drop(0, 1);
         repeat (50) @(posedge clk_axi);
 
         @(negedge clk_axi);
@@ -498,8 +499,10 @@ module tb_rt03_rd_integrity;
         while (!s_axi_rvalid) @(posedge clk_axi);
         $display("[DBG_RT03D] Readback rresp=%b rpoison=%b rdata=0x%016h at time %0t",
                  s_axi_rresp, s_axi_rpoison, s_axi_rdata, $time);
-        tb_check((s_axi_rresp != 2'b00 || s_axi_rpoison) && s_axi_rdata == 64'd0,
-                 "T-RT03d (FI-47, SA-W01): reading line written by failed RMW returns poisoned error and rdata=0");
+        tb_check(s_axi_rresp != 2'b00 || s_axi_rpoison,
+                 "T-RT03d (FI-47, SA-W01): reading line written by failed RMW returns error or poison");
+        tb_check(s_axi_rdata == 64'd0,
+                 "T-RT03d (FI-47, SA-W01): reading line written by failed RMW returns zero data");
         @(posedge clk_axi);
 
         axi_write_len0(4'd7, mk_addr(17'h040, 3, 1, 1), 64'h9988_7766_5544_3322, 8'hFF);
