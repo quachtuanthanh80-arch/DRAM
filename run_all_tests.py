@@ -37,6 +37,16 @@ def main():
             sys.exit(1)
         print()
 
+    # Gate 1: Finding reproduction & known failing tracking (T04)
+    if "--skip-findings" not in sys.argv:
+        findings_script = os.path.join(root_dir, "tb", "findings", "run_findings.py")
+        if os.path.exists(findings_script):
+            res_findings = subprocess.run([sys.executable, findings_script], cwd=root_dir)
+            if res_findings.returncode != 0:
+                print("[FAIL] Findings verification check failed. Aborting regression.")
+                sys.exit(1)
+            print()
+
     # Multi-Stage Test Plan Categorization
     suites = [
         # Stage 1: Functional Unit Tests
@@ -247,7 +257,7 @@ def main():
         drive, rest = os.path.splitdrive(os.path.abspath(__file__))
         drive_letter = drive.replace(":", "").lower()
         wsl_path = f"/mnt/{drive_letter}" + rest.replace("\\", "/")
-        ret = subprocess.run(["wsl", "--", "python3", wsl_path, "--skip-gate"] + [a for a in sys.argv[1:] if a != "--skip-gate"])
+        ret = subprocess.run(["wsl", "--", "python3", wsl_path, "--skip-gate", "--skip-findings"] + [a for a in sys.argv[1:] if a not in ("--skip-gate", "--skip-findings")])
         sys.exit(ret.returncode)
 
     # Native execution loop
