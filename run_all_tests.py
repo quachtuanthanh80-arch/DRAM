@@ -28,6 +28,15 @@ def get_git_commit(root):
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
 
+    # Gate 0: Runner and classification integrity check
+    if "--skip-gate" not in sys.argv:
+        gate_script = os.path.join(root_dir, "tools", "check_gate.py")
+        res_gate = subprocess.run([sys.executable, gate_script], cwd=root_dir)
+        if res_gate.returncode != 0:
+            print("[FAIL] Runner integrity gate failed. Aborting regression.")
+            sys.exit(1)
+        print()
+
     # Multi-Stage Test Plan Categorization
     suites = [
         # Stage 1: Functional Unit Tests
@@ -238,7 +247,7 @@ def main():
         drive, rest = os.path.splitdrive(os.path.abspath(__file__))
         drive_letter = drive.replace(":", "").lower()
         wsl_path = f"/mnt/{drive_letter}" + rest.replace("\\", "/")
-        ret = subprocess.run(["wsl", "--", "python3", wsl_path] + sys.argv[1:])
+        ret = subprocess.run(["wsl", "--", "python3", wsl_path, "--skip-gate"] + [a for a in sys.argv[1:] if a != "--skip-gate"])
         sys.exit(ret.returncode)
 
     # Native execution loop

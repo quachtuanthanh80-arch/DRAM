@@ -24,7 +24,6 @@ endtask
 
 // Kiểm tra thật cho lỗ hổng đã biết: sai → XFAIL; đúng → XPASS tính là lỗi (strict) để buộc gỡ nhãn khi đã sửa.
 task automatic tb_check_xfail(input bit cond, input string gap_id, input string msg);
-    tb_checks++;
     if (cond) begin
         tb_fails++;
         $display("[XPASS] %s fixed, remove xfail marker: %s", gap_id, msg);

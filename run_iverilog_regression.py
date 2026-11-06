@@ -49,7 +49,7 @@ def find_tool(tool_name, default_dir=r"D:\iverilog\bin"):
         return fallback
     return tool_name
 
-def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
+def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir, timeout=600):
     log_file = os.path.join(log_dir, f"{top_module}.log")
     vvp_file = f"build_{top_module}.vvp"
     vvp_path = os.path.join(cwd, vvp_file)
@@ -60,7 +60,30 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
     compile_cmd = [iverilog, "-g2012", "-Wall", "-I", os.path.join(cwd, "tb", "common"),
                    "-s", top_module, "-o", vvp_file] + sources
     t0 = time.time()
-    res_compile = subprocess.run(compile_cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    try:
+        res_compile = subprocess.run(compile_cmd, cwd=cwd, capture_output=True, text=True,
+                                     encoding="utf-8", errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        elapsed = time.time() - t0
+        out = (e.stdout or "") if isinstance(e.stdout, str) else (e.stdout.decode("utf-8", "replace") if e.stdout else "")
+        err = (e.stderr or "") if isinstance(e.stderr, str) else (e.stderr.decode("utf-8", "replace") if e.stderr else "")
+        err_msg = f"Compilation timed out after {timeout} seconds\n{out}\n{err}"
+        with open(log_file, "w", encoding="utf-8") as f:
+            f.write(f"=== COMPILE COMMAND ===\n{' '.join(compile_cmd)}\n\n=== TIMEOUT LOG ===\n{err_msg}\n")
+        return {
+            "name": name,
+            "top": top_module,
+            "status": "FAIL",
+            "reason": f"TIMEOUT (Compilation exceeded {timeout}s)",
+            "checks": 0,
+            "fails": 1,
+            "xfails": [],
+            "runtime_seconds": round(elapsed, 3),
+            "command": " ".join(compile_cmd),
+            "log_path": log_file,
+            "error_snippet": f"Compilation timed out after {timeout}s",
+            "stdout": out,
+        }
 
     if res_compile.returncode != 0:
         elapsed = time.time() - t0
@@ -79,10 +102,22 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
             "command": " ".join(compile_cmd),
             "log_path": log_file,
             "error_snippet": err_msg[-500:],
+            "stdout": res_compile.stdout,
         }
 
     sim_cmd = [vvp, vvp_file]
-    res_sim = subprocess.run(sim_cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    timed_out = False
+    try:
+        res_sim = subprocess.run(sim_cmd, cwd=cwd, capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace", timeout=timeout)
+        sim_stdout = res_sim.stdout
+        sim_stderr = res_sim.stderr
+        sim_rc = res_sim.returncode
+    except subprocess.TimeoutExpired as e:
+        timed_out = True
+        sim_stdout = (e.stdout or "") if isinstance(e.stdout, str) else (e.stdout.decode("utf-8", "replace") if e.stdout else "")
+        sim_stderr = (e.stderr or "") if isinstance(e.stderr, str) else (e.stderr.decode("utf-8", "replace") if e.stderr else "")
+        sim_rc = -1
     elapsed = time.time() - t0
 
     # Clean up intermediate vvp binary
@@ -92,25 +127,33 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
     except Exception:
         pass
 
-    full_log = f"=== COMPILE COMMAND ===\n{' '.join(compile_cmd)}\n\n=== SIM COMMAND ===\n{' '.join(sim_cmd)}\n\n=== STDOUT ===\n{res_sim.stdout}\n\n=== STDERR ===\n{res_sim.stderr}\n"
+    full_log = f"=== COMPILE COMMAND ===\n{' '.join(compile_cmd)}\n\n=== SIM COMMAND ===\n{' '.join(sim_cmd)}\n\n=== STDOUT ===\n{sim_stdout}\n\n=== STDERR ===\n{sim_stderr}\n"
+    if timed_out:
+        full_log += f"\n=== TIMEOUT ===\nSimulation timed out after {timeout} seconds\n"
     with open(log_file, "w", encoding="utf-8") as f:
         f.write(full_log)
 
-    output = res_sim.stdout + "\n" + res_sim.stderr
+    output = sim_stdout + "\n" + sim_stderr
     results = TB_RESULT_RE.findall(output)
     xfails = [{"gap": g, "detail": d.strip()} for g, d in XFAIL_RE.findall(output)]
-    has_explicit_fail = ("[FAIL]" in output or "fatal" in output.lower()
-                         or re.search(r"^ERROR:", output, re.MULTILINE) is not None)
+    has_explicit_fail = (
+        "$fatal" in output
+        or re.search(r"^\s*(?:FATAL\b|\[FAIL\])", output, re.MULTILINE) is not None
+        or re.search(r"^ERROR:", output, re.MULTILINE) is not None
+    )
 
     checks = fails = 0
-    if not results:
+    if timed_out:
+        status, reason = "FAIL", f"TIMEOUT (Simulation exceeded {timeout}s)"
+        fails = 1
+    elif not results:
         status, reason = "FAIL", "No [TB_RESULT] line (testbench reports no checked result)"
     elif len(results) > 1:
         status, reason = "FAIL", "Multiple [TB_RESULT] lines"
     else:
         checks, fails, _ = (int(v) for v in results[0])
-        if res_sim.returncode != 0:
-            status, reason = "FAIL", f"Simulator exit code {res_sim.returncode}"
+        if sim_rc != 0:
+            status, reason = "FAIL", f"Simulator exit code {sim_rc}"
         elif checks == 0:
             status, reason = "FAIL", "Zero checks executed"
         elif fails > 0 or has_explicit_fail:
@@ -130,8 +173,27 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir):
         "command": " ".join(sim_cmd),
         "log_path": log_file,
         "error_snippet": None if status == "PASS" else "\n".join(output.splitlines()[-20:]),
-        "stdout": res_sim.stdout,
+        "stdout": sim_stdout,
     }
+
+def run_one(top_module, sources, timeout=600, cwd=None, log_dir=None, name=None):
+    if cwd is None:
+        cwd = os.path.abspath(os.path.dirname(__file__))
+    if log_dir is None:
+        log_dir = os.path.join(cwd, "regression_logs")
+    os.makedirs(log_dir, exist_ok=True)
+    iverilog = find_tool("iverilog")
+    vvp = find_tool("vvp")
+    return run_test(
+        name=name or top_module,
+        top_module=top_module,
+        sources=sources,
+        iverilog=iverilog,
+        vvp=vvp,
+        cwd=cwd,
+        log_dir=log_dir,
+        timeout=timeout,
+    )
 
 def main():
     root = os.path.abspath(os.path.dirname(__file__))
@@ -809,6 +871,27 @@ def main():
         },
     ]
 
+    timeout = 600
+    if "--timeout" in sys.argv:
+        try:
+            t_idx = sys.argv.index("--timeout")
+            timeout = int(sys.argv[t_idx + 1])
+        except (ValueError, IndexError):
+            timeout = 600
+
+    # --tb-file <file1,file2...>: chạy một testbench tùy ý qua cùng đường phân loại
+    if "--tb-file" in sys.argv:
+        tb_idx = sys.argv.index("--tb-file")
+        tb_files = [f.strip() for f in sys.argv[tb_idx + 1].split(",")]
+        top_idx = sys.argv.index("--top") if "--top" in sys.argv else None
+        top_name = sys.argv[top_idx + 1] if top_idx is not None else os.path.splitext(os.path.basename(tb_files[0]))[0]
+        record = run_one(top_module=top_name, sources=tb_files, timeout=timeout, cwd=root, log_dir=log_dir)
+        xf_str = f", {len(record['xfails'])} XFAIL" if record["xfails"] else ""
+        print(f"[{record['status']}] {record['checks']} checks{xf_str}, reason: {record['reason']} in {record['runtime_seconds']:.2f}s")
+        if record["status"] != "PASS" and record["error_snippet"]:
+            print(f"       >> Error Snippet:\n{record['error_snippet']}\n")
+        sys.exit(0 if record["status"] == "PASS" else 1)
+
     # --only <top>[,<top>...]: chạy tập con khi debug; không ghi đè regression_summary.json của lần chạy đầy đủ.
     only = None
     if "--only" in sys.argv:
@@ -819,6 +902,8 @@ def main():
 
     total_passed = 0
     total_failed = 0
+    clean_passed = 0
+    xfail_passed = 0
     test_records = []
     failed_records = []
     start_time = time.time()
@@ -833,7 +918,8 @@ def main():
             iverilog=iverilog,
             vvp=vvp,
             cwd=root,
-            log_dir=log_dir
+            log_dir=log_dir,
+            timeout=timeout,
         )
         record["module_covered"] = t["module_covered"]
         record["behavior_verified"] = t["behavior_verified"]
@@ -841,8 +927,13 @@ def main():
 
         if record["status"] == "PASS":
             total_passed += 1
-            xf = f", {len(record['xfails'])} XFAIL" if record["xfails"] else ""
-            print(f"[PASS] {record['checks']} checks{xf} in {record['runtime_seconds']:.2f}s")
+            if record["xfails"]:
+                xfail_passed += 1
+                xf_ids = ", ".join(x["gap"] for x in record["xfails"])
+                print(f"[PASS (kèm {len(record['xfails'])} XFAIL: {xf_ids})] {record['checks']} checks in {record['runtime_seconds']:.2f}s")
+            else:
+                clean_passed += 1
+                print(f"[PASS] {record['checks']} checks in {record['runtime_seconds']:.2f}s")
             if verbose and record.get("stdout"):
                 for line in record["stdout"].strip().splitlines():
                     print(f"       | {line}")
@@ -855,6 +946,7 @@ def main():
 
     total_duration = time.time() - start_time
     known_gaps = sorted({x["gap"] for r in test_records for x in r["xfails"]})
+    total_xfails = sum(len(r["xfails"]) for r in test_records)
 
     # 1. Save Full Regression Summary JSON
     summary_payload = {
@@ -865,10 +957,12 @@ def main():
         "commit_sha": git_sha,
         "total_tests": len(tests),
         "passed": total_passed,
+        "clean_passed": clean_passed,
+        "xfail_passed": xfail_passed,
         "failed": total_failed,
-        "pass_rate_pct": round((total_passed / len(tests)) * 100.0, 2),
+        "pass_rate_pct": round((clean_passed / len(tests)) * 100.0, 2) if len(tests) else 0.0,
         "total_checks": sum(r["checks"] for r in test_records),
-        "total_xfails": sum(len(r["xfails"]) for r in test_records),
+        "total_xfails": total_xfails,
         "known_gaps": known_gaps,
         "total_duration_seconds": round(total_duration, 2),
         "timestamp_epoch": time.time(),
@@ -899,9 +993,14 @@ def main():
         print(f"{rec['name'][:56]:<56} | {rec['status']:<6} | {rec['checks']:>6} | {len(rec['xfails']):>5} | "
               f"{rec['runtime_seconds']:6.2f}s | {mod_short}")
     print("=" * 110)
-    print(f"  FINAL VERDICT: {total_passed}/{len(tests)} PASSED, {total_failed} FAILED (Duration: {total_duration:.2f}s)")
-    if known_gaps:
+    if total_xfails > 0:
+        verdict_str = f"{clean_passed}/{len(tests)} CLEAN PASS, {xfail_passed}/{len(tests)} PASS (kèm {total_xfails} XFAIL: {', '.join(known_gaps)}), {total_failed} FAILED"
+        print(f"  FINAL VERDICT: {verdict_str} (Duration: {total_duration:.2f}s)")
+        print(f"  Clean Pass Rate (excluding XFAIL): {round((clean_passed / len(tests)) * 100.0, 2):.2f}%")
         print(f"  KNOWN GAPS (XFAIL, not counted as PASS): {', '.join(known_gaps)}")
+    else:
+        print(f"  FINAL VERDICT: {total_passed}/{len(tests)} PASSED, {total_failed} FAILED (Duration: {total_duration:.2f}s)")
+        print(f"  Pass Rate: {round((total_passed / len(tests)) * 100.0, 2):.2f}%")
     print(f"  [+] Saved Summary JSON : {summary_json_path}")
     print(f"  [+] Saved Failures JSON: {failure_json_path}")
     print(f"  [+] Detailed Logs Dir  : {log_dir}")
