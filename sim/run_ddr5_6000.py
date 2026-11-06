@@ -3,7 +3,9 @@ import os
 import json
 
 sys.path.insert(0, '/home/thanh/ramulator2/python')
-sys.path.insert(0, '/mnt/d/RAM/sim')
+SIM_DIR = os.path.dirname(os.path.abspath(__file__))
+if SIM_DIR not in sys.path:
+    sys.path.insert(0, SIM_DIR)
 from run_benchmarks import run_single_benchmark
 import ramulator
 
@@ -15,10 +17,10 @@ dram_info = {
     'tCK_ns': 0.333333,
 }
 
-trace_mixed = '/mnt/d/RAM/sim/traces/trace_mixed.trace'
-trace_benign = '/mnt/d/RAM/sim/traces/trace_benign.trace'
-trace_rh = '/mnt/d/RAM/sim/traces/trace_rowhammer.trace'
-trace_bs = '/mnt/d/RAM/sim/traces/trace_blacksmith.trace'
+trace_mixed = os.path.join(SIM_DIR, 'traces', 'trace_mixed.trace')
+trace_benign = os.path.join(SIM_DIR, 'traces', 'trace_benign.trace')
+trace_rh = os.path.join(SIM_DIR, 'traces', 'trace_rowhammer.trace')
+trace_bs = os.path.join(SIM_DIR, 'traces', 'trace_blacksmith.trace')
 
 results = []
 for wl_name, tr_path in [('Benign', trace_benign), ('RowHammer', trace_rh), ('Mixed', trace_mixed), ('Blacksmith', trace_bs)]:
@@ -36,6 +38,7 @@ for r in results:
     bw = r['throughput_mbps']
     print(f"{w:12} | {s:12} | Cycles: {c:8} | Latency: {lat:7.2f} ns | BW: {bw:8.1f} MB/s")
 
-with open('/mnt/d/RAM/sim/results/ddr5_6000_results.json', 'w') as f:
+out_file = os.path.join(SIM_DIR, 'results', 'ddr5_6000_results.json')
+with open(out_file, 'w', encoding='utf-8') as f:
     json.dump(results, f, indent=2)
-print("\nSaved to /mnt/d/RAM/sim/results/ddr5_6000_results.json")
+print(f"\nSaved to {out_file}")

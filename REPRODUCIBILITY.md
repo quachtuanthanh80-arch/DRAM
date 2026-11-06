@@ -16,7 +16,7 @@ cd DRAM
 # 1. Install Python prerequisites
 pip install -r requirements.txt
 
-# 2. Run Master Hardware Regression Suite (30 testbenches incl. 8 Global Benchmarks & 13 Security Vectors)
+# 2. Run Master Hardware Regression Suite (30 <!-- số cũ, chờ T51 --> testbenches incl. 8 Global Benchmarks & 13 Security Vectors)
 python run_iverilog_regression.py
 
 # 3. Run Attack Emulation & Defense Verification
@@ -61,7 +61,7 @@ Every figure and table in the manuscript maps 1-to-1 to an execution script and 
 | **Figure 10**| Formal BMC & Induction Convergence | `paper/figures/fig8_formal_bmc_convergence.tex` | `paper/figures/fig8_formal_bmc_convergence.pdf` |
 | **Table I** | Multi-PDK ASIC PPA Comparison | [`synth/asic/scripts/generate_multi_pdk_ppa_report.py`](synth/asic/scripts/generate_multi_pdk_ppa_report.py) | `synth/asic/reports/multi_pdk_ppa_comparison.md` |
 | **Table II** | Subsystem Gate Breakdown | [`synth/asic/reports/`](synth/asic/reports/) | `synth/asic/reports/axi_ddr5_mc_top_asic_ppa_summary.json` |
-| **Table III**| Cycle-Accurate Ramulator2 Matrix | [`sim/run_benchmarks.py`](sim/run_benchmarks.py) | `sim/results/bench_summary.json` |
+| **Table III**| Cycle-Accurate Ramulator2 Matrix | [`sim/run_benchmarks.py`](sim/run_benchmarks.py) | `sim/results/bench_summary.json` (đầu ra của `sim/run_benchmarks.py`, sinh lại được, chưa có bản golden; xem `GOLDEN_OUTPUTS/README.md`) |
 | **Table IV** | Qualitative Taxonomy Comparison | [`sim/generate_sota_comparison.py`](sim/generate_sota_comparison.py) | `sim/results/qualitative_taxonomy.json` |
 
 ---
@@ -72,7 +72,7 @@ Every figure and table in the manuscript maps 1-to-1 to an execution script and 
 ```bash
 python run_iverilog_regression.py
 ```
-- **Expected Outcome**: 30/30 testbenches (including 13 hardware attack vectors and 8 global academic/industrial benchmarks) pass with zero fatal assertion errors.
+- **Expected Outcome**: 30/30 <!-- số cũ, chờ T51 --> testbenches (including 13 hardware attack vectors and 8 global academic/industrial benchmarks) pass with zero fatal assertion errors.
 - **Verification Log**: Inspect `regression_summary.json` and `regression_logs/`.
 
 ### Step 2: Full End-to-End Cocotb Verification
@@ -94,7 +94,7 @@ bash run_all_formal.sh
 ```bash
 python sim/run_benchmarks.py --config all --repeat 10 --seed 12345
 ```
-- **Expected Outcome**: Produces `sim/results/bench_metrics.csv` and `sim/results/bench_summary.json`.
+- **Expected Outcome**: Produces `sim/results/bench_metrics.csv` and `sim/results/bench_summary.json` (đầu ra của `sim/run_benchmarks.py`, sinh lại được, chưa có bản golden; các file này đã được gỡ khỏi `GOLDEN_OUTPUTS/`).
 
 ---
 
@@ -114,4 +114,4 @@ python sim/run_benchmarks.py --config all --repeat 10 --seed 12345
 | **Golden Output Diff** | Numerical & Checksum Tolerance Check | 0.8 s | 1.5 s | 1.0 s |
 | **Total Wall-Clock** | Complete Environment Sanity Gate | **~7.4 s** | **~18.0 s** | **~9.8 s** |
 
-*Note*: Full 20-suite regression (`python run_all_tests.py`) runs in ~1.5–2.0 minutes; complete multi-workload benchmark sweep (`python sim/run_benchmarks.py --config all`) runs in ~8–12 minutes.
+*Note*: Full 20-suite <!-- số cũ, chờ T51 --> regression (`python run_all_tests.py`) runs in ~1.5–2.0 minutes; complete multi-workload benchmark sweep (`python sim/run_benchmarks.py --config all`) runs in ~8–12 minutes.

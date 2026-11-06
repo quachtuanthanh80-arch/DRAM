@@ -13,7 +13,7 @@ sim/
 ├── traces/
 │   ├── benign/         # 25 traces (SPEC CPU2017, PARSEC 3.0, YCSB)
 │   ├── rowhammer/      # 20 traces (Double-sided, single-sided, many-sided)
-│   ├── rowpress/       # 14 traces (tRAS holding stress)
+│   ├── rowpress/       # 14 <!-- số cũ, chờ T51 --> traces (tRAS holding stress)
 │   ├── evasion/        # 10 traces (Frequency-domain & Blacksmith)
 │   └── metadata.json   # Per-trace configuration and hash
 ├── results/            # Benchmark outputs and LaTeX tables
@@ -54,9 +54,9 @@ sim/
    ```
 
 ### Output Files Explanation
-- `results/bench_metrics.csv`: Mean throughput, latency, and overhead ($n=10$ runs with 95% CI).
-- `results/bench_metrics_detailed.csv`: Per-run raw measurements.
-- `results/apples_to_apples_cycle_accurate.json` & `.tex`: Tier 1 direct comparisons on Ramulator2.
+- `results/bench_metrics.csv`: Mean throughput, latency, and overhead ($n=10$ runs with 95% CI) (đầu ra của `sim/run_benchmarks.py`, sinh lại được, chưa có bản golden; xem `GOLDEN_OUTPUTS/README.md`).
+- `results/bench_metrics_detailed.csv`: Per-run raw measurements (đầu ra của `sim/run_benchmarks.py`, sinh lại được, chưa có bản golden).
+- `results/apples_to_apples_cycle_accurate.json` & `.tex`: Tier 1 direct comparisons on Ramulator2 (đầu ra của `sim/generate_sota_comparison.py`, sinh lại được, chưa có bản golden).
 - `results/literature_reported_values.json` & `.tex`: Tier 2 contextual comparison (with disclaimers).
 - `results/qualitative_taxonomy.json` & `.tex`: Tier 3 architectural feature matrix.
 
