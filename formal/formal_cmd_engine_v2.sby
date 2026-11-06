@@ -1,0 +1,19 @@
+[tasks]
+sync
+fault
+
+[options]
+mode bmc
+depth 80
+
+[engines]
+smtbmc z3
+
+[script]
+sync: read -formal -sv -DSYNTHESIS ddr5_cmd_engine.sv cmd_engine_v2_formal.sv
+fault: read -formal -sv -DSYNTHESIS -DFV_FAULT ddr5_cmd_engine.sv cmd_engine_v2_formal.sv
+prep -top cmd_engine_v2_formal
+
+[files]
+/mnt/d/RAM/rtl/backend/ddr5_cmd_engine.sv
+/mnt/d/RAM/formal/cmd_engine_v2_formal.sv
