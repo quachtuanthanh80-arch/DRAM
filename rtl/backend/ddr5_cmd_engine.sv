@@ -40,7 +40,9 @@ module ddr5_cmd_engine #(
     // Ngân sách chu kỳ cho một lần drain trước REF/RFM; quá hạn thì ép đóng mọi bank (lỗi thiết kế hoặc tiêm lỗi)
     parameter int REF_WD          = 512,
     parameter int ROWPRESS_THRESH_DEFAULT = 5000,
-    parameter int RD_STARVE_MAX   = 96
+    parameter int RD_STARVE_MAX   = 96,
+    parameter int WR_PACE_BURST   = 24,
+    parameter int WR_PACE_IDLE    = 4
 )(
     input  logic                                         clk,
     input  logic                                         rst_n,
@@ -525,7 +527,7 @@ module ddr5_cmd_engine #(
     logic [2:0]           pk_t;
     logic [ROW_WIDTH-1:0] pk_drow;
     wire [NB-1:0] c1_rd = cas_rdy & ~cas_is_wr & ~pk_oh;
-    wire block_wr_cas   = rd_starve_q || (wr_pace_cnt != 3'd0);
+    wire block_wr_cas   = rd_starve_q || (wr_pace_cnt != '0);
     wire [NB-1:0] c1    = block_wr_cas ? c1_rd : (cas_rdy & ~pk_oh);
     wire  [NB-1:0] a1 = act_rdy & ~pk_oh;
     wire  [NB-1:0] p1 = pre_rdy & ~pk_oh;
@@ -1072,8 +1074,8 @@ module ddr5_cmd_engine #(
                 wr_pace_cnt <= wr_pace_cnt - 1'b1;
                 wr_burst_cnt <= '0;
             end else if (is_cas && sel_is_wr) begin
-                if (wr_burst_cnt >= 6'd23) begin
-                    wr_pace_cnt <= 3'd4;
+                if (wr_burst_cnt >= 6'(WR_PACE_BURST - 1)) begin
+                    wr_pace_cnt <= 3'(WR_PACE_IDLE);
                     wr_burst_cnt <= '0;
                 end else begin
                     wr_burst_cnt <= wr_burst_cnt + 1'b1;
@@ -1198,6 +1200,8 @@ module ddr5_cmd_engine #(
         // T_RDV >= 2: exp_v nạp ở cạnh sau RD trên DFI tại bit T_RDV - 1 (spec_v2 M-03.1)
         if (!(T_RDV >= 2 && T_RDV <= 56 && REF_WD >= 64 && REF_WD <= 1023 && RD_STARVE_MAX >= 16 && RD_STARVE_MAX <= 1023))
             $fatal(1, "SA-E09: T_RDV/REF_WD/RD_STARVE_MAX out of range");
+        if (!(WR_PACE_BURST >= 4 && WR_PACE_BURST <= 63 && WR_PACE_IDLE >= 1 && WR_PACE_IDLE <= 7))
+            $fatal(1, "SA-E10: WR_PACE_BURST/WR_PACE_IDLE out of range");
     end
 
     // Tự kiểm mô phỏng các bất biến lịch beat đọc (TB bơm lỗi vào exp_v/rd_st đặt sim_chk_en = 0 trước khi bơm). Bất biến
@@ -1271,6 +1275,8 @@ module ddr5_cmd_engine #(
         if (rst_n && $past(rst_n)) begin
             // A-R10: bo dem cho doc khong vuot nguong RD_STARVE_MAX
             assert (rd_wait_cnt <= 10'(RD_STARVE_MAX));
+            assert (wr_burst_cnt <= 6'(WR_PACE_BURST));
+            assert (wr_pace_cnt <= 3'(WR_PACE_IDLE));
             if ($past(o_dfi_cmd == CMD_ACT)) begin
                 assert (bank_open[bidx($past(o_dfi_bg), $past(o_dfi_bank))]);
             end
