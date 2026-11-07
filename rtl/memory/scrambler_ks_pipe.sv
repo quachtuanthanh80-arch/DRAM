@@ -1,5 +1,5 @@
 // File:      scrambler_ks_pipe.sv
-// Chức năng: Pipeline 6 tầng sinh keystream ARX của bus_scrambler từ địa chỉ word vật lý, kèm sideband cùng độ trễ.
+// Chức năng: Pipeline 6 tầng sinh keystream ARX của bus_scrambler từ địa chỉ và version, kèm sideband cùng độ trễ.
 `timescale 1ns / 1ps
 
 module scrambler_ks_pipe #(
@@ -10,6 +10,7 @@ module scrambler_ks_pipe #(
     input  logic [63:0]       cfg_seed,
     input  logic              i_valid,
     input  logic [63:0]       i_key,
+    input  logic [15:0]       i_version = 16'h0,
     input  logic [SIDE_W-1:0] i_side,
     output logic              o_valid,
     output logic [63:0]       o_ks,
@@ -18,7 +19,7 @@ module scrambler_ks_pipe #(
 
     // Cùng hàm với bus_scrambler::keystream: ba vòng "x += rotl(x,a); x ^= rotl(x,b) ^ (x >> c); x += rotl(seed,k)".
     // Mỗi tầng chỉ một phép cộng 64 bit (chuỗi carry ~0.6 ns): 6 tầng thay cho 6 phép cộng nối tiếp tổ hợp
-    // (~4 ns, không đạt 400 MHz). Keystream chỉ phụ thuộc địa chỉ nên được tính trước khi dữ liệu tới.
+    // (~4 ns, không đạt 400 MHz). Keystream phụ thuộc (seed, địa chỉ, version) được tính trước khi dữ liệu tới.
     localparam int LAT = 6;
     // Hằng số quay/dịch của từng vòng (hàm thay cho mảng localparam để mọi công cụ đều chấp nhận)
     function automatic int RA(input int r); return (r == 0) ? 13 : (r == 1) ? 29 : 41; endfunction
@@ -34,9 +35,18 @@ module scrambler_ks_pipe #(
     wire [SIDE_W-1:0] side [0:LAT];
     wire [LAT:0]      vld;
 
-    assign x[0]    = cfg_seed ^ i_key;
+    wire [15:0] eff_ver = (i_version != 16'h0) ? i_version : i_key[63:48];
+    wire [63:0] v_term  = rotl({48'h0, eff_ver}, 17);
+    logic [63:0] v_term_q;
+
+    assign x[0]    = cfg_seed ^ i_key ^ v_term;
     assign side[0] = i_side;
     assign vld[0]  = i_valid;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) v_term_q <= 64'h0;
+        else        v_term_q <= v_term;
+    end
 
     for (genvar s = 0; s < LAT; s++) begin : g_stage
         wire  [63:0]       nx;
@@ -47,7 +57,7 @@ module scrambler_ks_pipe #(
             assign nx = x[s] + rotl(x[s], RA(s / 2));
         end else begin : g_xs_add
             wire [63:0] t = x[s] ^ rotl(x[s], RB(s / 2)) ^ (x[s] >> RC(s / 2));
-            assign nx = t + rotl(cfg_seed, RK(s / 2));
+            assign nx = t + rotl((s == 1) ? (cfg_seed ^ v_term_q) : cfg_seed, RK(s / 2));
         end
         always_ff @(posedge clk or negedge rst_n) begin
             if (!rst_n) vld_q <= 1'b0;

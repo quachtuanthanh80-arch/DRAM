@@ -19,6 +19,7 @@ module scarf_dram_randomizer #(
     // Cho phép pipeline tiến (stall toàn tuyến khi đầu ra bị giữ); bỏ qua khi RPS = 0
     input  logic                   i_en = 1'b1,
     input  logic [TWEAK_WIDTH-1:0] i_tweak,
+    input  logic [15:0]            i_version = 16'h0,
     input  logic [ROW_WIDTH-1:0]   i_row,
     input  logic [BANK_WIDTH-1:0]  i_bank,
     output logic [ROW_WIDTH-1:0]   o_scrambled_row,
@@ -104,9 +105,10 @@ module scarf_dram_randomizer #(
     wire [TWEAK_WIDTH-1:0] twk_pipe [0:ROUNDS];
     wire [TOTAL_W-1:0]     raw_pipe [0:ROUNDS];
 
+    wire [TWEAK_WIDTH-1:0] eff_tweak = i_tweak ^ TWEAK_WIDTH'(i_version);
     assign l_pipe[0]   = raw_input[L_W-1:0];
     assign r_pipe[0]   = raw_input[TOTAL_W-1:L_W];
-    assign twk_pipe[0] = i_tweak;
+    assign twk_pipe[0] = eff_tweak;
     assign raw_pipe[0] = raw_input;
 
     genvar r;
