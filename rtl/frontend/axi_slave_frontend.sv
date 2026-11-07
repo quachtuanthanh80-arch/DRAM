@@ -149,13 +149,31 @@ module axi_slave_frontend #(
     assign o_wr_addr_valid = aw_skid_valid;
     assign aw_skid_ready   = i_wr_addr_ready;
 
-    // 4KB boundary crossing detection for AW
+    // 4KB boundary crossing detection for AW (VC-8 / M-3)
     // AXI4 Spec section A3.4.1: A burst cannot cross a 4KB boundary
-    logic [12:0] aw_bytes_total;
-    logic [12:0] aw_offset_end;
-    assign aw_bytes_total      = ({5'b0, o_wr_len} + 13'd1) << o_wr_size;
-    assign aw_offset_end       = {1'b0, o_wr_addr[11:0]} + aw_bytes_total;
-    assign o_wr_addr_cross_4kb = (aw_offset_end > 13'd4096);
+    // Hàm tính toán tổng dung lượng byte của burst AXI4:
+    // FIXED (2'b00): Tất cả beat đều truy cập cùng địa chỉ -> độ rộng địa chỉ bằng kích thước 1 beat (1 << size).
+    // WRAP  (2'b10): Cuộn địa chỉ trong container được căn chỉnh <= 2KB -> không bao giờ vượt biên 4KB.
+    // INCR  (2'b01): Địa chỉ tăng tuyến tính liên tục qua các beat -> (len + 1) << size byte (tối đa 8192B với 256 beat x 32B).
+    function automatic logic [15:0] calc_burst_bytes(
+        input logic [1:0] burst_type,
+        input logic [7:0] len,
+        input logic [2:0] size
+    );
+        begin
+            case (burst_type)
+                2'b00:   calc_burst_bytes = 16'd1 << size;
+                2'b10:   calc_burst_bytes = ({8'b0, len} + 16'd1) << size;
+                default: calc_burst_bytes = ({8'b0, len} + 16'd1) << size;
+            endcase
+        end
+    endfunction
+
+    logic [15:0] aw_bytes_total;
+    logic [15:0] aw_offset_end;
+    assign aw_bytes_total      = calc_burst_bytes(o_wr_burst, o_wr_len, o_wr_size);
+    assign aw_offset_end       = {4'b0, o_wr_addr[11:0]} + aw_bytes_total;
+    assign o_wr_addr_cross_4kb = (o_wr_burst == 2'b01) ? (aw_offset_end > 16'd4096) : 1'b0;
 
     //=========================================================================
     // 2. Write Data Channel (W) Skid Buffer
@@ -237,12 +255,12 @@ module axi_slave_frontend #(
     assign o_rd_req_valid = ar_skid_valid;
     assign ar_skid_ready  = i_rd_req_ready;
 
-    // 4KB boundary crossing detection for AR
-    logic [12:0] ar_bytes_total;
-    logic [12:0] ar_offset_end;
-    assign ar_bytes_total      = ({5'b0, o_rd_req_len} + 13'd1) << o_rd_req_size;
-    assign ar_offset_end       = {1'b0, o_rd_req_addr[11:0]} + ar_bytes_total;
-    assign o_rd_req_cross_4kb  = (ar_offset_end > 13'd4096);
+    // 4KB boundary crossing detection for AR (VC-8 / M-3)
+    logic [15:0] ar_bytes_total;
+    logic [15:0] ar_offset_end;
+    assign ar_bytes_total      = calc_burst_bytes(o_rd_req_burst, o_rd_req_len, o_rd_req_size);
+    assign ar_offset_end       = {4'b0, o_rd_req_addr[11:0]} + ar_bytes_total;
+    assign o_rd_req_cross_4kb  = (o_rd_req_burst == 2'b01) ? (ar_offset_end > 16'd4096) : 1'b0;
 
     //=========================================================================
     // 5. Read Data Channel (R) Skid Buffer with ARM AXI5 Poison Propagation

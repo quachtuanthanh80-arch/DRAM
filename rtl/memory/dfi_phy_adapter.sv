@@ -18,6 +18,7 @@ module dfi_phy_adapter #(
     input  logic [2:0]           cmd_ba,
     input  logic [AddrWidth-1:0] cmd_addr,
     input  logic [DataWidth-1:0] cmd_wdata,
+    input  logic [15:0]          cmd_wmask = 16'h0,
     input  logic [15:0]          cmd_tag,
 
     // Interface back to Memory Read Path
@@ -222,7 +223,7 @@ module dfi_phy_adapter #(
                         dfi_we_n        <= 1'b0;
                         dfi_wrdata_en   <= 1'b1;
                         dfi_wrdata      <= cmd_wdata;
-                        dfi_wrdata_mask <= 16'h0; // Full 128-bit write
+                        dfi_wrdata_mask <= cmd_wmask; // Chuyển byte mask bảo vệ các byte không ghi (VC-7 / M-2)
                     end
 
                     CmdRd: begin

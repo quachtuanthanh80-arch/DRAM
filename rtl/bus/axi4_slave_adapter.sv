@@ -168,6 +168,8 @@ module axi4_slave_adapter #(
 
     write_state_t w_state;
     logic [7:0]   w_beat_count;
+    logic [7:0]   active_wlen;
+    logic         w_len_mismatch;
     logic [IdWidth-1:0] active_wid;
     logic [AddrWidth-1:0] active_waddr;
 
@@ -194,8 +196,9 @@ module axi4_slave_adapter #(
         sub_b_data        = buf_wdata;
         sub_a_tweak       = current_tweak;
         sub_b_tweak       = current_tweak;
-        sub_a_meta        = {8'hA0, w_beat_count};
-        sub_b_meta        = {8'hB0, w_beat_count};
+        // Chuyển byte strobe (WSTRB) qua kênh metadata phục vụ ghi từng phần (VC-7 / M-2)
+        sub_a_meta        = buf_wstrb;
+        sub_b_meta        = buf_wstrb;
 
         case (w_state)
             W_IDLE: begin
@@ -227,6 +230,8 @@ module axi4_slave_adapter #(
         if (!rst_n) begin
             w_state         <= W_IDLE;
             w_beat_count    <= 8'h0;
+            active_wlen     <= 8'h0;
+            w_len_mismatch  <= 1'b0;
             active_wid      <= '0;
             active_waddr    <= '0;
             b_int_valid     <= 1'b0;
@@ -235,12 +240,15 @@ module axi4_slave_adapter #(
         end else begin
             case (w_state)
                 W_IDLE: begin
-                    b_int_valid <= 1'b0;
+                    b_int_valid    <= 1'b0;
+                    w_len_mismatch <= 1'b0;
                     if (aw_buffered_valid && aw_buffered_ready) begin
-                        active_wid   <= buf_awid;
-                        active_waddr <= buf_awaddr;
-                        w_beat_count <= 8'h0;
-                        w_state      <= W_BURST;
+                        active_wid     <= buf_awid;
+                        active_waddr   <= buf_awaddr;
+                        active_wlen    <= buf_awlen;
+                        w_beat_count   <= 8'h0;
+                        w_len_mismatch <= 1'b0;
+                        w_state        <= W_BURST;
                     end
                 end
 
@@ -248,6 +256,12 @@ module axi4_slave_adapter #(
                     if (w_buffered_valid && w_buffered_ready) begin
                         w_beat_count    <= w_beat_count + 8'd1;
                         total_transfers <= total_transfers + 32'd1;
+                        // Kiểm tra WLAST theo AMBA AXI4 (VC-7 / M-2):
+                        // WLAST phải tích cực đúng tại beat cuối cùng (w_beat_count == active_wlen).
+                        // Nếu WLAST báo sớm hoặc không báo tại beat cuối, ghi nhận lỗi sai lệch độ dài burst.
+                        if (buf_wlast != (w_beat_count == active_wlen)) begin
+                            w_len_mismatch <= 1'b1;
+                        end
                         if (buf_wlast) begin
                             w_state <= W_RESP;
                         end
@@ -255,7 +269,8 @@ module axi4_slave_adapter #(
                 end
 
                 W_RESP: begin
-                    b_int_pack  <= {active_wid, 2'b00}; // OKAY response
+                    // Trả về SLVERR (2'b10) nếu phát hiện vi phạm giao thức WLAST vs AWLEN, ngược lại trả OKAY (2'b00)
+                    b_int_pack  <= {active_wid, w_len_mismatch ? 2'b10 : 2'b00};
                     b_int_valid <= 1'b1;
                     if (b_int_valid && b_int_ready) begin
                         b_int_valid <= 1'b0;
@@ -283,7 +298,7 @@ module axi4_slave_adapter #(
     // Lint unused signal sink
     logic _unused_axi;
     assign _unused_axi = &{s_axi_araddr, s_axi_arlen, s_axi_arsize, s_axi_arburst,
-                           s_axi_arvalid, s_axi_rready, buf_awlen, buf_awsize,
-                           buf_awburst, buf_wstrb, active_waddr[3:0], 1'b0};
+                           s_axi_arvalid, s_axi_rready, buf_awsize,
+                           buf_awburst, active_waddr[3:0], 1'b0};
 
 endmodule: axi4_slave_adapter
