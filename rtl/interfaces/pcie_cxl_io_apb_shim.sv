@@ -312,6 +312,7 @@ module pcie_cxl_io_csr_top #(
     logic        apb_pready;
     logic [31:0] apb_prdata;
     logic        apb_pslverr;
+    logic        csr_keys_valid;
 
     pcie_cxl_io_apb_shim #(
         .AxilAddrWidth(AxilAddrWidth),
@@ -375,7 +376,7 @@ module pcie_cxl_io_csr_top #(
         .sec_locked            (),
         .key1_data             (),
         .key2_data             (),
-        .keys_valid            (),
+        .keys_valid            (csr_keys_valid),
         .pipe_busy             (1'b0),
         .core_status_flags     (8'h0),
         .block_encrypted_pulse (1'b0),
@@ -415,5 +416,9 @@ module pcie_cxl_io_csr_top #(
         .ate_dynamic_thresh    (16'h0),
         .pmu_counters          (256'h0)
     );
+
+    // Dọn sạch cảnh báo lint cho tín hiệu nội bộ
+    logic _unused_csr_top;
+    assign _unused_csr_top = &{csr_keys_valid, 1'b0};
 
 endmodule

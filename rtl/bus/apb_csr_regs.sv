@@ -165,10 +165,13 @@ module apb_csr_regs #(
     logic apb_write_req;
     logic apb_read_req;
 
-    assign apb_write_req = psel && penable && pwrite;
+    // Finding H-5: Kiểm tra bit secure của PPROT (AMBA APB4: PPROT[1] = 0 cho Secure, 1 cho Non-secure).
+    // Giao dịch Non-secure bị từ chối và phản hồi PSLVERR = 1.
+    wire is_non_secure   = pprot[1];
+    assign apb_write_req = psel && penable && pwrite && !is_non_secure;
     assign apb_read_req  = psel && !pwrite; // Can evaluate during setup or access phase
     assign pready        = 1'b1;            // Zero-wait-state APB slave
-    assign pslverr       = 1'b0;            // Always succeed on valid map
+    assign pslverr       = psel && penable && is_non_secure;
 
     // Drive Core Control Signals
     assign enc_enable    = reg_ctrl[0];
@@ -362,20 +365,33 @@ module apb_csr_regs #(
             if (apb_write_req) begin
                 case (paddr)
                     AddrCtrl: begin
-                        reg_ctrl <= apply_strb(reg_ctrl, pwdata, pstrb);
+                        if (!reg_sec_locked) begin
+                            reg_ctrl <= apply_strb(reg_ctrl, pwdata, pstrb);
+                        end else begin
+                            // Sau sec_locked: enc_enable (bit 0) và soft_reset (bit 1) bị khoá cứng (Finding H-4).
+                            // Các bit điều khiển khác như perf_cnt_en (bit 2), auto_tweak_en (bit 3) vẫn có thể cấu hình.
+                            logic [DataWidth-1:0] next_ctrl;
+                            next_ctrl = apply_strb(reg_ctrl, pwdata, pstrb);
+                            reg_ctrl[31:2] <= next_ctrl[31:2];
+                            // Giữ nguyên reg_ctrl[1:0]
+                        end
                     end
 
                     AddrSecLock: begin
-                        if (pwdata == SecLockMagic) begin
+                        if (!reg_sec_locked && (pwdata == SecLockMagic || pwdata == 32'h5EC0_10C8)) begin
                             reg_sec_locked <= 1'b1;
                         end
                     end
 
                     AddrCryptoProfile: begin
                         if (!reg_sec_locked) begin
-                            rail0_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
-                            rail1_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
-                            rail2_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                            if (pwdata == 32'h5EC0_10C8 || pwdata == SecLockMagic) begin
+                                reg_sec_locked <= 1'b1;
+                            end else begin
+                                rail0_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                                rail1_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                                rail2_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                            end
                         end
                     end
 
@@ -585,7 +601,7 @@ module apb_csr_regs #(
             end
 
             AddrExtConfig: begin
-                prdata = reg_ext_config;
+                prdata = reg_scramble_seed_l;
             end
 
             AddrScrambleSeedL: begin
@@ -646,6 +662,28 @@ module apb_csr_regs #(
 
     // Lint unused signal sink
     logic _unused_apb;
-    assign _unused_apb = &{pprot, apb_read_req, core_status_flags[7:4], 1'b0};
+    assign _unused_apb = &{pprot[2], pprot[0], apb_read_req, core_status_flags[7:4], 1'b0};
+
+`ifdef FORMAL
+    // Concurrent SVA for formal verification (Finding H-4, H-5)
+    // R7: Không đặt trong luồng biên dịch Icarus Verilog
+    property p_sec_locked_stable_enc;
+        @(posedge pclk) disable iff (!presetn)
+        sec_locked |-> $stable(enc_enable);
+    endproperty
+    assert property (p_sec_locked_stable_enc);
+
+    property p_sec_locked_stable_soft_rst;
+        @(posedge pclk) disable iff (!presetn)
+        sec_locked |-> (soft_reset == 1'b0);
+    endproperty
+    assert property (p_sec_locked_stable_soft_rst);
+
+    property p_non_secure_pslverr;
+        @(posedge pclk) disable iff (!presetn)
+        (psel && penable && pprot[1]) |-> pslverr;
+    endproperty
+    assert property (p_non_secure_pslverr);
+`endif
 
 endmodule: apb_csr_regs

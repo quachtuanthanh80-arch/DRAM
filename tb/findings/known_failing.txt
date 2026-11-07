@@ -1,6 +1,4 @@
 check_c2
-check_h4
-check_h5
 check_h6
 check_h7
 check_h8
