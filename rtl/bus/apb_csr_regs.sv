@@ -123,11 +123,27 @@ module apb_csr_regs #(
 
     // Internal Registers
     logic [31:0] reg_ctrl;
-    logic        reg_sec_locked;
     logic [31:0] reg_key1 [8];
     logic [31:0] reg_key2 [8];
     logic [7:0]  key1_loaded_mask;
     logic [7:0]  key2_loaded_mask;
+
+    // TMR Signals from Fault-Hardened CSR (RowHammer / RowPress / Scramble threshold registers)
+    logic [15:0] tmr_rh_thresh;
+    logic [1:0]  tmr_rowpress_curve;
+    logic        tmr_dual_hash_en;
+    logic [1:0]  tmr_scramble_mode;
+    logic        tmr_glitch_alert;
+    logic        tmr_sec_locked;
+
+    // TMR Rails for Security Lockdown (Finding M-6: 2-out-of-3 voting with Fail-Closed Glitch Defense)
+    logic        rail0_sec_locked, rail1_sec_locked, rail2_sec_locked;
+    logic        sticky_sec_locked;
+    wire         sec_locked_mismatch = (rail0_sec_locked != rail1_sec_locked) || (rail1_sec_locked != rail2_sec_locked);
+    wire         sec_locked_voted    = (rail0_sec_locked & rail1_sec_locked) | 
+                                       (rail1_sec_locked & rail2_sec_locked) | 
+                                       (rail0_sec_locked & rail2_sec_locked);
+    wire         reg_sec_locked      = sec_locked_voted | sec_locked_mismatch | tmr_sec_locked | sticky_sec_locked;
 
     // TMR Rails for Critical Security Registers (2-out-of-3 voting with continuous auto-healing)
     logic [31:0] rail0_crypto_profile, rail1_crypto_profile, rail2_crypto_profile;
@@ -184,8 +200,8 @@ module apb_csr_regs #(
     assign cfg_sdc_thresh      = reg_sdc_thresh[15:0];
     assign cfg_window_size     = reg_window_size[15:0];
     assign cfg_scrub_interval  = reg_scrub_interval[15:0];
-    assign cfg_rowpress_thresh = reg_rowpress_thresh[15:0];
-    assign cfg_rowpress_curve  = reg_rowpress_curve[1:0];
+    assign cfg_rowpress_thresh = tmr_rh_thresh;
+    assign cfg_rowpress_curve  = tmr_rowpress_curve;
     assign cfg_drm_en          = reg_drm_config[0];
     assign cfg_drm_victim2_en  = reg_drm_config[1];
     assign cfg_ate_en          = reg_ate_config[0];
@@ -195,7 +211,7 @@ module apb_csr_regs #(
     assign cfg_scramble_en      = reg_ext_config[0];
     assign cfg_scramble_reseed  = reg_ext_config[1];
     assign cfg_bank_coloring_en = reg_ext_config[4];
-    assign cfg_mapping_mode     = reg_ext_config[6:5];
+    assign cfg_mapping_mode     = tmr_scramble_mode;
     assign cfg_crypto_mode      = reg_ext_config[9:8];
     assign cfg_ecc_mode         = reg_ext_config[11:10];
     assign cfg_scramble_seed    = {reg_scramble_seed_h, reg_scramble_seed_l};
@@ -223,25 +239,18 @@ module apb_csr_regs #(
                              (rail1_epoch_nonce != voted_epoch_nonce) ||
                              (rail2_epoch_nonce != voted_epoch_nonce);
 
-    assign tmr_any_err = tmr_profile_err || tmr_key_err || tmr_nonce_err;
+    assign tmr_any_err = tmr_profile_err || tmr_key_err || tmr_nonce_err || sec_locked_mismatch;
 
-    // Connect Fault-Hardened CSR for RowHammer / RowPress / Scramble threshold registers
-    logic [15:0] tmr_rh_thresh;
-    logic [1:0]  tmr_rowpress_curve;
-    logic        tmr_dual_hash_en;
-    logic [1:0]  tmr_scramble_mode;
-    logic        tmr_glitch_alert;
-    logic        tmr_sec_locked;
-
+    // Connect Fault-Hardened CSR for RowHammer / RowPress / Scramble threshold registers (Finding M-6)
     fault_hardened_csr u_fault_hardened_csr (
         .clk                  (pclk),
         .rst_n                (presetn),
-        .i_cfg_we             (apb_write_req && (paddr == AddrRowPressThresh || paddr == AddrRowPressCurve || paddr == AddrExtConfig)),
-        .i_cfg_rh_threshold   (reg_rowpress_thresh[15:0]),
-        .i_cfg_rowpress_curve (reg_rowpress_curve[1:0]),
-        .i_cfg_dual_hash_en   (reg_ext_config[2]),
-        .i_cfg_scramble_mode  (reg_ext_config[6:5]),
-        .i_cfg_decoy_en       (reg_ext_config[7]),
+        .i_cfg_we             (apb_write_req && (paddr == AddrRowPressThresh || paddr == AddrRowPressCurve || (paddr == AddrExtConfig && !reg_sec_locked))),
+        .i_cfg_rh_threshold   ((paddr == AddrRowPressThresh) ? pwdata[15:0] : tmr_rh_thresh),
+        .i_cfg_rowpress_curve ((paddr == AddrRowPressCurve)  ? pwdata[1:0]  : tmr_rowpress_curve),
+        .i_cfg_dual_hash_en   ((paddr == AddrExtConfig)      ? pwdata[2]    : tmr_dual_hash_en),
+        .i_cfg_scramble_mode  ((paddr == AddrExtConfig)      ? pwdata[6:5]  : tmr_scramble_mode),
+        .i_cfg_decoy_en       ((paddr == AddrExtConfig)      ? pwdata[7]    : 1'b0),
         .o_cfg_rh_threshold   (tmr_rh_thresh),
         .o_cfg_rowpress_curve (tmr_rowpress_curve),
         .o_cfg_dual_hash_en   (tmr_dual_hash_en),
@@ -251,7 +260,7 @@ module apb_csr_regs #(
         .o_security_locked    (tmr_sec_locked)
     );
 
-    assign o_glitch_alert     = tmr_glitch_alert;
+    assign o_glitch_alert     = tmr_glitch_alert || sec_locked_mismatch;
     assign o_tmr_alert        = tmr_any_err;
 
     // Two-Tier Crypto and Fault Interface Outputs
@@ -294,21 +303,24 @@ module apb_csr_regs #(
     // APB Write Register Process
     always_ff @(posedge pclk or negedge presetn) begin
         if (!presetn) begin
-            reg_ctrl            <= 32'h0000_0009; // Default: enc_enable=1, auto_tweak_en=1
-            reg_sec_locked      <= 1'b0;
-            key1_loaded_mask    <= 8'h00;
-            key2_loaded_mask    <= 8'h00;
-            reg_sdc_thresh      <= 32'd2048;
-            reg_window_size     <= 32'd3900;
-            reg_scrub_interval  <= 32'd1000;
-            reg_rowpress_thresh <= 32'd5000;
-            reg_rowpress_curve  <= 32'd0;
-            reg_drm_config      <= 32'h0000_0003; // Default: drm_en=1, victim2_en=1
-            reg_ate_config      <= 32'h0000_0041; // Default: ate_en=1, alpha_shift=4
-            reg_ext_config      <= 32'h0000_0000; // Default: bypass all extended security
-            reg_scramble_seed_l <= 32'hBABE_0001;
-            reg_scramble_seed_h <= 32'hACE1_CAFE;
-            reg_pmu_ctrl        <= 32'h0000_0001; // Default: PMU enabled
+            reg_ctrl             <= 32'h0000_0009; // Default: enc_enable=1, auto_tweak_en=1
+            rail0_sec_locked     <= 1'b0;
+            rail1_sec_locked     <= 1'b0;
+            rail2_sec_locked     <= 1'b0;
+            sticky_sec_locked    <= 1'b0;
+            key1_loaded_mask     <= 8'h00;
+            key2_loaded_mask     <= 8'h00;
+            reg_sdc_thresh       <= 32'd2048;
+            reg_window_size      <= 32'd3900;
+            reg_scrub_interval   <= 32'd1000;
+            reg_rowpress_thresh  <= 32'd1024;
+            reg_rowpress_curve   <= 32'd0;
+            reg_drm_config       <= 32'h0000_0003; // Default: drm_en=1, victim2_en=1
+            reg_ate_config       <= 32'h0000_0041; // Default: ate_en=1, alpha_shift=4
+            reg_ext_config       <= 32'h0000_0000; // Default: bypass all extended security
+            reg_scramble_seed_l  <= 32'hBABE_0001;
+            reg_scramble_seed_h  <= 32'hACE1_CAFE;
+            reg_pmu_ctrl         <= 32'h0000_0001; // Default: PMU enabled
             rail0_crypto_profile <= 32'h0000_0002; // Default: Profile 2 (High-Throughput AI CTR mode)
             rail1_crypto_profile <= 32'h0000_0002;
             rail2_crypto_profile <= 32'h0000_0002;
@@ -354,6 +366,18 @@ module apb_csr_regs #(
                 rail2_epoch_nonce <= voted_epoch_nonce;
             end
 
+            // TMR Auto-Healing và Fail-Closed cho Security Lock (Finding M-6)
+            if (sticky_sec_locked || sec_locked_mismatch || tmr_sec_locked) begin
+                rail0_sec_locked  <= 1'b1;
+                rail1_sec_locked  <= 1'b1;
+                rail2_sec_locked  <= 1'b1;
+                sticky_sec_locked <= 1'b1;
+            end else begin
+                rail0_sec_locked  <= sec_locked_voted;
+                rail1_sec_locked  <= sec_locked_voted;
+                rail2_sec_locked  <= sec_locked_voted;
+            end
+
             // Fault capture
             if (!(apb_write_req && paddr == AddrSecFaultStatus)) begin
                 reg_sec_fault_status <= reg_sec_fault_status | i_sec_fault_set | {tmr_any_err, 4'b0000};
@@ -379,14 +403,20 @@ module apb_csr_regs #(
 
                     AddrSecLock: begin
                         if (!reg_sec_locked && (pwdata == SecLockMagic || pwdata == 32'h5EC0_10C8)) begin
-                            reg_sec_locked <= 1'b1;
+                            rail0_sec_locked  <= 1'b1;
+                            rail1_sec_locked  <= 1'b1;
+                            rail2_sec_locked  <= 1'b1;
+                            sticky_sec_locked <= 1'b1;
                         end
                     end
 
                     AddrCryptoProfile: begin
                         if (!reg_sec_locked) begin
                             if (pwdata == 32'h5EC0_10C8 || pwdata == SecLockMagic) begin
-                                reg_sec_locked <= 1'b1;
+                                rail0_sec_locked  <= 1'b1;
+                                rail1_sec_locked  <= 1'b1;
+                                rail2_sec_locked  <= 1'b1;
+                                sticky_sec_locked <= 1'b1;
                             end else begin
                                 rail0_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
                                 rail1_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
@@ -445,15 +475,15 @@ module apb_csr_regs #(
                     end
 
                     AddrExtConfig: begin
-                        reg_ext_config <= apply_strb(reg_ext_config, pwdata, pstrb);
+                        if (!reg_sec_locked) reg_ext_config <= apply_strb(reg_ext_config, pwdata, pstrb);
                     end
 
                     AddrScrambleSeedL: begin
-                        reg_scramble_seed_l <= apply_strb(reg_scramble_seed_l, pwdata, pstrb);
+                        if (!reg_sec_locked) reg_scramble_seed_l <= apply_strb(reg_scramble_seed_l, pwdata, pstrb);
                     end
 
                     AddrScrambleSeedH: begin
-                        reg_scramble_seed_h <= apply_strb(reg_scramble_seed_h, pwdata, pstrb);
+                        if (!reg_sec_locked) reg_scramble_seed_h <= apply_strb(reg_scramble_seed_h, pwdata, pstrb);
                     end
 
                     AddrPmuCtrl: begin
@@ -601,15 +631,18 @@ module apb_csr_regs #(
             end
 
             AddrExtConfig: begin
-                prdata = reg_scramble_seed_l;
+                // Finding H-6: Cấu hình xáo trộn / mapping mode trả về 0x0 sau khi sec_locked
+                prdata = reg_sec_locked ? 32'h0 : reg_ext_config;
             end
 
             AddrScrambleSeedL: begin
-                prdata = reg_scramble_seed_l;
+                // Finding H-6: Seed 64-bit là bí mật chỉ-ghi, luôn trả về 0x0
+                prdata = 32'h0;
             end
 
             AddrScrambleSeedH: begin
-                prdata = reg_scramble_seed_h;
+                // Finding H-6: Seed 64-bit là bí mật chỉ-ghi, luôn trả về 0x0
+                prdata = 32'h0;
             end
 
             AddrPmuCtrl: begin
@@ -617,13 +650,13 @@ module apb_csr_regs #(
             end
 
             default: begin
-                // Read Key 1: If locked, return 32'h0 for tamper/DPA defense!
+                // Read Key 1: Write-only register (Finding H-6: luôn trả về 32'h0 cả trước và sau khi lock)
                 if (paddr >= AddrKey1Base && paddr <= 12'h02C) begin
-                    prdata = reg_sec_locked ? 32'h0 : reg_key1[key1_idx];
+                    prdata = 32'h0;
                 end
-                // Read Key 2: If locked, return 32'h0 (0x030 - 0x03C: 128-bit Tweak Key)
+                // Read Key 2: Write-only register (Finding H-6: luôn trả về 32'h0 cả trước và sau khi lock)
                 else if (paddr >= AddrKey2Base && paddr <= 12'h03C) begin
-                    prdata = reg_sec_locked ? 32'h0 : reg_key2[key2_idx];
+                    prdata = 32'h0;
                 end
                 // Read 8 PMU counters (0x120 - 0x13C)
                 else if (paddr >= AddrPmuBase && paddr <= 12'h13C) begin
@@ -665,7 +698,7 @@ module apb_csr_regs #(
     assign _unused_apb = &{pprot[2], pprot[0], apb_read_req, core_status_flags[7:4], 1'b0};
 
 `ifdef FORMAL
-    // Concurrent SVA for formal verification (Finding H-4, H-5)
+    // Concurrent SVA for formal verification (Finding H-4, H-5, H-6, M-6)
     // R7: Không đặt trong luồng biên dịch Icarus Verilog
     property p_sec_locked_stable_enc;
         @(posedge pclk) disable iff (!presetn)
@@ -684,6 +717,21 @@ module apb_csr_regs #(
         (psel && penable && pprot[1]) |-> pslverr;
     endproperty
     assert property (p_non_secure_pslverr);
+
+    // Finding H-6: Đọc khóa K1/K2 luôn trả về 0 (Write-only)
+    property p_keys_write_only;
+        @(posedge pclk) disable iff (!presetn)
+        (psel && !pwrite && ((paddr >= AddrKey1Base && paddr <= 12'h02C) || (paddr >= AddrKey2Base && paddr <= 12'h03C)))
+        |-> (prdata == 32'h0);
+    endproperty
+    assert property (p_keys_write_only);
+
+    // Finding M-6: Khóa bảo mật một khi kích hoạt là đơn điệu (fail-closed, không bao giờ mở lại)
+    property p_sec_locked_monotonic;
+        @(posedge pclk) disable iff (!presetn)
+        sec_locked |=> sec_locked;
+    endproperty
+    assert property (p_sec_locked_monotonic);
 `endif
 
 endmodule: apb_csr_regs

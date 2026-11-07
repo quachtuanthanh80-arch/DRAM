@@ -159,6 +159,8 @@ module sec_ddr5_controller_top #(
     logic        csr_sec_fault_irq;
     logic [4:0]  sec_fault_set;
     logic [31:0] fault_addr_log;
+    logic        csr_tmr_alert;
+    logic        csr_glitch_alert;
 
     assign csr_pmu_counters = '0;
 
@@ -216,8 +218,8 @@ module sec_ddr5_controller_top #(
         .sec_fault_irq         (csr_sec_fault_irq),
         .i_sec_fault_set       (sec_fault_set),
         .i_fault_addr_log      (fault_addr_log),
-        .o_tmr_alert           (),
-        .o_glitch_alert        (),
+        .o_tmr_alert           (csr_tmr_alert),
+        .o_glitch_alert        (csr_glitch_alert),
         .telem_accesses        (32'd0),
         .telem_throttles       (32'd0),
         .ecc_single_err_cnt    (16'd0),
@@ -660,6 +662,6 @@ module sec_ddr5_controller_top #(
 
     // Lint unused signals sink
     logic _unused_top;
-    assign _unused_top = &{keys_valid, auto_tweak_en, perf_cnt_en, total_transfers, key2_tweak, csr_cfg_scramble_en, csr_cfg_scramble_reseed, csr_cfg_scramble_seed, csr_cfg_bank_coloring_en, csr_cfg_mapping_mode, csr_cfg_crypto_mode, csr_cfg_ecc_mode, csr_cfg_pmu_en, csr_cfg_pmu_reset, csr_sec_fault_status, csr_sec_fault_irq, 1'b0};
+    assign _unused_top = &{keys_valid, auto_tweak_en, perf_cnt_en, total_transfers, key2_tweak, csr_cfg_scramble_en, csr_cfg_scramble_reseed, csr_cfg_scramble_seed, csr_cfg_bank_coloring_en, csr_cfg_mapping_mode, csr_cfg_crypto_mode, csr_cfg_ecc_mode, csr_cfg_pmu_en, csr_cfg_pmu_reset, csr_sec_fault_status, csr_sec_fault_irq, csr_tmr_alert, csr_glitch_alert, 1'b0};
 
 endmodule: sec_ddr5_controller_top
