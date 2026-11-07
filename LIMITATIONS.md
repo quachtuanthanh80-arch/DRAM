@@ -104,3 +104,47 @@ To ensure complete experimental transparency regarding the boundaries between si
 - **Proven Defenses**: RowHammer bit-flip prevention (single, double, many-sided), RowPress hold-time capping, adaptive rate pacing, and autonomous single-bit SEC-DED soft-error scrubbing.
 - **Mitigation-timing channels (LeakyHammer / PRACLeak)**: A tenant can no longer observe another tenant's mitigation activity across banks. Victim refreshes occupy only the aggressor's bank (bank-parallel engine), and queue capacity is split per bank: each bank has one reserved slot in its bank-group queue, and the remaining slots form a shared pool. As a result, commands stalled behind a pending victim refresh cannot exhaust the queue entries of a different bank. `tb_security_attacks_vcd` V19 measures 39 vs 40 cycles for the two symbols, and the receiver decodes 7/16 bits (chance level). A receiver in the *same* physical bank still sees the refresh, because the bank itself is the shared resource. Bank coloring (V23) separates tenants at bank granularity.
 - **Explicit Non-Goals**: Side-channel resistance beyond the scheduling channels above (power analysis, electromagnetic emission), transient speculative execution, and physical bus tampering.
+
+---
+
+## 6. Crypto-Integration Demo Top (`sec_ddr5_controller_top.sv`) Scope & Known Open Limitations
+
+Per architectural decision **D1**, **`axi_ddr5_mc_top`** (`rtl/top/axi_ddr5_mc_top.sv`) is the **canonical production top-level module** of Q-Shield used for end-to-end verification, formal proofs, and synthesis evaluation.
+
+By contrast, **`sec_ddr5_controller_top`** (`rtl/top/sec_ddr5_controller_top.sv`) is retained strictly as a **crypto-integration demonstration top** (illustrating the dual-lane AES-256-XTS write pipeline, dual-clock Gray-code CDC FIFOs, and dual-subchannel scheduler). It is **not part of the canonical controller hierarchy (`axi_ddr5_mc_top`)** and **must not be used for any area, timing ($F_{max}$/WNS), LUT/FF utilization, or throughput claims**.
+
+The following findings on `sec_ddr5_controller_top` are closed by scope (documented as known demo limitations without modifying demo RTL logic) and tracked in `tb/findings/known_open_demo.txt`:
+
+### 6.1 [C-3] Subchannel Scheduler Row/Column Address Driven from Ciphertext Slice
+- **Location**: `rtl/top/sec_ddr5_controller_top.sv` (`u_sched_a` lines 443–446, `u_sched_b` lines 485–488).
+- **Root Cause & Impact**: `axi4_slave_adapter` forwards only a 16-bit metadata vector (`{1'b1, awaddr[16:15], awaddr[14:12], awid, 2'b00}`) alongside the 128-bit encrypted data beat (`enc_a_data` / `enc_b_data`) across the 144-bit CDC FIFOs (`u_cdc_fifo_a`, `u_cdc_fifo_b`). On the `clk_ddr` domain, `u_sched_a` and `u_sched_b` wire `req_row` to `fifo_*_rdata[127:112]` and `req_col` to `fifo_*_rdata[105:96]`, which are bits of the AES-XTS ciphertext (`enc_*_data[127:96]`) rather than the host AXI physical row and column address. Consequently, the DFI row/column address emitted by the demo top depends on encrypted payload data instead of `s_axi_awaddr`.
+- **Reproduction**:
+  ```bash
+  python tb/findings/run_findings.py
+  # Or run check_c3 directly with Icarus Verilog:
+  # check_c3 (tb/findings/checks/check_c3.sv) writes two distinct plaintexts to the same
+  # AXI address with enc_enable=1 and observes two different DFI ACT row addresses ([FAIL] C-3).
+  ```
+
+### 6.2 [C-4] Write-Only Demo Datapath & Read Channel Stub
+- **Location**: `rtl/bus/axi4_slave_adapter.sv` (lines 274–279) and `rtl/top/sec_ddr5_controller_top.sv` (`u_sched_a` line 442, `u_sched_b` line 484, `u_dfi_a`/`u_dfi_b` lines 522–524, 567–569).
+- **Root Cause & Impact**: In `axi4_slave_adapter.sv`, the AXI4 read channels (`AR` and `R`) are stubbed (`assign s_axi_arready = 1'b1;` and `assign s_axi_rvalid = 1'b0;`). In `sec_ddr5_controller_top.sv`, both subchannel schedulers tie `.req_is_write(1'b1)` high and leave the `dfi_phy_adapter` read response ports (`rd_resp_valid`, `rd_resp_data`, `rd_resp_tag`) unconnected. Any AXI4 read request (`s_axi_arvalid = 1'b1`) accepted on `AR` never produces a read response beat (`s_axi_rvalid` remains `0` indefinitely).
+- **Reproduction**:
+  ```bash
+  python tb/findings/run_findings.py
+  # check_c4 (tb/findings/checks/check_c4.sv) issues an AXI4 write followed by an AXI4 read
+  # on sec_ddr5_controller_top and times out waiting for s_axi_rvalid ([FAIL] C-4).
+  ```
+
+### 6.3 [H-1] Asynchronous CDC FIFO Partial Reset Desynchronization on `soft_reset`
+- **Location**: `rtl/top/sec_ddr5_controller_top.sv` (`u_cdc_fifo_a` line 378, `u_cdc_fifo_b` line 404).
+- **Root Cause & Impact**: The write-domain asynchronous reset input of `async_fifo_cdc` is driven combinationally by `.wrst_n(rst_axi_n && !soft_reset)`, whereas the read-domain reset input is driven solely by `.rrst_n(rst_ddr_n)`. Triggering a software reset (`soft_reset = 1'b1` via APB CSR `0x000[2]`) after traffic has advanced the FIFO pointers resets only the write pointers (`wptr_bin`, `wptr_gray` → `0`) while leaving the read pointers (`rptr_bin`, `rptr_gray`) at their old non-zero values. Once `soft_reset` deasserts, `rptr_gray_Next != rq2_wptr_gray` causes `rempty` to deassert falsely on the `clk_ddr` side, draining phantom entries from stale FIFO memory and corrupting subsequent write stream alignment.
+- **Reproduction**:
+  ```bash
+  python tb/findings/run_findings.py
+  # check_h1 (tb/findings/checks/check_h1.sv) writes 2 beats through sec_ddr5_controller_top,
+  # pulses soft_reset via APB CSR, and detects phantom subchannel scheduler requests while idle ([FAIL] H-1).
+  ```
+
+*(Note: In addition to C-3, C-4, and H-1, `u_qshield_crypto` inside `sec_ddr5_controller_top.sv` lines 618–651 has its datapath valid inputs `i_precomp_valid`, `i_wr_valid`, and `i_rd_valid` tied to `1'b0` — tracked as demo finding **[C-1]** and reproduced by `check_c1` in `tb/findings/run_findings.py`.)*
+

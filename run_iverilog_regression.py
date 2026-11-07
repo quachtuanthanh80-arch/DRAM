@@ -492,7 +492,7 @@ def main():
             ]
         },
         {
-            "name": "Top-Level Integration: Inline AES-256-XTS Secure DDR5 Controller",
+            "name": "DEMO Top-Level Integration: Inline AES-256-XTS Crypto Integration Demo (sec_ddr5_controller_top, Not Canonical Top)",
             "top": "tb_sec_ddr5_controller_top",
             "module_covered": "rtl/top/sec_ddr5_controller_top.sv",
             "behavior_verified": "End-to-end encrypted DDR5 subchannel scheduling and CDC synchronization",

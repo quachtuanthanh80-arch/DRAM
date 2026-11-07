@@ -1,7 +1,5 @@
-//=============================================================================
-// File:        sec_ddr5_controller_top.sv
-// Chức năng:   Khối đỉnh toàn diện tích hợp bộ điều khiển Q-Shield kèm đường ống mật mã AES-XTS và miền CDC.
-//=============================================================================
+// File: sec_ddr5_controller_top.sv
+// Chức năng: Top demo tích hợp crypto (AES-XTS + CDC), chưa dùng cho số liệu/claim (top chuẩn là axi_ddr5_mc_top; xem LIMITATIONS.md mục C-1, C-3, C-4, H-1).
 `timescale 1ns / 1ps
 
 module sec_ddr5_controller_top #(
