@@ -179,7 +179,7 @@ module tb_qshield_xts_tweak_unit;
                 tb_check(n_checked > 0 && bad_cnt == 0,
                          $sformatf("Test 3: Random vectors bit-exact tweak match (%0d checked, %0d bad)", n_checked, bad_cnt));
             end else begin
-                tb_check(1, "Test 3: File xts_kat_2000.txt optional for fast regression");
+                tb_check(0, "Test 3: File xts_kat_2000.txt NOT found (required for KAT verification)!");
             end
         end
 

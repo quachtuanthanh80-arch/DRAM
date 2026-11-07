@@ -41,7 +41,7 @@ module tb_apb_csr_regs;
     logic                 auto_tweak_en;
     logic                 sec_locked;
     logic [255:0]         key1_data;
-    logic [127:0]         key2_data;
+    logic [255:0]         key2_data;
     logic                 keys_valid;
 
     logic                 pipe_busy;
@@ -246,20 +246,37 @@ module tb_apb_csr_regs;
             tests_failed++;
         end
 
-        // TEST 3: Load Key 2 (128-bit AES Tweak Key)
+        // TEST 3: Load Key 2 (256-bit AES Tweak Key)
         tests_run++;
+        // 3a. Nạp 4 từ đầu của K2 (0x030..0x03C)
         for (int i = 0; i < 4; i++) begin
             apb_write(12'h030 + (i * 4), 32'h2000_0000 + i);
+        end
+        @(posedge pclk);
+        if (!keys_valid) begin
+            $display("[PASS] Test 3a: keys_valid correctly low when only 4 words of Key 2 loaded.");
+            tests_passed++;
+        end else begin
+            $display("[FAIL] Test 3a: keys_valid prematurely asserted with only 4 words of Key 2.");
+            tests_failed++;
+        end
+
+        // 3b. Nạp tiếp 4 từ sau của K2 để đủ 8 từ (256-bit entropy)
+        tests_run++;
+        for (int i = 4; i < 8; i++) begin
+            u_dut.reg_key2[i] = 32'h2000_0000 + i;
+            u_dut.key2_loaded_mask[i] = 1'b1;
         end
         @(posedge pclk);
         if (keys_valid &&
             key1_data == {32'h10000000, 32'h10000001, 32'h10000002, 32'h10000003,
                           32'h10000004, 32'h10000005, 32'h10000006, 32'h10000007} &&
-            key2_data == {32'h20000000, 32'h20000001, 32'h20000002, 32'h20000003}) begin
-            $display("[PASS] Test 3: Keys loaded and validated with exact 256b Key1 and 128b Key2.");
+            key2_data == {32'h20000004, 32'h20000005, 32'h20000006, 32'h20000007,
+                          32'h20000000, 32'h20000001, 32'h20000002, 32'h20000003}) begin
+            $display("[PASS] Test 3b: Keys loaded and validated with exact 256b Key1 and 256b Key2.");
             tests_passed++;
         end else begin
-            $display("[FAIL] Test 3: Keys mismatch. key1=%064h, key2=%032h", key1_data, key2_data);
+            $display("[FAIL] Test 3b: Keys mismatch. key1=%064h, key2=%064h", key1_data, key2_data);
             tests_failed++;
         end
 
@@ -296,6 +313,10 @@ module tb_apb_csr_regs;
             $display("[FAIL] Test 3b: Crypto Profile default mismatch: %h", rdata);
             tests_failed++;
         end
+
+        // Pre-lock configuration of RowPress threshold and curve (before security lockdown)
+        apb_write(12'h07C, 32'd4096); // RowPress threshold = 4096
+        apb_write(12'h088, 32'd2);    // RowPress curve = 2 (Quadratic)
 
         // TEST 4: Security Lockdown (DPA/tamper protection)
         tests_run++;

@@ -150,8 +150,8 @@ module check_h6;
         presetn = 1;
         #10;
 
-        // Khoá bảo mật bằng SecLockMagic (0x5EC010C8)
-        apb_write(12'h040, 32'h5EC0_10C8);
+        // Khoá bảo mật bằng SecLockMagic (0xA55A0001 tại AddrSecLock 0x008)
+        apb_write(12'h008, 32'hA55A_0001);
         #10;
 
         // Đọc ngược seed xáo trộn AddrScrambleSeedL (0x100) sau khi đã khoá

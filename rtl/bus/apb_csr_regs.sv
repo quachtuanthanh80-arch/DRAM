@@ -245,7 +245,7 @@ module apb_csr_regs #(
     fault_hardened_csr u_fault_hardened_csr (
         .clk                  (pclk),
         .rst_n                (presetn),
-        .i_cfg_we             (apb_write_req && (paddr == AddrRowPressThresh || paddr == AddrRowPressCurve || (paddr == AddrExtConfig && !reg_sec_locked))),
+        .i_cfg_we             (apb_write_req && !reg_sec_locked && (paddr == AddrRowPressThresh || paddr == AddrRowPressCurve || paddr == AddrExtConfig)),
         .i_cfg_rh_threshold   ((paddr == AddrRowPressThresh) ? pwdata[15:0] : tmr_rh_thresh),
         .i_cfg_rowpress_curve ((paddr == AddrRowPressCurve)  ? pwdata[1:0]  : tmr_rowpress_curve),
         .i_cfg_dual_hash_en   ((paddr == AddrExtConfig)      ? pwdata[2]    : tmr_dual_hash_en),
@@ -270,7 +270,7 @@ module apb_csr_regs #(
     assign sec_fault_status    = reg_sec_fault_status;
     assign sec_fault_irq       = |reg_sec_fault_status[3:1]; // Alert Host on Uncorrectable Faults
 
-    assign keys_valid    = (&key1_loaded_mask) && (&key2_loaded_mask[3:0]);
+    assign keys_valid    = (&key1_loaded_mask) && (&key2_loaded_mask);
 
     // Concatenate 32-bit registers into 256-bit keys (Big-Endian word layout)
     // Finding M-12: Nửa cao K2 lấy reg_key2[4..7], nửa thấp lấy reg_key2[0..3] (đủ 256 bit entropy, không lặp)
@@ -403,7 +403,7 @@ module apb_csr_regs #(
                     end
 
                     AddrSecLock: begin
-                        if (!reg_sec_locked && (pwdata == SecLockMagic || pwdata == 32'h5EC0_10C8)) begin
+                        if (!reg_sec_locked && pwdata == SecLockMagic) begin
                             rail0_sec_locked  <= 1'b1;
                             rail1_sec_locked  <= 1'b1;
                             rail2_sec_locked  <= 1'b1;
@@ -413,16 +413,9 @@ module apb_csr_regs #(
 
                     AddrCryptoProfile: begin
                         if (!reg_sec_locked) begin
-                            if (pwdata == 32'h5EC0_10C8 || pwdata == SecLockMagic) begin
-                                rail0_sec_locked  <= 1'b1;
-                                rail1_sec_locked  <= 1'b1;
-                                rail2_sec_locked  <= 1'b1;
-                                sticky_sec_locked <= 1'b1;
-                            end else begin
-                                rail0_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
-                                rail1_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
-                                rail2_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
-                            end
+                            rail0_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                            rail1_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                            rail2_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
                         end
                     end
 
@@ -460,7 +453,7 @@ module apb_csr_regs #(
                     end
 
                     AddrRowPressThresh: begin
-                        reg_rowpress_thresh <= apply_strb(reg_rowpress_thresh, pwdata, pstrb);
+                        if (!reg_sec_locked) reg_rowpress_thresh <= apply_strb(reg_rowpress_thresh, pwdata, pstrb);
                     end
 
                     AddrDrmConfig: begin
@@ -472,7 +465,7 @@ module apb_csr_regs #(
                     end
 
                     AddrRowPressCurve: begin
-                        reg_rowpress_curve <= apply_strb(reg_rowpress_curve, pwdata, pstrb);
+                        if (!reg_sec_locked) reg_rowpress_curve <= apply_strb(reg_rowpress_curve, pwdata, pstrb);
                     end
 
                     AddrExtConfig: begin

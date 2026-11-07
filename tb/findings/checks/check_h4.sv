@@ -133,8 +133,8 @@ module check_h4;
         // Bật mã hoá: Ghi AddrCtrl (0x000) = 0x1 (enc_enable = 1)
         apb_write(12'h000, 32'h0000_0001);
 
-        // Khoá bảo mật: Ghi AddrSecLock (0x040) = SecLockMagic (0x5EC010C8)
-        apb_write(12'h040, 32'h5EC0_10C8);
+        // Khoá bảo mật: Ghi SecLockMagic (0xA55A0001) vào AddrSecLock (0x008) theo đúng đặc tả chuẩn
+        apb_write(12'h008, 32'hA55A_0001);
 
         // Sau khi khoá, kẻ tấn công cố ý xoá enc_enable bằng cách ghi 0 vào AddrCtrl (0x000)
         apb_write(12'h000, 32'h0000_0000);
