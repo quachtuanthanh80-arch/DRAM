@@ -1,7 +1,5 @@
-//=============================================================================
-// File:        ddr5_subchannel_scheduler.sv
-// Chức năng:   Bộ lập lịch lệnh bộ nhớ FR-FCFS cho kênh con DDR5 và quản lý trạng thái các Bank.
-//=============================================================================
+// File: ddr5_subchannel_scheduler.sv
+// Chức năng: Bộ lập lịch lệnh bộ nhớ FR-FCFS cho kênh con DDR5 và quản lý trạng thái các Bank.
 `timescale 1ns / 1ps
 
 module ddr5_subchannel_scheduler #(
@@ -61,9 +59,12 @@ module ddr5_subchannel_scheduler #(
         BANK_CLOSING = 2'b11
     } bank_state_t;
 
-    bank_state_t        bank_state [NumBanks];
-    logic [RowWidth-1:0] open_row   [NumBanks];
-    logic [3:0]         bank_timer [NumBanks]; // Countdown timer for tRCD / tRP
+    localparam int TotalBanks = NumBanks * NumBankGrps;
+
+    // Cơ chế: Quản lý trạng thái 32 bank độc lập qua chỉ mục {bank_grp, bank} (Finding H-2).
+    bank_state_t         bank_state [TotalBanks];
+    logic [RowWidth-1:0] open_row   [TotalBanks];
+    logic [3:0]          bank_timer [TotalBanks]; // Countdown timer for tRCD / tRP
 
     // Global Timing Constraints
     logic [3:0] turnaround_timer;
@@ -79,6 +80,9 @@ module ddr5_subchannel_scheduler #(
     logic [ColWidth-1:0]   active_req_col;
     logic [127:0]          active_req_wdata;
     logic [15:0]           active_req_tag;
+
+    // Chỉ mục phẳng 5-bit định danh duy nhất bank trong toàn kênh con {bg, ba}
+    wire [4:0] active_bank_idx = {active_req_bank_grp, active_req_bank};
 
     // Ready when no active request is pending
     assign req_ready = !active_req_valid;
@@ -108,7 +112,7 @@ module ddr5_subchannel_scheduler #(
             total_cmds          <= '0;
             turnaround_timer    <= '0;
 
-            for (int b = 0; b < NumBanks; b++) begin
+            for (int b = 0; b < TotalBanks; b++) begin
                 bank_state[b] <= BANK_CLOSED;
                 open_row[b]   <= '0;
                 bank_timer[b] <= '0;
@@ -119,7 +123,7 @@ module ddr5_subchannel_scheduler #(
                 turnaround_timer <= turnaround_timer - 4'd1;
             end
 
-            for (int b = 0; b < NumBanks; b++) begin
+            for (int b = 0; b < TotalBanks; b++) begin
                 if (bank_timer[b] > 0) begin
                     bank_timer[b] <= bank_timer[b] - 4'd1;
                 end else begin
@@ -151,7 +155,7 @@ module ddr5_subchannel_scheduler #(
 
             // Command Arbitration Logic
             if (active_req_valid && (!cmd_valid || cmd_ready)) begin
-                case (bank_state[active_req_bank])
+                case (bank_state[active_bank_idx])
                     BANK_CLOSED: begin
                         // Target bank is closed -> Issue ACTIVATE command
                         cmd_valid        <= 1'b1;
@@ -162,16 +166,16 @@ module ddr5_subchannel_scheduler #(
                         cmd_wdata        <= '0;
                         cmd_tag          <= active_req_tag;
 
-                        open_row[active_req_bank]      <= active_req_row;
-                        bank_state[active_req_bank]    <= BANK_OPENING;
-                        bank_timer[active_req_bank]    <= 4'(TRCD_CYC - 1);
+                        open_row[active_bank_idx]   <= active_req_row;
+                        bank_state[active_bank_idx] <= BANK_OPENING;
+                        bank_timer[active_bank_idx] <= 4'(TRCD_CYC - 1);
                         page_misses      <= page_misses + 32'd1;
                         total_cmds       <= total_cmds + 32'd1;
                     end
 
                     BANK_ACTIVE: begin
-                        if (bank_timer[active_req_bank] == 0 && turnaround_timer == 0) begin
-                            if (open_row[active_req_bank] == active_req_row) begin
+                        if (bank_timer[active_bank_idx] == 0 && turnaround_timer == 0) begin
+                            if (open_row[active_bank_idx] == active_req_row) begin
                                 // PAGE HIT: Issue READ or WRITE directly!
                                 cmd_valid        <= 1'b1;
                                 cmd_type         <= active_req_is_write ? CmdWr : CmdRd;
@@ -195,8 +199,8 @@ module ddr5_subchannel_scheduler #(
                                 cmd_wdata     <= '0;
                                 cmd_tag       <= active_req_tag;
 
-                                bank_state[active_req_bank] <= BANK_CLOSING;
-                                bank_timer[active_req_bank] <= 4'(TRP_CYC - 1);
+                                bank_state[active_bank_idx] <= BANK_CLOSING;
+                                bank_timer[active_bank_idx] <= 4'(TRP_CYC - 1);
                                 page_misses   <= page_misses + 32'd1;
                                 total_cmds    <= total_cmds + 32'd1;
                             end
@@ -209,6 +213,17 @@ module ddr5_subchannel_scheduler #(
         end
     end
 
-
+`ifndef SYNTHESIS
+    // SVA: RD/WR chỉ được phát khi open_row[{bg, ba}] đã hoàn tất ACT (ở trạng thái BANK_ACTIVE)
+    always_ff @(posedge clk) begin
+        if (rst_n) begin
+            if (cmd_valid && (cmd_type == CmdRd || cmd_type == CmdWr)) begin
+                assert (bank_state[{cmd_bg, cmd_ba}] == BANK_ACTIVE) else
+                    $error("[SCHED_SVA_ERR] RD/WR issued to bank {%0d, %0d} which is not active (state=%0d)",
+                           cmd_bg, cmd_ba, bank_state[{cmd_bg, cmd_ba}]);
+            end
+        end
+    end
+`endif
 
 endmodule: ddr5_subchannel_scheduler
