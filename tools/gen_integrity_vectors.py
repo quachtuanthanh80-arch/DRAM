@@ -8,6 +8,7 @@ Seed-fixed, bit-exact and synthesizable validation.
 """
 import math
 import random
+import sys
 from pathlib import Path
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -509,5 +510,144 @@ def generate_cache_test_vectors(num_ops=50000):
     print(f"Stats: hits={cache.hit_cnt} misses={cache.miss_cnt} evictions={cache.evict_cnt} writebacks={cache.wb_cnt}")
 
 
+class BmtModel:
+    def __init__(self, prot_lines=4096, k3_bytes=None, prot_base=0):
+        self.prot_lines = prot_lines
+        self.prot_base = prot_base
+        if k3_bytes is None:
+            k3_bytes = bytes.fromhex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+        self.k3_bytes = k3_bytes
+        cipher = Cipher(algorithms.AES(self.k3_bytes), modes.ECB())
+        enc = cipher.encryptor()
+        self.H = int.from_bytes(enc.update(bytes(16)) + enc.finalize(), "big")
+        
+        self.layout = MetaLayoutModel(prot_base=prot_base, prot_lines=prot_lines)
+        self.num_cb = self.layout.num_cb
+        self.level_counts = []
+        cur = self.num_cb
+        while cur > 1:
+            nxt = math.ceil(cur / TREE_ARITY)
+            self.level_counts.append(nxt)
+            cur = nxt
+            if nxt <= 1:
+                break
+        self.tree_levels = len(self.level_counts)
+        self.dram = {}
+
+    def compute_node_hash(self, data_512, level, node_idx):
+        b0 = (data_512 >> 384) & ((1 << 128) - 1)
+        b1 = (data_512 >> 256) & ((1 << 128) - 1)
+        b2 = (data_512 >> 128) & ((1 << 128) - 1)
+        b3 = data_512 & ((1 << 128) - 1)
+        mask = make_mask_node(self.k3_bytes, level, node_idx)
+        tag64, _, _ = compute_tag([b0, b1, b2, b3], self.H, mask)
+        return tag64
+
+    def build_initial_tree(self):
+        for i in range(self.num_cb):
+            cb_addr = self.layout.cb_base + i * 64
+            self.dram[cb_addr] = 0
+
+        l1_nodes = [0] * self.level_counts[0]
+        for i in range(self.num_cb):
+            h = self.compute_node_hash(0, level=0, node_idx=i)
+            p_idx = i // TREE_ARITY
+            p_slot = i % TREE_ARITY
+            l1_nodes[p_idx] |= (h << (p_slot * 64))
+
+        for j in range(self.level_counts[0]):
+            tn_addr = self.layout.tn_base + j * 64
+            self.dram[tn_addr] = l1_nodes[j]
+
+        cur_nodes = l1_nodes
+        cur_offset = 0
+        for lvl in range(1, self.tree_levels):
+            nxt_count = self.level_counts[lvl]
+            nxt_nodes = [0] * nxt_count
+            cur_offset += len(cur_nodes)
+            for j in range(len(cur_nodes)):
+                h = self.compute_node_hash(cur_nodes[j], level=lvl, node_idx=j)
+                p_idx = j // TREE_ARITY
+                p_slot = j % TREE_ARITY
+                nxt_nodes[p_idx] |= (h << (p_slot * 64))
+            for k in range(nxt_count):
+                tn_addr = self.layout.tn_base + (cur_offset + k) * 64
+                self.dram[tn_addr] = nxt_nodes[k]
+            cur_nodes = nxt_nodes
+
+        top_lvl = self.tree_levels
+        root = self.compute_node_hash(cur_nodes[0], level=top_lvl, node_idx=0)
+        return root
+
+    def reconstruct_from_dram(self, dram_dict=None):
+        if dram_dict is None:
+            dram_dict = self.dram
+        errors = []
+        l1_nodes = [0] * self.level_counts[0]
+        for i in range(self.num_cb):
+            cb_addr = self.layout.cb_base + i * 64
+            cb_val = dram_dict.get(cb_addr, 0)
+            h = self.compute_node_hash(cb_val, level=0, node_idx=i)
+            p_idx = i // TREE_ARITY
+            p_slot = i % TREE_ARITY
+            l1_nodes[p_idx] |= (h << (p_slot * 64))
+
+        for j in range(self.level_counts[0]):
+            tn_addr = self.layout.tn_base + j * 64
+            actual_tn = dram_dict.get(tn_addr, 0)
+            if actual_tn != l1_nodes[j]:
+                errors.append(f"L1 node {j} mismatch at {tn_addr:016x}: got {actual_tn:0128x}, expected {l1_nodes[j]:0128x}")
+
+        cur_nodes = l1_nodes
+        cur_offset = 0
+        for lvl in range(1, self.tree_levels):
+            nxt_count = self.level_counts[lvl]
+            nxt_nodes = [0] * nxt_count
+            cur_offset += len(cur_nodes)
+            for j in range(len(cur_nodes)):
+                h = self.compute_node_hash(cur_nodes[j], level=lvl, node_idx=j)
+                p_idx = j // TREE_ARITY
+                p_slot = j % TREE_ARITY
+                nxt_nodes[p_idx] |= (h << (p_slot * 64))
+            for k in range(nxt_count):
+                tn_addr = self.layout.tn_base + (cur_offset + k) * 64
+                actual_tn = dram_dict.get(tn_addr, 0)
+                if actual_tn != nxt_nodes[k]:
+                    errors.append(f"Level {lvl+1} node {k} mismatch at {tn_addr:016x}: got {actual_tn:0128x}, expected {nxt_nodes[k]:0128x}")
+            cur_nodes = nxt_nodes
+
+        top_lvl = self.tree_levels
+        root = self.compute_node_hash(cur_nodes[0], level=top_lvl, node_idx=0)
+        return root, errors
+
+
 if __name__ == "__main__":
-    main()
+    if "--verify-bmt" in sys.argv:
+        idx = sys.argv.index("--verify-bmt")
+        dram_file = sys.argv[idx + 1]
+        out_file = sys.argv[idx + 2] if len(sys.argv) > idx + 2 else "build/bmt_reconstructed_root.txt"
+        prot_lines = int(sys.argv[idx + 3]) if len(sys.argv) > idx + 3 else 4096
+        
+        dram_dict = {}
+        with open(dram_file, "r") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    addr = int(parts[0], 16)
+                    data = int(parts[1], 16)
+                    dram_dict[addr] = data
+                    
+        bmt = BmtModel(prot_lines=prot_lines)
+        rec_root, errs = bmt.reconstruct_from_dram(dram_dict)
+        print(f"[BMT_RECONSTRUCT] Read {len(dram_dict)} DRAM blocks. Reconstructed root: 0x{rec_root:016X}")
+        if errs:
+            print(f"[BMT_RECONSTRUCT] Found {len(errs)} mismatches!")
+            for e in errs[:5]:
+                print(f"  - {e}")
+        else:
+            print("[BMT_RECONSTRUCT] All parent-child hash links MATCH bit-exact!")
+            
+        with open(out_file, "w") as f:
+            f.write(f"{rec_root:016x}\n")
+    else:
+        main()
