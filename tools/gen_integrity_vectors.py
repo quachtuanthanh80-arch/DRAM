@@ -348,6 +348,165 @@ def main():
     
     verify_ghash_against_cryptography(1000)
     generate_mac_test_vectors()
+    generate_cache_test_vectors(50000)
+
+
+class CacheLine:
+    def __init__(self):
+        self.valid = False
+        self.dirty = False
+        self.verified = False
+        self.pinned = False
+        self.tag = 0
+        self.addr = 0
+
+
+class MetaCacheModel:
+    def __init__(self, num_sets=16, num_ways=4):
+        self.num_sets = num_sets
+        self.num_ways = num_ways
+        self.sets = [[CacheLine() for _ in range(num_ways)] for _ in range(num_sets)]
+        self.plru = [0] * num_sets  # 3 bits per set: b0, b1, b2
+        self.hit_cnt = 0
+        self.miss_cnt = 0
+        self.evict_cnt = 0
+        self.wb_cnt = 0
+
+    def _get_set_tag(self, addr):
+        set_idx = (addr >> 6) & (self.num_sets - 1)
+        tag = addr >> (6 + 4) # 16 sets = 4 bits
+        return set_idx, tag
+
+    def _update_plru(self, set_idx, way):
+        b0 = (self.plru[set_idx] >> 2) & 1
+        b1 = (self.plru[set_idx] >> 1) & 1
+        b2 = self.plru[set_idx] & 1
+        if way == 0:
+            b0 = 1; b1 = 1
+        elif way == 1:
+            b0 = 1; b1 = 0
+        elif way == 2:
+            b0 = 0; b2 = 1
+        elif way == 3:
+            b0 = 0; b2 = 0
+        self.plru[set_idx] = (b0 << 2) | (b1 << 1) | b2
+
+    def _select_victim(self, set_idx):
+        lines = self.sets[set_idx]
+        # 1. First look for an invalid, unpinned way
+        for w in range(self.num_ways):
+            if not lines[w].valid and not lines[w].pinned:
+                return w
+        # 2. PLRU tree selection
+        b0 = (self.plru[set_idx] >> 2) & 1
+        b1 = (self.plru[set_idx] >> 1) & 1
+        b2 = self.plru[set_idx] & 1
+        cand = (2 if b2 == 0 else 3) if b0 == 1 else (0 if b1 == 0 else 1)
+        if not lines[cand].pinned:
+            return cand
+        # 3. If PLRU candidate is pinned, choose first unpinned way
+        for w in range(self.num_ways):
+            if not lines[w].pinned:
+                return w
+        raise RuntimeError(f"Set {set_idx} has all ways pinned! Invariant violated.")
+
+    def lookup(self, addr, pin=False):
+        set_idx, tag = self._get_set_tag(addr)
+        lines = self.sets[set_idx]
+        for w in range(self.num_ways):
+            if lines[w].valid and lines[w].tag == tag:
+                self.hit_cnt += 1
+                self._update_plru(set_idx, w)
+                pinned_cnt = sum(1 for line in lines if line.pinned)
+                if pin and pinned_cnt < (self.num_ways - 1):
+                    lines[w].pinned = True
+                return True, w, lines[w].dirty, lines[w].verified, lines[w].pinned
+        self.miss_cnt += 1
+        return False, 0, False, False, False
+
+    def fill(self, addr, verified=True, pin=False):
+        set_idx, tag = self._get_set_tag(addr)
+        lines = self.sets[set_idx]
+        victim_w = self._select_victim(set_idx)
+        victim = lines[victim_w]
+        
+        evict_valid = 0
+        evict_dirty = 0
+        evict_addr = 0
+        if victim.valid:
+            evict_valid = 1
+            evict_dirty = 1 if victim.dirty else 0
+            evict_addr = victim.addr
+            self.evict_cnt += 1
+            if victim.dirty:
+                self.wb_cnt += 1
+
+        pinned_cnt = sum(1 for line in lines if line.pinned)
+        should_pin = pin and (pinned_cnt < (self.num_ways - 1))
+
+        victim.valid = True
+        victim.dirty = False
+        victim.verified = verified
+        victim.pinned = should_pin
+        victim.tag = tag
+        victim.addr = addr & ~63
+
+        self._update_plru(set_idx, victim_w)
+        return victim_w, evict_valid, evict_dirty, evict_addr
+
+    def update(self, addr, dirty=True):
+        set_idx, tag = self._get_set_tag(addr)
+        lines = self.sets[set_idx]
+        for w in range(self.num_ways):
+            if lines[w].valid and lines[w].tag == tag:
+                lines[w].dirty = dirty
+                self._update_plru(set_idx, w)
+                return True, w
+        return False, 0
+
+    def unpin(self, addr):
+        set_idx, tag = self._get_set_tag(addr)
+        lines = self.sets[set_idx]
+        for w in range(self.num_ways):
+            if lines[w].valid and lines[w].tag == tag:
+                lines[w].pinned = False
+                return True, w
+        return False, 0
+
+
+def generate_cache_test_vectors(num_ops=50000):
+    print(f"Generating {num_ops} random metadata cache test vectors (seed=12345)...")
+    random.seed(12345)
+    cache = MetaCacheModel(num_sets=16, num_ways=4)
+    
+    vec_path = ROOT / "build" / "meta_cache_vectors.txt"
+    # Addresses from a pool of 128 cache lines (oversubscribing the 64-line cache by 2x)
+    addr_pool = [0x04000000 + i * 64 for i in range(128)]
+    
+    with open(vec_path, "w", encoding="utf-8") as f:
+        f.write("# OP ADDR PIN DIRTY EXP_HIT EXP_WAY EXP_EVICT_VALID EXP_EVICT_DIRTY EXP_EVICT_ADDR\n")
+        
+        for _ in range(num_ops):
+            r = random.random()
+            addr = random.choice(addr_pool)
+            
+            if r < 0.45: # 45% Lookup
+                pin = 1 if random.random() < 0.2 else 0
+                hit, way, dirty, ver, is_pin = cache.lookup(addr, pin=bool(pin))
+                f.write(f"0 {addr:016x} {pin} 0 {1 if hit else 0} {way} 0 0 0\n")
+            elif r < 0.75: # 30% Fill
+                pin = 1 if random.random() < 0.15 else 0
+                way, ev_val, ev_dirty, ev_addr = cache.fill(addr, verified=True, pin=bool(pin))
+                f.write(f"1 {addr:016x} {pin} 0 0 {way} {ev_val} {ev_dirty} {ev_addr:016x}\n")
+            elif r < 0.90: # 15% Update (mark dirty)
+                hit, way = cache.update(addr, dirty=True)
+                f.write(f"2 {addr:016x} 0 1 {1 if hit else 0} {way} 0 0 0\n")
+            else: # 10% Unpin
+                hit, way = cache.unpin(addr)
+                f.write(f"3 {addr:016x} 0 0 {1 if hit else 0} {way} 0 0 0\n")
+                
+    print(f"[PASS] Successfully wrote {num_ops} cache vectors to {vec_path}")
+    print(f"Stats: hits={cache.hit_cnt} misses={cache.miss_cnt} evictions={cache.evict_cnt} writebacks={cache.wb_cnt}")
 
 
 if __name__ == "__main__":
