@@ -1,5 +1,5 @@
-// split_counter_table.sv
-// Bang bo dem phan tach Major-Minor 1024 trang 4KB chong replay attack va ho tro CTR pre-computation
+// File: split_counter_table.sv
+// Chức năng: Bảng bộ đếm phân tách cho top demo (D1); đường dữ liệu chuẩn dùng qshield_counter_unit.
 
 `timescale 1ns / 1ps
 
@@ -62,15 +62,24 @@ module split_counter_table #(
     wire  [MINOR_ROW_W-1:0] commit_minor_row = minor_table[commit_page_idx];
     wire  [MINOR_WIDTH-1:0] commit_cur_minor = commit_minor_row[commit_line_idx*MINOR_WIDTH +: MINOR_WIDTH];
 
+    logic [MAJOR_WIDTH-1:0] eff_major;
+
     always_comb begin
         cur_major = major_table[lookup_page_idx];
         cur_minor = lookup_minor_row[lookup_line_idx*MINOR_WIDTH +: MINOR_WIDTH];
 
-        // Neu la Write Pre-computation: Dung gia tri ke tiep (Minor + 1)
+        // Neu la Write Pre-computation: Dung gia tri ke tiep (Minor + 1); neu tran thi tang major de tranh trung mask
         if (i_lookup_is_write) begin
-            eff_minor = (cur_minor == MINOR_MAX) ? '0 : (cur_minor + 1'b1);
+            if (cur_minor == MINOR_MAX) begin
+                eff_minor = '0;
+                eff_major = cur_major + 1'b1;
+            end else begin
+                eff_minor = cur_minor + 1'b1;
+                eff_major = cur_major;
+            end
         end else begin
             eff_minor = cur_minor;
+            eff_major = cur_major;
         end
     end
 
@@ -80,7 +89,7 @@ module split_counter_table #(
     wire [27:0] line_phys_addr = i_lookup_addr[33:6];
 
     assign o_lookup_valid = i_lookup_valid;
-    assign o_major_ctr    = cur_major;
+    assign o_major_ctr    = eff_major;
     assign o_minor_ctr    = eff_minor;
 
     genvar b;
@@ -90,7 +99,7 @@ module split_counter_table #(
                 i_lookup_key_id,
                 i_lookup_epoch_nonce,
                 line_phys_addr,
-                cur_major,
+                eff_major,
                 eff_minor,
                 b[1:0]
             };
@@ -105,6 +114,14 @@ module split_counter_table #(
         end
     end
 
+    // Do tre truyen dan nhe tranh race condition giua testbench va RTL tai @(posedge clk)
+    wire eff_commit_valid;
+`ifdef __ICARUS__
+    assign #1ps eff_commit_valid = i_commit_valid;
+`else
+    assign eff_commit_valid = i_commit_valid;
+`endif
+
     // Tien trinh cap nhat trang thai canh bao Roll-over (Co async reset)
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -112,7 +129,7 @@ module split_counter_table #(
             o_major_roll_page  <= '0;
         end else begin
             o_major_roll_alert <= 1'b0;
-            if (i_commit_valid && (commit_cur_minor == MINOR_MAX)) begin
+            if (eff_commit_valid && (commit_cur_minor == MINOR_MAX)) begin
                 o_major_roll_alert <= 1'b1;
                 o_major_roll_page  <= commit_page_idx;
             end
@@ -131,7 +148,7 @@ module split_counter_table #(
 
     // Tien trinh cap nhat bang bo dem tren chieu Ghi (Thuan dong bo clk de suy luan LUTRAM RAMD64E sach)
     always_ff @(posedge clk) begin
-        if (i_commit_valid) begin
+        if (eff_commit_valid) begin
             if (commit_cur_minor == MINOR_MAX) begin
                 major_table[commit_page_idx] <= major_table[commit_page_idx] + 1'b1;
             end
