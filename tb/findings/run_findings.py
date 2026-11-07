@@ -49,6 +49,58 @@ TOP_DEMO_SOURCES = [
     os.path.join(ROOT, "rtl", "top", "sec_ddr5_controller_top.sv"),
 ]
 
+TOP_MAIN_RTL_SOURCES = [
+    os.path.join(ROOT, "rtl", "backend", "secded_72_64_pkg.sv"),
+    os.path.join(ROOT, "rtl", "cdc", "rst_sync.sv"),
+    os.path.join(ROOT, "rtl", "bus", "axi4_skid_buffer.sv"),
+    os.path.join(ROOT, "rtl", "frontend", "axi_slave_frontend.sv"),
+    os.path.join(ROOT, "rtl", "frontend", "wdata_buffer.sv"),
+    os.path.join(ROOT, "rtl", "frontend", "wr_data_store.sv"),
+    os.path.join(ROOT, "rtl", "frontend", "axi_burst_splitter.sv"),
+    os.path.join(ROOT, "rtl", "frontend", "rd_issue_queue.sv"),
+    os.path.join(ROOT, "rtl", "frontend", "domain_bank_coloring.sv"),
+    os.path.join(ROOT, "rtl", "core", "scarf_dram_randomizer.sv"),
+    os.path.join(ROOT, "rtl", "frontend", "addr_mapper_ddr5.sv"),
+    os.path.join(ROOT, "rtl", "core", "reorder_buffer_rob.sv"),
+    os.path.join(ROOT, "rtl", "core", "fault_hardened_csr.sv"),
+    os.path.join(ROOT, "rtl", "crypto", "multi_vm_key_table.sv"),
+    os.path.join(ROOT, "rtl", "core", "pxor_hash_engine.sv"),
+    os.path.join(ROOT, "rtl", "core", "sdc_resilient_filter.sv"),
+    os.path.join(ROOT, "rtl", "core", "adaptive_threshold_engine.sv"),
+    os.path.join(ROOT, "rtl", "backend", "directed_refresh_manager.sv"),
+    os.path.join(ROOT, "rtl", "core", "qos_scheduler_queue.sv"),
+    os.path.join(ROOT, "rtl", "backend", "slack_aware_arbiter.sv"),
+    os.path.join(ROOT, "rtl", "backend", "ddr5_cmd_engine.sv"),
+    os.path.join(ROOT, "rtl", "backend", "ecc_scrubber.sv"),
+    os.path.join(ROOT, "rtl", "memory", "bus_scrambler.sv"),
+    os.path.join(ROOT, "rtl", "memory", "scrambler_ks_pipe.sv"),
+    os.path.join(ROOT, "rtl", "bus", "perf_monitor_unit.sv"),
+    os.path.join(ROOT, "rtl", "top", "bank_credit_ctrl.sv"),
+    os.path.join(ROOT, "rtl", "top", "axi_ddr5_mc_top.sv"),
+]
+
+TOP_MAIN_SIM_SOURCES = [
+    os.path.join(ROOT, "rtl", "backend", "secded_72_64_pkg.sv"),
+    os.path.join(ROOT, "tb", "common", "ddr5_jedec_bin_pkg.sv"),
+] + TOP_MAIN_RTL_SOURCES[1:] + [
+    os.path.join(ROOT, "tb", "common", "dram_model.sv"),
+]
+
+GUARD_SPECS = {
+    "check_t10_main_hierarchy": {
+        "finding": "D1/T10",
+        "description": "Canonical axi_ddr5_mc_top hierarchy & isolation from demo top",
+        "sources": TOP_MAIN_RTL_SOURCES + [os.path.join(CHECKS_DIR, "check_t10_main_hierarchy.sv")],
+        "top": "check_t10_main_hierarchy",
+    },
+    "check_t11_main_path": {
+        "finding": "T11",
+        "description": "Main path axi_ddr5_mc_top DFI addr scoreboard (1000 txns), read liveness & mid-burst reset",
+        "sources": TOP_MAIN_SIM_SOURCES + [os.path.join(CHECKS_DIR, "check_t11_main_path.sv")],
+        "top": "check_t11_main_path",
+    },
+}
+
 CHECK_SPECS = {
     "check_c1": {
         "finding": "C-1",
@@ -99,12 +151,8 @@ CHECK_SPECS = {
     },
     "check_h3": {
         "finding": "H-3",
-        "description": "Delayed RREADY causes duplicate read beats",
-        "sources": [
-            os.path.join(ROOT, "rtl", "bus", "axi4_skid_buffer.sv"),
-            os.path.join(ROOT, "rtl", "core", "reorder_buffer_rob.sv"),
-            os.path.join(CHECKS_DIR, "check_h3.sv"),
-        ],
+        "description": "Delayed RREADY causes duplicate read beats on axi_ddr5_mc_top",
+        "sources": TOP_MAIN_SIM_SOURCES + [os.path.join(CHECKS_DIR, "check_h3.sv")],
         "top": "check_h3",
     },
     "check_h4": {
@@ -234,16 +282,20 @@ def main():
     print(f"  Root Directory     : {ROOT}")
     print(f"  Known Failing (Main): {len(known_failing)} checks")
     print(f"  Known Open (Demo)   : {len(known_open_demo)} checks")
+    print(f"  Guard Checks (Pass) : {len(GUARD_SPECS)} checks")
     print(f"  Total Expected Fails: {len(all_expected_failing)} checks")
     print("=" * 88)
 
     results = []
     unexpected_passes = []
     unexpected_failures = []
+    reproduced_count = 0
     total_start = time.time()
 
     # Discover and sort checks
     check_ids = sorted(CHECK_SPECS.keys())
+    guard_ids = sorted(GUARD_SPECS.keys())
+    total_count = len(check_ids) + len(guard_ids)
 
     for idx, cid in enumerate(check_ids, 1):
         spec = CHECK_SPECS[cid]
@@ -252,7 +304,7 @@ def main():
         expected_fail = cid in all_expected_failing
         scope = "demo" if cid in known_open_demo else "main"
 
-        print(f"[{idx:02d}/{len(check_ids):02d}] Finding [{finding_id:<3}] {cid} ({scope}): {desc} ...", end=" ", flush=True)
+        print(f"[{idx:02d}/{total_count:02d}] Finding [{finding_id:<6}] {cid} ({scope}): {desc} ...", end=" ", flush=True)
 
         res = run_one_check(cid, spec)
         actual_status = res["status"]
@@ -261,6 +313,7 @@ def main():
         if actual_status == "FAIL":
             if expected_fail:
                 eval_str = "REPRODUCED (Expected FAIL)"
+                reproduced_count += 1
                 print(f"[REPRODUCED] in {elapsed:.2f}s")
             else:
                 eval_str = "UNEXPECTED FAILURE"
@@ -290,18 +343,57 @@ def main():
             "elapsed": elapsed,
         })
 
+    for g_idx, gid in enumerate(guard_ids, len(check_ids) + 1):
+        spec = GUARD_SPECS[gid]
+        finding_id = spec["finding"]
+        desc = spec["description"]
+        scope = "guard"
+
+        print(f"[{g_idx:02d}/{total_count:02d}] Guard   [{finding_id:<6}] {gid} ({scope}): {desc} ...", end=" ", flush=True)
+
+        res = run_one_check(gid, spec)
+        actual_status = res["status"]
+        elapsed = res["elapsed"]
+
+        if gid in all_expected_failing:
+            eval_str = "ERROR (Guard check must not be in known_failing)"
+            unexpected_failures.append(gid)
+            print(f"[INVALID GUARD] in {elapsed:.2f}s")
+        elif actual_status == "PASS":
+            eval_str = "PASS (Guard Active)"
+            print(f"[PASS] in {elapsed:.2f}s")
+        elif actual_status == "FAIL":
+            eval_str = "UNEXPECTED FAILURE (Guard Violated)"
+            unexpected_failures.append(gid)
+            print(f"[UNEXPECTED FAIL] in {elapsed:.2f}s")
+        else:
+            eval_str = "ERROR (Tool/Execution)"
+            unexpected_failures.append(gid)
+            print(f"[ERROR] in {elapsed:.2f}s")
+
+        results.append({
+            "id": gid,
+            "finding": finding_id,
+            "scope": scope,
+            "desc": desc,
+            "status": actual_status,
+            "expected": "PASS",
+            "eval": eval_str,
+            "elapsed": elapsed,
+        })
+
     total_duration = time.time() - total_start
 
     print("\n" + "=" * 88)
-    print("  FINDING REPRODUCTION SUMMARY TABLE")
+    print("  FINDING REPRODUCTION & GUARD SUMMARY TABLE")
     print("=" * 88)
-    print(f"{'Check ID':<10} | {'Finding':<7} | {'Scope':<5} | {'Actual':<6} | {'Expected':<8} | {'Evaluation'}")
+    print(f"{'Check ID':<24} | {'Finding':<7} | {'Scope':<5} | {'Actual':<6} | {'Expected':<8} | {'Evaluation'}")
     print("-" * 88)
     for r in results:
-        print(f"{r['id']:<10} | {r['finding']:<7} | {r['scope']:<5} | {r['status']:<6} | {r['expected']:<8} | {r['eval']}")
+        print(f"{r['id']:<24} | {r['finding']:<7} | {r['scope']:<5} | {r['status']:<6} | {r['expected']:<8} | {r['eval']}")
     print("=" * 88)
     print(f"Total Checks: {len(results)} | Execution Time: {total_duration:.2f}s")
-    print(f"Reproduced Expected Fails: {len(results) - len(unexpected_failures) - len(unexpected_passes)}/{len(all_expected_failing)}")
+    print(f"Reproduced Expected Fails: {reproduced_count}/{len(all_expected_failing)}")
 
     if unexpected_failures:
         print(f"\n[!] ERROR: {len(unexpected_failures)} check(s) failed unexpectedly: {unexpected_failures}")
