@@ -242,17 +242,17 @@ module tb_rt02_credit_race;
         repeat (20) @(posedge clk_axi);
 
         //---------------------------------------------------------------------
-        // T-RT02a Pha 1 (Có hướng): Đạt >= 20 lần đọc+ghi cùng BG 0 cùng chu kỳ khi sum(bk_cnt[0]) >= 7
-        // Gửi 6 lệnh ghi tới các hàng khác nhau của BG 0 để dồn hàng đợi (ACT/PRE chậm) tới khi sum(bk_cnt) == 6;
-        // Gửi 1 lệnh đọc tới BG đó (vào IQ), ngay chu kỳ sau gửi 1 lệnh ghi tới cùng BG.
+        // T-RT02a Pha 1 (Có hướng): Đạt >= 20 lần lệnh ghi bị chặn bởi wbank_credit=0 khi sum(bk_cnt[0]) >= 7 và có đọc
+        // Gửi 7 lệnh ghi tới các hàng khác nhau của BG 0 để dồn hàng đợi (ACT/PRE chậm) tới khi sum(bk_cnt) == 7;
+        // Gửi 1 lệnh ghi tới cùng BG (chờ ở wr_data_store vì wbank_credit=0); gửi 1 lệnh đọc tới cùng BG (phát qua IQ).
         //---------------------------------------------------------------------
         for (int rep = 0; rep < 25; rep++) begin
             // Chặn arbiter rút BG 0 bằng proq_blk[0]
             force dut.u_drm.o_proq_blk = 8'h01;
-            // Đưa 4 lệnh ghi vào bank 0, 1 lệnh vào bank 1, 1 lệnh vào bank 2 (tổng 6 lệnh, bank 3 trống)
-            for (int k = 0; k < 6; k++) begin
+            // Đưa 4 lệnh ghi vào bank 0, 1 lệnh vào bank 1, 1 lệnh vào bank 2, 1 lệnh vào bank 3 (tổng 7 lệnh)
+            for (int k = 0; k < 7; k++) begin
                 int bk;
-                bk = (k < 4) ? 0 : ((k == 4) ? 1 : 2);
+                bk = (k < 4) ? 0 : ((k == 4) ? 1 : ((k == 5) ? 2 : 3));
                 @(negedge clk_axi);
                 s_axi_awid    = 4'd1;
                 s_axi_awaddr  = mk_addr(16'h010 + rep * 16 + k, 0, bk, k);
@@ -270,10 +270,10 @@ module tb_rt02_credit_race;
                 s_axi_wlast   = 1'b0;
             end
 
-            // Chờ 6 lệnh vào hàng đợi và ổn định
-            repeat (12) @(posedge clk_axi);
+            // Chờ 7 lệnh vào hàng đợi và ổn định
+            repeat (15) @(posedge clk_axi);
 
-            // 2. Phát lệnh GHI trước (trễ 2 chu kỳ qua wdata_buffer + wr_data_store)
+            // 2. Phát lệnh GHI trước (chờ trong wr_data_store vì wbank_credit = 0 do sum>=7)
             @(negedge clk_axi);
             s_axi_awid    = 4'd2;
             s_axi_awaddr  = mk_addr(16'h060 + rep * 16, 0, 3, 0);
@@ -290,7 +290,7 @@ module tb_rt02_credit_race;
             s_axi_wvalid  = 1'b0;
             s_axi_wlast   = 1'b0;
 
-            // 3. Chu kỳ sau phát lệnh ĐỌC (vào IQ chỉ trễ 1 chu kỳ)
+            // 3. Chu kỳ sau phát lệnh ĐỌC (vào IQ và phát được vì bank_credit = 1)
             s_axi_arid    = 4'd3;
             s_axi_araddr  = mk_addr(16'h050 + rep * 16, 0, 1, 0);
             s_axi_arlen   = 8'd0;
@@ -350,8 +350,11 @@ module tb_rt02_credit_race;
             repeat (30) @(posedge clk_axi);
         end
 
-        tb_check(u_pchk.dual_rw_same_bg_sat7_cnt >= 20,
-                 $sformatf("T-RT02a coverage: simultaneous RD+WR same BG when sum(bk_cnt)>=7 hit %0d times (min 20)",
+        tb_check(u_pchk.blocked_dual_sat7_cnt >= 20,
+                 $sformatf("T-RT02a coverage: write blocked by wbank_credit when sum(bk_cnt)>=7 hit %0d times (min 20)",
+                           u_pchk.blocked_dual_sat7_cnt));
+        tb_check(u_pchk.dual_rw_same_bg_sat7_cnt == 0,
+                 $sformatf("T-RT02a invariant: simultaneous RD+WR same BG when sum(bk_cnt)>=7 strictly 0 (hit %0d times)",
                            u_pchk.dual_rw_same_bg_sat7_cnt));
         tb_check(u_pchk.errors() == 0 && u_achk.errors() == 0 && u_echk.errors() == 0,
                  $sformatf("T-RT02a invariants: SA-C01..C05, SA-P03, SA-W03, SA-F13 clean (top=%0d, axi=%0d, eng=%0d)",
@@ -397,8 +400,8 @@ module tb_rt02_credit_race;
 
         u_jchk.report("rt02");
         u_pchk.report("rt02");
-        $display("[PERF] rd_cmds=%0d wr_cmds=%0d dual_rw_sat7=%0d max_bg_credit_sum=%0d fi_count=2 fi_detect_lat_max=1",
-                 u_achk.rd_done, u_achk.wr_done, u_pchk.dual_rw_same_bg_sat7_cnt, u_pchk.max_bg_sum_seen);
+        $display("[PERF] rd_cmds=%0d wr_cmds=%0d dual_rw_sat7=%0d blocked_dual_sat7=%0d max_bg_credit_sum=%0d fi_count=2 fi_detect_lat_max=1",
+                 u_achk.rd_done, u_achk.wr_done, u_pchk.dual_rw_same_bg_sat7_cnt, u_pchk.blocked_dual_sat7_cnt, u_pchk.max_bg_sum_seen);
         tb_report();
         $finish;
     end

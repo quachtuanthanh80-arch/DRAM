@@ -26,6 +26,7 @@ module qs_top_probe_chk #(
     int     cfg_pend_run, cfg_pend_max;
     int     max_bg_sum_seen;
     int     dual_rw_same_bg_sat7_cnt;
+    int     blocked_dual_sat7_cnt;
 
     logic [69:0] prev_map_cfg;
     logic        prev_map_idle;
@@ -54,8 +55,8 @@ module qs_top_probe_chk #(
     endtask
 
     task automatic report(input string tag);
-        $display("  [TOPCHK] %s: max_bg_credit_sum=%0d dual_rw_same_bg(sum>=7)=%0d cfg_pend_max=%0d",
-                 tag, max_bg_sum_seen, dual_rw_same_bg_sat7_cnt, cfg_pend_max);
+        $display("  [TOPCHK] %s: max_bg_credit_sum=%0d dual_rw_same_bg(sum>=7)=%0d blocked_dual(sum>=7)=%0d cfg_pend_max=%0d",
+                 tag, max_bg_sum_seen, dual_rw_same_bg_sat7_cnt, blocked_dual_sat7_cnt, cfg_pend_max);
         $display("  [TOPCHK] %s: err C01..C10=%0d/%0d/%0d/%0d/%0d/%0d/%0d/%0d/%0d/%0d D12=%0d R07=%0d F02..F06,F10=%0d/%0d/%0d/%0d/%0d/%0d",
                  tag, err_c01, err_c02, err_c03, err_c04, err_c05, err_c06, err_c07, err_c08, err_c09, err_c10,
                  err_d12, err_r07, err_f02, err_f03, err_f04, err_f05, err_f06, err_f10);
@@ -65,6 +66,9 @@ module qs_top_probe_chk #(
         if (rst_n !== 1'b1) begin
             cyc                      = 0;
             cfg_pend_run             = 0;
+            max_bg_sum_seen          = 0;
+            dual_rw_same_bg_sat7_cnt = 0;
+            blocked_dual_sat7_cnt    = 0;
             prev_map_cfg             = {1'b1, 1'b0, 2'b00, 2'b00, 64'hA5A5_5A5A_0123_4567};
             prev_map_idle            = 1'b1;
             prev_cfg_pend            = 1'b0;
@@ -102,6 +106,11 @@ module qs_top_probe_chk #(
 
                 if (dut.iq_sel_fire && dut.wr_fire && (int'(dut.iq_sel_bg) == g) && (int'(dut.wcmd_bg) == g) && (s >= 7))
                     dual_rw_same_bg_sat7_cnt++;
+
+                if (dut.iq_sel_fire && !dut.wr_fire && (int'(dut.iq_sel_bg) == g) &&
+                    dut.wcmd_valid && (int'(dut.wcmd_bg) == g) && (s >= 7) &&
+                    !`QS_T_WBANK_CREDIT(dut)[{dut.wcmd_bg, dut.wcmd_bank}])
+                    blocked_dual_sat7_cnt++;
             end
 
             // SA-C04: đọc + ghi cùng BG cùng chu kỳ

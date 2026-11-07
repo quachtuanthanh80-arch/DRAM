@@ -1113,7 +1113,7 @@ module tb_security_attacks_vcd;
             end
             correct = 0;
             for (int b = 0; b < 16; b++) begin
-                if (((real'(lat_r[b]) > mid) ? 1 : 0) == ((s1 / n1 > s0 / n0) ? msg[b] : 1 - msg[b])) correct++;
+                if (((real'(lat_r[b]) >= mid) ? 1 : 0) == ((s1 / n1 > s0 / n0) ? msg[b] : 1 - msg[b])) correct++;
             end
             for (int b = 0; b < 16; b++) $display("  [DIAG] V23 coloring %0d bit %0d sent %0d latency %0d", col, b, msg[b], lat_r[b]);
             $display("  [DIAG] V23 coloring %0d: receiver latency symbol0 %0d, symbol1 %0d cycles; decoded %0d/16",
