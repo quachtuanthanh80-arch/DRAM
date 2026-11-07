@@ -281,6 +281,7 @@ module axi_ddr5_mc_top #(
     logic                      bresp_valid;
     logic                      bresp_ready;
     logic [AXI_ID_WIDTH-1:0]   bresp_id;
+    logic                      fe_rdata_ready;
 
     // Điều khiển nhập AR theo QoS: tối đa LO_AR_CAP lệnh đọc QoS thấp đã nhận mà chưa phát vào bộ ánh xạ.
     // Lệnh QoS thấp vượt ngân sách được giữ ở cổng (ARREADY = 0 cho chính lệnh đó); lệnh QoS cao luôn được nhận nên
@@ -378,7 +379,7 @@ module axi_ddr5_mc_top #(
         .o_rd_req_cross_4kb  (fe_rd_req_cross_4kb),
 
         .i_rdata_valid       (rob_rvalid),
-        .o_rdata_ready       (),
+        .o_rdata_ready       (fe_rdata_ready),
         .i_rdata_id          (rob_rid),
         .i_rdata             (rob_rdata),
         .i_rdata_resp        (rob_rresp),
@@ -1075,7 +1076,7 @@ module axi_ddr5_mc_top #(
         .o_rdata            (rob_rdata),
         .o_rresp            (rob_rresp),
         .o_rlast            (rob_rlast),
-        .i_rready           (s_axi_rready),
+        .i_rready           (fe_rdata_ready),
 
         .o_rob_empty        (),
         .o_rob_full         (),
