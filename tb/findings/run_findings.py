@@ -99,6 +99,24 @@ GUARD_SPECS = {
         "sources": TOP_MAIN_SIM_SOURCES + [os.path.join(CHECKS_DIR, "check_t11_main_path.sv")],
         "top": "check_t11_main_path",
     },
+    "check_c1_secure": {
+        "finding": "C-1",
+        "description": "Secure top ciphertext != plaintext on DRAM and plaintext recovered on read",
+        "sources": TOP_MAIN_SIM_SOURCES + [
+            os.path.join(ROOT, "rtl", "crypto", "aes_pkg.sv"),
+            os.path.join(ROOT, "rtl", "crypto", "aes_sbox.sv"),
+            os.path.join(ROOT, "rtl", "crypto", "aes_sbox_composite.sv"),
+            os.path.join(ROOT, "rtl", "crypto", "aes_round_pipe.sv"),
+            os.path.join(ROOT, "rtl", "crypto", "aes256_key_expand.sv"),
+            os.path.join(ROOT, "rtl", "crypto", "qshield_xts_tweak_unit.sv"),
+            os.path.join(ROOT, "rtl", "crypto", "subchannel_aes_xts_pipe.sv"),
+            os.path.join(ROOT, "rtl", "crypto", "aes_inv_cipher_pipe.sv"),
+            os.path.join(ROOT, "rtl", "crypto", "qshield_axi_crypto_bridge.sv"),
+            os.path.join(ROOT, "rtl", "top", "axi_ddr5_mc_secure_top.sv"),
+            os.path.join(CHECKS_DIR, "check_c1_secure.sv"),
+        ],
+        "top": "check_c1_secure",
+    },
 }
 
 CHECK_SPECS = {
