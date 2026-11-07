@@ -47,11 +47,14 @@ module axi_ddr5_mc_top #(
 )(
     //-------------------------------------------------------------------------
     // Clock & Reset
+    // Kiến trúc đơn miền clock đồng bộ (Single Synchronous Clock Domain @ 400 MHz).
+    // clk_axi / aresetn_axi điều khiển toàn bộ bộ nhớ controller và giao tiếp DFI.
+    // clk_ddr / aresetn_ddr được duy trì cho tính tương thích ngược (backward compatibility) (M-4).
     //-------------------------------------------------------------------------
     input  logic                                         clk_axi,
     input  logic                                         aresetn_axi,
-    input  logic                                         clk_ddr,
-    input  logic                                         aresetn_ddr,
+    input  logic                                         clk_ddr = 1'b0,
+    input  logic                                         aresetn_ddr = 1'b1,
 
     //-------------------------------------------------------------------------
     // AXI4 Slave Interface
@@ -156,7 +159,9 @@ module axi_ddr5_mc_top #(
     output logic [15:0]                                  o_decoy_cnt,
     output logic [8:0]                                   o_fault_cause,
     output logic                                         o_glitch_alert,
-    output logic                                         o_security_locked
+    output logic                                         o_security_locked,
+    input  logic                                         cfg_parity_check_en = 1'b0,
+    output logic                                         o_rob_raw_hazard
 );
     import secded_72_64_pkg::*;
 
@@ -182,21 +187,18 @@ module axi_ddr5_mc_top #(
     localparam int TRAS_MAX_DEF = (TRAS_MAX_JED < 8775) ? TRAS_MAX_JED : 8775;
 
     //=========================================================================
-    // 1. Reset Synchronizers
+    // 1. Reset Synchronizers & Clock Architecture (M-4, L-2)
+    // Kiến trúc đơn miền clock đồng bộ (Single Synchronous Clock Domain):
+    // Toàn bộ controller hoạt động trên clk_axi (400 MHz).
     //=========================================================================
     logic rst_n_axi;
-    logic rst_n_ddr;
+    // Giữ alias rst_n_ddr đồng bộ với rst_n_axi để tương thích phân cấp kiểm thử (guard check)
+    wire  rst_n_ddr = rst_n_axi;
 
     rst_sync u_rst_sync_axi (
         .clk        (clk_axi),
         .async_rst_n(aresetn_axi),
         .sync_rst_n (rst_n_axi)
-    );
-
-    rst_sync u_rst_sync_ddr (
-        .clk        (clk_ddr),
-        .async_rst_n(aresetn_ddr),
-        .sync_rst_n (rst_n_ddr)
     );
 
     //=========================================================================
@@ -386,6 +388,7 @@ module axi_ddr5_mc_top #(
         .i_rdata_last        (rob_rlast),
         .s_axi_rpoison       (s_axi_rpoison),
         .s_axi_rchk          (s_axi_rchk),
+        .cfg_parity_check_en (cfg_parity_check_en),
         .o_parity_err        (o_parity_err),
         // Poison đi theo từng beat qua RRESP=SLVERR (gắn ở đường dữ liệu DRAM); cờ scrubber không căn theo beat
         .i_rdata_poison      (1'b0)
@@ -1952,9 +1955,13 @@ module axi_ddr5_mc_top #(
         .o_all_counters    (o_pmu_counters)
     );
 
-    // Unused signals sink
+    // Xuất tín hiệu giám sát cảnh báo xung đột RAW cho ROB (VC-10 / L-2)
+    assign o_rob_raw_hazard = rob_raw_hazard;
+
+    // Khối gom các tín hiệu không định tuyến ra ngoài / tương thích giao diện (M-4, L-2)
     logic _unused_top_sink;
-    assign _unused_top_sink = &{1'b0, rst_n_ddr, wbuf_data_valid, wbuf_data_last, ecc_double_err,
+    assign _unused_top_sink = &{1'b0, clk_ddr, aresetn_ddr, rob_raw_hazard,
+                                wbuf_data_valid, wbuf_data_last, ecc_double_err,
                                 vm_wr_key[0], vm_rd_key[0], vm_wr_tweak[0], vm_rd_tweak[0],
                                 vm_wr_bypass, vm_rd_bypass, voted_rowpress_curve[0],
                                 eng_cnt_fault, eng_rd_flush, 1'b0};
