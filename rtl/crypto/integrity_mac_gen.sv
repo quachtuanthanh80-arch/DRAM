@@ -1,5 +1,5 @@
-// File:      integrity_mac_gen.sv
-// Chức năng: Sinh và kiểm tra MAC toàn vẹn AES-CMAC (RFC 4493) trên {dữ liệu, địa chỉ, bộ đếm ghi} chống sửa, dời chỗ và phát lại.
+// File: integrity_mac_gen.sv
+// Chức năng: Đơn vị MAC demo AES-CMAC; đường chính dùng qshield_mac_unit Carter-Wegman.
 
 `timescale 1ns / 1ps
 
@@ -44,7 +44,8 @@ module integrity_mac_gen #(
     endfunction
 
     function automatic logic [127:0] blk2(input logic [ADDR_WIDTH-1:0] a, input logic [31:0] c);
-        return {32'(a), c, 64'h0};
+        // Sửa M-5: mở rộng địa chỉ lên 64-bit tránh cắt bớt khi ADDR_WIDTH=34
+        return {64'(a), c, 32'h0};
     endfunction
 
     // Khoá con L tính lại mỗi khi khoá đổi; hai luồng ghi/đọc dùng chung kết quả
