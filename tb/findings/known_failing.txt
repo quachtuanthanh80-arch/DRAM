@@ -1,3 +1,2 @@
-check_c2
 check_h7
 check_h8

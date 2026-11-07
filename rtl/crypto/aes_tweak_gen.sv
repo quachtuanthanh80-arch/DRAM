@@ -1,7 +1,6 @@
-//=============================================================================
-// File:        aes_tweak_gen.sv
-// Chức năng:   Bộ sinh sớm vector Tweak nhân modulo đa thức GF(2^128) cho chuẩn mã hóa AES-XTS.
-//=============================================================================
+// File: aes_tweak_gen.sv
+// Chức năng: [DEPRECATED - C-2] Khối sinh tweak cũ không có AES; đã thay bằng qshield_xts_tweak_unit chuẩn IEEE 1619.
+
 `timescale 1ns / 1ps
 
 module aes_tweak_gen
@@ -15,9 +14,8 @@ module aes_tweak_gen
     // Trigger from AXI Address Channel (AW or AR)
     input  logic                   addr_valid,
     input  logic [AddrWidth-1:0]   addr_in,
-    input  logic [127:0]           tweak_key, // Key2 for AES-XTS Tweak
+    input  logic [127:0]           tweak_key,
 
-    // Output pre-computed Tweak vectors for up to four 128-bit blocks (64 bytes)
     output logic                   tweak_ready,
     output logic [127:0]           tweak_t0,
     output logic [127:0]           tweak_t1,
@@ -25,36 +23,14 @@ module aes_tweak_gen
     output logic [127:0]           tweak_t3
 );
 
-    // Form 128-bit sector/line nonce from physical address
-    logic [127:0] sector_nonce;
-    assign sector_nonce = {{(128-AddrWidth){1'b0}}, addr_in};
+    // Module này đã bị đánh dấu DEPRECATED (Finding C-2).
+    // Trong kiến trúc mới, toàn bộ việc sinh tweak AES-256-XTS được thực hiện qua
+    // qshield_xts_tweak_unit với khoá K2 256-bit được mở rộng đầy đủ.
 
-    // Registered tweak values
-    logic [127:0] t0_reg, t1_reg, t2_reg, t3_reg;
-    logic         tweak_valid_reg;
-
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            t0_reg          <= '0;
-            t1_reg          <= '0;
-            t2_reg          <= '0;
-            t3_reg          <= '0;
-            tweak_valid_reg <= 1'b0;
-        end else if (addr_valid) begin
-            // Whitened initial tweak seed based on sector address and tweak key
-            t0_reg          <= sector_nonce ^ tweak_key;
-            t1_reg          <= xts_mul_alpha(sector_nonce ^ tweak_key);
-            t2_reg          <= xts_mul_alpha(xts_mul_alpha(sector_nonce ^ tweak_key));
-            t3_reg          <= xts_mul_alpha(xts_mul_alpha(
-                                   xts_mul_alpha(sector_nonce ^ tweak_key)));
-            tweak_valid_reg <= 1'b1;
-        end
-    end
-
-    assign tweak_ready = tweak_valid_reg;
-    assign tweak_t0    = t0_reg;
-    assign tweak_t1    = t1_reg;
-    assign tweak_t2    = t2_reg;
-    assign tweak_t3    = t3_reg;
+    assign tweak_ready = 1'b0;
+    assign tweak_t0    = 128'h0;
+    assign tweak_t1    = 128'h0;
+    assign tweak_t2    = 128'h0;
+    assign tweak_t3    = 128'h0;
 
 endmodule: aes_tweak_gen

@@ -273,10 +273,11 @@ module apb_csr_regs #(
     assign keys_valid    = (&key1_loaded_mask) && (&key2_loaded_mask[3:0]);
 
     // Concatenate 32-bit registers into 256-bit keys (Big-Endian word layout)
+    // Finding M-12: Nửa cao K2 lấy reg_key2[4..7], nửa thấp lấy reg_key2[0..3] (đủ 256 bit entropy, không lặp)
     always_comb begin
         for (int i = 0; i < 8; i++) begin
             key1_data[(7-i)*32 +: 32] = reg_key1[i];
-            key2_data[(7-i)*32 +: 32] = (i < 4) ? reg_key2[i] : reg_key2[i-4];
+            key2_data[(7-i)*32 +: 32] = (i < 4) ? reg_key2[i+4] : reg_key2[i-4];
         end
     end
 
