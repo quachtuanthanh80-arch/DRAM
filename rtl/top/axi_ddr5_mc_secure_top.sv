@@ -62,6 +62,47 @@ module axi_ddr5_mc_secure_top #(
     output logic [15:0]                                  o_crypto_reject_cnt,
     output logic [15:0]                                  o_crypto_err_cnt,
 
+    // Giao diện điều khiển toàn vẹn & Bonsai Merkle Tree (Đặc tả S8 & D14)
+    input  logic                                         i_integ_enable = 1'b0,
+    input  logic                                         i_k3_valid = 1'b0,
+    input  logic [255:0]                                 i_k3 = 256'h0,
+    input  logic [127:0]                                 i_h = 128'h0,
+    input  logic                                         i_meta_init_start = 1'b0,
+    output logic                                         o_meta_init_done,
+    output logic [31:0]                                  o_meta_init_cycles,
+    input  logic                                         i_meta_flush_start = 1'b0,
+    output logic                                         o_meta_flush_done,
+    input  logic                                         i_cache_clear = 1'b0,
+    input  logic [63:0]                                  i_prot_base = 64'h0,
+    input  logic [63:0]                                  i_prot_lines = 64'd4096,
+    output logic [63:0]                                  o_tree_root,
+    output logic [31:0]                                  o_integrity_fail_cnt,
+    output logic [31:0]                                  o_tree_fail_cnt,
+    output logic [31:0]                                  o_reencrypt_events,
+    output logic [31:0]                                  o_mc_hit_cnt,
+    output logic [31:0]                                  o_mc_miss_cnt,
+    output logic [31:0]                                  o_meta_rd_cnt,
+    output logic [31:0]                                  o_meta_wr_cnt,
+    output logic                                         o_integrity_alert,
+
+    // Giao diện APB4 CSR cấu hình toàn vẹn & khóa cứng (tùy chọn)
+    input  logic                                         psel = 1'b0,
+    input  logic                                         penable = 1'b0,
+    input  logic                                         pwrite = 1'b0,
+    input  logic [7:0]                                   paddr = 8'h0,
+    input  logic [31:0]                                  pwdata = 32'h0,
+    input  logic [2:0]                                   pprot = 3'b0,
+    output logic [31:0]                                  prdata,
+    output logic                                         pready,
+    output logic                                         pslverr,
+    input  logic                                         i_ext_sec_locked = 1'b0,
+`ifdef QSHIELD_TEST
+    input  logic                                         i_test_force_minor_valid = 1'b0,
+    input  logic [63:0]                                  i_test_force_minor_addr  = 64'h0,
+    input  logic [6:0]                                   i_test_force_minor_val   = 7'd127,
+    output logic                                         o_test_force_minor_done,
+`endif
+
     //-------------------------------------------------------------------------
     // AXI4 Slave Interface (Từ Host / Master)
     //-------------------------------------------------------------------------
@@ -229,6 +270,39 @@ module axi_ddr5_mc_secure_top #(
         .o_crypto_reject_cnt (o_crypto_reject_cnt),
         .o_crypto_err_cnt    (o_crypto_err_cnt),
 
+        // Cổng điều khiển toàn vẹn & BMT
+        .i_integ_enable      (i_integ_enable),
+        .i_k3_valid          (i_k3_valid),
+        .i_k3                (i_k3),
+        .i_h                 (i_h),
+        .i_meta_init_start   (i_meta_init_start),
+        .o_meta_init_done    (o_meta_init_done),
+        .o_meta_init_cycles  (o_meta_init_cycles),
+        .i_meta_flush_start  (i_meta_flush_start),
+        .o_meta_flush_done   (o_meta_flush_done),
+        .i_cache_clear       (i_cache_clear),
+        .i_prot_base         (i_prot_base),
+        .i_prot_lines        (i_prot_lines),
+        .o_tree_root         (o_tree_root),
+        .o_integrity_fail_cnt(o_integrity_fail_cnt),
+        .o_tree_fail_cnt     (o_tree_fail_cnt),
+        .o_reencrypt_events  (o_reencrypt_events),
+        .o_mc_hit_cnt        (o_mc_hit_cnt),
+        .o_mc_miss_cnt       (o_mc_miss_cnt),
+        .o_meta_rd_cnt       (o_meta_rd_cnt),
+        .o_meta_wr_cnt       (o_meta_wr_cnt),
+        .o_integrity_alert   (o_integrity_alert),
+        .i_sec_locked        (o_security_locked || i_ext_sec_locked),
+        .psel                (psel),
+        .penable             (penable),
+        .pwrite              (pwrite),
+        .paddr               (paddr),
+        .pwdata              (pwdata),
+        .pprot               (pprot),
+        .prdata              (prdata),
+        .pready              (pready),
+        .pslverr             (pslverr),
+
         // AXI Slave (Host ngoài)
         .s_axi_awid          (s_axi_awid),
         .s_axi_awaddr        (s_axi_awaddr),
@@ -302,6 +376,13 @@ module axi_ddr5_mc_secure_top #(
         .m_axi_rlast         (core_axi_rlast),
         .m_axi_rvalid        (core_axi_rvalid),
         .m_axi_rready        (core_axi_rready)
+`ifdef QSHIELD_TEST
+        ,
+        .i_test_force_minor_valid (i_test_force_minor_valid),
+        .i_test_force_minor_addr  (i_test_force_minor_addr),
+        .i_test_force_minor_val   (i_test_force_minor_val),
+        .o_test_force_minor_done  (o_test_force_minor_done)
+`endif
     );
 
     //-------------------------------------------------------------------------

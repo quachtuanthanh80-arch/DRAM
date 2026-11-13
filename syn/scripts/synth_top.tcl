@@ -1,10 +1,14 @@
-# Usage: vivado -mode batch -source synth_top.tcl -tclargs <tag> [impl]
-# Full axi_ddr5_mc_top OOC synthesis (and optional place+route) at 400 MHz on xczu7ev, both clocks 2.5 ns, async to each other.
+# Usage: vivado -mode batch -source synth_top.tcl -tclargs <tag> [impl|synth] [top_module]
+# Full OOC synthesis (and optional place+route) at 400 MHz on xczu7ev, both clocks 2.5 ns, async to each other.
 set WD   [file normalize [file join [file dirname [info script]] .. reports build]]
 file mkdir $WD
 set PART "xczu7ev-ffvc1156-2-e"
 set tag  [lindex $argv 0]
 set impl [expr {[llength $argv] > 1 && [lindex $argv 1] eq "impl"}]
+set top_module "axi_ddr5_mc_top"
+if {[llength $argv] > 2 && [lindex $argv 2] ne ""} {
+  set top_module [lindex $argv 2]
+}
 set R D:/RAM/rtl
 create_project -in_memory -part $PART
 foreach f {
@@ -16,7 +20,16 @@ foreach f {
   backend/slack_aware_arbiter.sv backend/ddr5_cmd_engine.sv backend/ecc_scrubber.sv memory/bus_scrambler.sv memory/scrambler_ks_pipe.sv
   bus/perf_monitor_unit.sv cdc/async_fifo_cdc.sv top/bank_credit_ctrl.sv top/axi_ddr5_mc_top.sv
 } { read_verilog -sv $R/$f }
-synth_design -top axi_ddr5_mc_top -part $PART -mode out_of_context -flatten_hierarchy rebuilt
+if {$top_module eq "axi_ddr5_mc_secure_top"} {
+  foreach f {
+    crypto/aes_pkg.sv crypto/aes_sbox.sv crypto/aes_sbox_composite.sv crypto/aes_round_pipe.sv crypto/aes256_key_expand.sv
+    crypto/qshield_xts_tweak_unit.sv crypto/subchannel_aes_xts_pipe.sv crypto/aes_inv_cipher_pipe.sv
+    crypto/gf128_mul_pipe.sv crypto/qshield_mac_unit.sv crypto/qshield_meta_layout.sv crypto/qshield_meta_cache.sv
+    crypto/qshield_counter_unit.sv crypto/qshield_bmt_engine.sv crypto/qshield_integrity_csr.sv crypto/qshield_axi_crypto_bridge.sv
+    top/axi_ddr5_mc_secure_top.sv
+  } { read_verilog -sv $R/$f }
+}
+synth_design -top $top_module -part $PART -mode out_of_context -flatten_hierarchy rebuilt
 create_clock -period 2.500 -name clk_axi [get_ports clk_axi]
 create_clock -period 2.500 -name clk_ddr [get_ports clk_ddr]
 set_clock_groups -asynchronous -group clk_axi -group clk_ddr

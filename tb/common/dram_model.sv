@@ -136,6 +136,36 @@ module dram_model
         if (!done) err_mem_full++;
     endtask
 
+    // Task backdoor hỗ trợ kiểm thử và tiêm lỗi toàn vẹn (T38)
+    task automatic backdoor_read_word(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                      input logic [ROW_W-1:0] r, input logic [COL_W-1:0] c,
+                                      output bit [DW-1:0] val);
+        val = peek(word_key(g, b, r, longint'(c)));
+    endtask
+
+    task automatic backdoor_write_word(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                       input logic [ROW_W-1:0] r, input logic [COL_W-1:0] c,
+                                       input bit [DW-1:0] val);
+        bit [DW/8-1:0] e;
+        for (int l = 0; l < DW / 64; l++) e[l*8 +: 8] = secded72_enc(val[l*64 +: 64]);
+        poke(word_key(g, b, r, longint'(c)), val, e);
+    endtask
+
+    task automatic backdoor_flip_bit(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                     input logic [ROW_W-1:0] r, input logic [COL_W-1:0] c,
+                                     input int bit_idx);
+        int i;
+        bit [63:0] k;
+        k = word_key(g, b, r, longint'(c));
+        i = find(k);
+        if (i >= 0) begin
+            mem_dat[i] ^= ({{(DW-1){1'b0}}, 1'b1} << bit_idx);
+            for (int l = 0; l < DW / 64; l++) begin
+                mem_ecc[i][l*8 +: 8] = secded72_enc(mem_dat[i][l*64 +: 64]);
+            end
+        end
+    endtask
+
     task automatic drop_head();
         longint a, t;
         int l;

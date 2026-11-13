@@ -49,7 +49,7 @@ def find_tool(tool_name, default_dir=r"D:\iverilog\bin"):
         return fallback
     return tool_name
 
-def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir, timeout=600):
+def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir, timeout=600, defines=None):
     log_file = os.path.join(log_dir, f"{top_module}.log")
     vvp_file = f"build_{top_module}.vvp"
     vvp_path = os.path.join(cwd, vvp_file)
@@ -57,8 +57,10 @@ def run_test(name, top_module, sources, iverilog, vvp, cwd, log_dir, timeout=600
     # Shared packages must be compiled before their importers; harmless for tests that do not import them
     pkgs = [os.path.join(cwd, "rtl", "backend", "secded_72_64_pkg.sv"), os.path.join(cwd, "tb", "common", "ddr5_jedec_bin_pkg.sv")]
     sources = pkgs + [s for s in sources if s not in pkgs]
-    compile_cmd = [iverilog, "-g2012", "-Wall", "-I", os.path.join(cwd, "tb", "common"),
-                   "-s", top_module, "-o", vvp_file] + sources
+    define_flags = [f"-D{d}" for d in (defines or [])]
+    compile_cmd = [iverilog, "-g2012", "-Wall"] + define_flags + [
+        "-I", os.path.join(cwd, "tb", "common"), "-s", top_module, "-o", vvp_file
+    ] + sources
     t0 = time.time()
     try:
         res_compile = subprocess.run(compile_cmd, cwd=cwd, capture_output=True, text=True,
@@ -376,9 +378,43 @@ def main():
                 os.path.join(root, "rtl", "crypto", "qshield_xts_tweak_unit.sv"),
                 os.path.join(root, "rtl", "crypto", "subchannel_aes_xts_pipe.sv"),
                 os.path.join(root, "rtl", "crypto", "aes_inv_cipher_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "gf128_mul_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_mac_unit.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_meta_layout.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_meta_cache.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_counter_unit.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_bmt_engine.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_integrity_csr.sv"),
                 os.path.join(root, "rtl", "crypto", "qshield_axi_crypto_bridge.sv"),
                 os.path.join(root, "rtl", "top", "axi_ddr5_mc_secure_top.sv"),
                 os.path.join(root, "tb", "top", "tb_axi_ddr5_mc_secure_top.sv"),
+            ],
+        },
+        {
+            "name": "Security Top-Level Integration: Carter-Wegman MAC & Bonsai Merkle Tree (T38)",
+            "top": "tb_secure_top_integrity",
+            "module_covered": "rtl/top/axi_ddr5_mc_secure_top.sv",
+            "behavior_verified": "Full integrity integration: Bonsai Merkle Tree, MAC, non-speculative release, replay & splicing resilience",
+            "defines": ["QSHIELD_TEST"],
+            "sources": top_common_sources + [
+                os.path.join(root, "rtl", "crypto", "aes_pkg.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_sbox.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_sbox_composite.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_round_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "aes256_key_expand.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_xts_tweak_unit.sv"),
+                os.path.join(root, "rtl", "crypto", "subchannel_aes_xts_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "aes_inv_cipher_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "gf128_mul_pipe.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_mac_unit.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_meta_layout.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_meta_cache.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_counter_unit.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_bmt_engine.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_integrity_csr.sv"),
+                os.path.join(root, "rtl", "crypto", "qshield_axi_crypto_bridge.sv"),
+                os.path.join(root, "rtl", "top", "axi_ddr5_mc_secure_top.sv"),
+                os.path.join(root, "tb", "top", "tb_secure_top_integrity.sv"),
             ],
         },
         {
@@ -946,6 +982,7 @@ def main():
             cwd=root,
             log_dir=log_dir,
             timeout=timeout,
+            defines=t.get("defines"),
         )
         record["module_covered"] = t["module_covered"]
         record["behavior_verified"] = t["behavior_verified"]
