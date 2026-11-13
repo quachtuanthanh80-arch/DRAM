@@ -104,7 +104,12 @@ module qshield_meta_cache #(
     logic                  line_verified [0:NUM_LINES-1];
     logic                  line_pinned   [0:NUM_LINES-1];
     logic [TAG_WIDTH-1:0]  line_tag      [0:NUM_LINES-1];
-    logic [DATA_WIDTH-1:0] line_data     [0:NUM_LINES-1];
+    // 64x512b synchronous BRAM (no reset on data array to enable SDP Block RAM inference)
+    (* ram_style = "block" *) logic [DATA_WIDTH-1:0] line_data [0:NUM_LINES-1];
+    logic [DATA_WIDTH-1:0] ram_rd_data;
+    logic                  rd_bypass_valid_q;
+    logic [DATA_WIDTH-1:0] rd_bypass_data_q;
+    wire  [DATA_WIDTH-1:0] rd_data_mux = rd_bypass_valid_q ? rd_bypass_data_q : ram_rd_data;
 
     // Trạng thái Pseudo-LRU 3-bit cho mỗi set
     logic [2:0]            set_plru      [0:MC_SETS-1];
@@ -126,6 +131,7 @@ module qshield_meta_cache #(
 
     flush_state_t flush_st;
     logic [5:0]   flush_idx;
+    logic         flush_rd_wait;
 
     // -------------------------------------------------------------------------
     // Logic tổ hợp tính toán số lượng pinned mỗi set
@@ -143,23 +149,33 @@ module qshield_meta_cache #(
     endgenerate
 
     // -------------------------------------------------------------------------
-    // Logic Lookup tổ hợp (dùng continuous assign tránh lỗi constant select)
+    // Logic Lookup tổ hợp: so sánh tag theo từng set trước rồi mux 1-bit hit (tránh mux 54-bit 16:1 trước CARRY8)
     // -------------------------------------------------------------------------
     logic [SET_BITS-1:0]  lk_set;
     logic [TAG_WIDTH-1:0] lk_tag;
     assign lk_set = i_lookup_addr[6 +: SET_BITS];
     assign lk_tag = i_lookup_addr[6 + SET_BITS +: TAG_WIDTH];
 
-    wire lk_hit_0 = line_valid[{lk_set, 2'd0}] && (line_tag[{lk_set, 2'd0}] == lk_tag);
-    wire lk_hit_1 = line_valid[{lk_set, 2'd1}] && (line_tag[{lk_set, 2'd1}] == lk_tag);
-    wire lk_hit_2 = line_valid[{lk_set, 2'd2}] && (line_tag[{lk_set, 2'd2}] == lk_tag);
-    wire lk_hit_3 = line_valid[{lk_set, 2'd3}] && (line_tag[{lk_set, 2'd3}] == lk_tag);
+    (* keep = "true" *) logic [MC_WAYS-1:0] lk_match [0:MC_SETS-1];
+    always_comb begin
+        for (int s = 0; s < MC_SETS; s++) begin
+            for (int w = 0; w < MC_WAYS; w++) begin
+                lk_match[s][w] = line_valid[s*MC_WAYS + w] && (line_tag[s*MC_WAYS + w] == lk_tag);
+            end
+        end
+    end
+
+    wire lk_hit_0 = lk_match[lk_set][0];
+    wire lk_hit_1 = lk_match[lk_set][1];
+    wire lk_hit_2 = lk_match[lk_set][2];
+    wire lk_hit_3 = lk_match[lk_set][3];
 
     assign o_lookup_hit = lk_hit_0 | lk_hit_1 | lk_hit_2 | lk_hit_3;
-    assign o_lookup_way = lk_hit_0 ? 2'd0 : (lk_hit_1 ? 2'd1 : (lk_hit_2 ? 2'd2 : 2'd3));
+    assign o_lookup_way = {!lk_hit_0 && !lk_hit_1 && (lk_hit_2 || lk_hit_3),
+                           !lk_hit_0 && (lk_hit_1 || (!lk_hit_2 && lk_hit_3))};
 
     wire [5:0] lk_entry = {lk_set, o_lookup_way};
-    assign o_lookup_data     = line_data[lk_entry];
+    assign o_lookup_data     = rd_data_mux;
     assign o_lookup_dirty    = line_dirty[lk_entry];
     assign o_lookup_verified = line_verified[lk_entry];
     assign o_lookup_pinned   = line_pinned[lk_entry];
@@ -203,23 +219,33 @@ module qshield_meta_cache #(
     assign o_evict_valid = i_fill_valid && line_valid[fl_victim_entry];
     assign o_evict_dirty = line_dirty[fl_victim_entry];
     assign o_evict_addr  = {line_tag[fl_victim_entry], fl_set, 6'd0};
-    assign o_evict_data  = line_data[fl_victim_entry];
+    assign o_evict_data  = rd_data_mux;
 
     // -------------------------------------------------------------------------
-    // Logic Update tổ hợp
+    // Logic Update tổ hợp: so sánh tag theo từng set trước khi mux hit
     // -------------------------------------------------------------------------
     logic [SET_BITS-1:0]  up_set;
     logic [TAG_WIDTH-1:0] up_tag;
     assign up_set = i_update_addr[6 +: SET_BITS];
     assign up_tag = i_update_addr[6 + SET_BITS +: TAG_WIDTH];
 
-    wire up_hit_0 = line_valid[{up_set, 2'd0}] && (line_tag[{up_set, 2'd0}] == up_tag);
-    wire up_hit_1 = line_valid[{up_set, 2'd1}] && (line_tag[{up_set, 2'd1}] == up_tag);
-    wire up_hit_2 = line_valid[{up_set, 2'd2}] && (line_tag[{up_set, 2'd2}] == up_tag);
-    wire up_hit_3 = line_valid[{up_set, 2'd3}] && (line_tag[{up_set, 2'd3}] == up_tag);
+    (* keep = "true" *) logic [MC_WAYS-1:0] up_match [0:MC_SETS-1];
+    always_comb begin
+        for (int s = 0; s < MC_SETS; s++) begin
+            for (int w = 0; w < MC_WAYS; w++) begin
+                up_match[s][w] = line_valid[s*MC_WAYS + w] && (line_tag[s*MC_WAYS + w] == up_tag);
+            end
+        end
+    end
+
+    wire up_hit_0 = up_match[up_set][0];
+    wire up_hit_1 = up_match[up_set][1];
+    wire up_hit_2 = up_match[up_set][2];
+    wire up_hit_3 = up_match[up_set][3];
 
     assign o_update_hit = up_hit_0 | up_hit_1 | up_hit_2 | up_hit_3;
-    assign o_update_way = up_hit_0 ? 2'd0 : (up_hit_1 ? 2'd1 : (up_hit_2 ? 2'd2 : 2'd3));
+    assign o_update_way = {!up_hit_0 && !up_hit_1 && (up_hit_2 || up_hit_3),
+                           !up_hit_0 && (up_hit_1 || (!up_hit_2 && up_hit_3))};
     wire [5:0] up_entry = {up_set, o_update_way};
 
     // -------------------------------------------------------------------------
@@ -251,6 +277,7 @@ module qshield_meta_cache #(
             reg_pin_violation     <= 1'b0;
             flush_st              <= FLUSH_IDLE;
             flush_idx             <= 6'd0;
+            flush_rd_wait         <= 1'b0;
             o_flush_busy          <= 1'b0;
             o_flush_done          <= 1'b0;
             o_flush_evict_valid   <= 1'b0;
@@ -263,7 +290,6 @@ module qshield_meta_cache #(
                 line_verified[i] <= 1'b0;
                 line_pinned[i]   <= 1'b0;
                 line_tag[i]      <= '0;
-                line_data[i]     <= '0;
             end
             for (int s = 0; s < MC_SETS; s++) begin
                 set_plru[s] <= 3'd0;
@@ -276,6 +302,7 @@ module qshield_meta_cache #(
             // 1. Thực thi Flush nếu kích hoạt
             case (flush_st)
                 FLUSH_IDLE: begin
+                    flush_rd_wait <= 1'b0;
                     if (i_flush_start) begin
                         o_flush_busy <= 1'b1;
                         flush_idx    <= 6'd0;
@@ -285,11 +312,18 @@ module qshield_meta_cache #(
 
                 FLUSH_SCAN: begin
                     if (line_valid[flush_idx] && line_dirty[flush_idx]) begin
-                        o_flush_evict_valid <= 1'b1;
-                        o_flush_evict_addr  <= {line_tag[flush_idx], flush_idx[5:2], 6'd0};
-                        o_flush_evict_data  <= line_data[flush_idx];
-                        flush_st            <= FLUSH_WAIT;
+                        // 1-cycle synchronous BRAM read before issuing flush eviction payload
+                        if (!flush_rd_wait) begin
+                            flush_rd_wait <= 1'b1;
+                        end else begin
+                            flush_rd_wait       <= 1'b0;
+                            o_flush_evict_valid <= 1'b1;
+                            o_flush_evict_addr  <= {line_tag[flush_idx], flush_idx[5:2], 6'd0};
+                            o_flush_evict_data  <= rd_data_mux;
+                            flush_st            <= FLUSH_WAIT;
+                        end
                     end else begin
+                        flush_rd_wait <= 1'b0;
                         if (flush_idx == 6'd63) begin
                             flush_st <= FLUSH_DONE;
                         end else begin
@@ -349,7 +383,6 @@ module qshield_meta_cache #(
                 line_dirty[fl_victim_entry]    <= 1'b0;
                 line_verified[fl_victim_entry] <= i_fill_verified;
                 line_tag[fl_victim_entry]      <= fl_tag;
-                line_data[fl_victim_entry]     <= i_fill_data;
                 set_plru[fl_set]               <= next_plru(set_plru[fl_set], o_fill_way);
 
                 if (i_fill_pin) begin
@@ -367,9 +400,6 @@ module qshield_meta_cache #(
             // 4. Cập nhật (Update)
             if (i_update_valid && o_update_hit) begin
                 line_dirty[up_entry] <= i_update_dirty;
-                if (i_update_data_en) begin
-                    line_data[up_entry] <= i_update_data;
-                end
                 set_plru[up_set] <= next_plru(set_plru[up_set], o_update_way);
             end
 
@@ -378,6 +408,39 @@ module qshield_meta_cache #(
                 line_pinned[un_entry] <= 1'b0;
             end
         end
+    end
+
+    // Registered 1-cycle write buffer + forward bypass breaks tag_compare->RAMB36E2/WEBWE path
+    wire                  data_wr_en   = i_fill_valid || (i_update_valid && o_update_hit && i_update_data_en);
+    wire [5:0]            data_wr_addr = i_fill_valid ? fl_victim_entry : up_entry;
+    wire [DATA_WIDTH-1:0] data_wr_data = i_fill_valid ? i_fill_data     : i_update_data;
+    wire [5:0]            data_rd_addr = (flush_st == FLUSH_SCAN) ? flush_idx :
+                                         (i_fill_valid ? fl_victim_entry : lk_entry);
+
+    logic                  bram_wr_en_q;
+    logic [5:0]            bram_wr_addr_q;
+    logic [DATA_WIDTH-1:0] bram_wr_data_q;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            bram_wr_en_q      <= 1'b0;
+            bram_wr_addr_q    <= 6'd0;
+            rd_bypass_valid_q <= 1'b0;
+        end else begin
+            bram_wr_en_q      <= data_wr_en;
+            bram_wr_addr_q    <= data_wr_addr;
+            rd_bypass_valid_q <= bram_wr_en_q && (data_rd_addr == bram_wr_addr_q);
+        end
+    end
+
+    // Unconditional payload registers qualified by bram_wr_en_q / rd_bypass_valid_q eliminate 512-bit CE fanout and Synth 8-7137
+    always_ff @(posedge clk) begin
+        bram_wr_data_q   <= data_wr_data;
+        rd_bypass_data_q <= bram_wr_data_q;
+        if (bram_wr_en_q) begin
+            line_data[bram_wr_addr_q] <= bram_wr_data_q;
+        end
+        ram_rd_data <= line_data[data_rd_addr];
     end
 
     // Gán đầu ra bộ đếm CSR

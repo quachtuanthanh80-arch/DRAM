@@ -199,32 +199,80 @@ module qshield_axi_crypto_bridge #(
         .i_meta_wr_cnt        (o_meta_wr_cnt)
     );
 
+    // Đăng ký 1 nhịp tín hiệu kích hoạt & khóa k3 từ CSR để tách chuỗi định thời sang u_mc_core;
+    // giữ nguyên xung 1-chu-kỳ meta_init_start/meta_flush_start để không trễ pha xóa cờ done.
+    logic         csr_integ_enable_q;
+    logic [255:0] csr_k3_q;
+    logic         csr_k3_valid_q;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            csr_integ_enable_q <= 1'b0;
+            csr_k3_q           <= 256'h0;
+            csr_k3_valid_q     <= 1'b0;
+        end else begin
+            csr_integ_enable_q <= csr_integ_enable;
+            csr_k3_q           <= csr_k3;
+            csr_k3_valid_q     <= csr_k3_valid;
+        end
+    end
+
     // Kết hợp điều khiển từ cổng trực tiếp (tương thích TB cũ) và thanh ghi CSR APB
-    wire          eff_integ_enable     = i_integ_enable || csr_integ_enable;
-    wire          eff_k3_valid         = csr_k3_valid ? 1'b1 : i_k3_valid;
-    wire [255:0]  eff_k3               = csr_k3_valid ? csr_k3 : i_k3;
+    wire          eff_integ_enable     = i_integ_enable || csr_integ_enable_q;
+    wire          eff_k3_valid         = csr_k3_valid_q ? 1'b1 : i_k3_valid;
+    wire [255:0]  eff_k3_w             = csr_k3_valid_q ? csr_k3_q : i_k3;
     wire          eff_meta_init_start  = i_meta_init_start || csr_meta_init_start;
     wire          eff_meta_flush_start = i_meta_flush_start || csr_meta_flush_start;
 
     wire [63:0] csr_prot_lines_dec = (csr_prot_lines_log2 <= 6'd20) ?
                                      (64'd1 << csr_prot_lines_log2) : PROT_LINES_DEFAULT;
-    wire [63:0] eff_prot_base  = (i_prot_base != 64'd0) ? i_prot_base : csr_prot_base;
-    wire [63:0] eff_prot_lines = (i_prot_lines != 64'd0) ? i_prot_lines :
-                                 (csr_integ_enable ? csr_prot_lines_dec : PROT_LINES_DEFAULT);
-    wire [63:0] eff_prot_bytes = eff_prot_lines * 64;
-    wire [63:0] eff_prot_end   = eff_prot_base + eff_prot_bytes;
+    wire [63:0] eff_prot_base_w  = (i_prot_base != 64'd0) ? i_prot_base : csr_prot_base;
+    wire [63:0] eff_prot_lines_w = (i_prot_lines != 64'd0) ? i_prot_lines :
+                                   (csr_integ_enable_q ? csr_prot_lines_dec : PROT_LINES_DEFAULT);
+    wire [63:0] eff_prot_bytes_w = eff_prot_lines_w * 64;
+    wire [63:0] eff_prot_end_w   = eff_prot_base_w + eff_prot_bytes_w;
 
-    wire [63:0] eff_num_cb   = eff_prot_lines / 64;
-    wire [63:0] eff_cb_bytes = eff_num_cb * 64;
-    wire [63:0] eff_cb_base  = eff_prot_end;
+    wire [63:0] eff_num_cb_w   = eff_prot_lines_w / 64;
+    wire [63:0] eff_cb_bytes_w = eff_num_cb_w * 64;
+    wire [63:0] eff_cb_base_w  = eff_prot_end_w;
 
-    wire [63:0] eff_num_ml   = eff_prot_lines / 8;
-    wire [63:0] eff_ml_bytes = eff_num_ml * 64;
-    wire [63:0] eff_ml_base  = eff_cb_base + eff_cb_bytes;
+    wire [63:0] eff_num_ml_w   = eff_prot_lines_w / 8;
+    wire [63:0] eff_ml_bytes_w = eff_num_ml_w * 64;
+    wire [63:0] eff_ml_base_w  = eff_cb_base_w + eff_cb_bytes_w;
 
-    wire [63:0] eff_tn_base  = eff_ml_base + eff_ml_bytes;
-    wire [63:0] eff_tn_bytes = ((eff_num_cb / 8) + ((eff_num_cb / 8) / 8)) * 64;
-    wire [63:0] eff_meta_end = eff_tn_base + eff_tn_bytes;
+    wire [63:0] eff_tn_base_w  = eff_ml_base_w + eff_ml_bytes_w;
+    wire [63:0] eff_tn_bytes_w = ((eff_num_cb_w / 8) + ((eff_num_cb_w / 8) / 8)) * 64;
+    wire [63:0] eff_meta_end_w = eff_tn_base_w + eff_tn_bytes_w;
+
+    // Register CSR-derived protection bounds to break csr_prot_lines_log2->u_mc_core timing path
+    logic [63:0] eff_prot_base;
+    logic [63:0] eff_prot_lines;
+    logic [63:0] eff_prot_end;
+    logic [63:0] eff_cb_base;
+    logic [63:0] eff_ml_base;
+    logic [63:0] eff_tn_base;
+    logic [63:0] eff_meta_end;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            eff_prot_base  <= PROT_BASE_DEFAULT;
+            eff_prot_lines <= PROT_LINES_DEFAULT;
+            eff_prot_end   <= PROT_BASE_DEFAULT + (PROT_LINES_DEFAULT * 64);
+            eff_cb_base    <= PROT_BASE_DEFAULT + (PROT_LINES_DEFAULT * 64);
+            eff_ml_base    <= PROT_BASE_DEFAULT + (PROT_LINES_DEFAULT * 64) + ((PROT_LINES_DEFAULT / 64) * 64);
+            eff_tn_base    <= PROT_BASE_DEFAULT + (PROT_LINES_DEFAULT * 64) + ((PROT_LINES_DEFAULT / 64) * 64) + ((PROT_LINES_DEFAULT / 8) * 64);
+            eff_meta_end   <= PROT_BASE_DEFAULT + (PROT_LINES_DEFAULT * 64) + ((PROT_LINES_DEFAULT / 64) * 64) + ((PROT_LINES_DEFAULT / 8) * 64) +
+                              (((PROT_LINES_DEFAULT / 512) + (PROT_LINES_DEFAULT / 4096)) * 64);
+        end else begin
+            eff_prot_base  <= eff_prot_base_w;
+            eff_prot_lines <= eff_prot_lines_w;
+            eff_prot_end   <= eff_prot_end_w;
+            eff_cb_base    <= eff_cb_base_w;
+            eff_ml_base    <= eff_ml_base_w;
+            eff_tn_base    <= eff_tn_base_w;
+            eff_meta_end   <= eff_meta_end_w;
+        end
+    end
 
     //-------------------------------------------------------------------------
     // 1. Mở rộng khoá AES-256 (Key Expansion) cho K1, K2 và K3
@@ -234,10 +282,22 @@ module qshield_axi_crypto_bridge #(
     logic [15*128-1:0] k2_round_keys;
     logic [15*128-1:0] k3_round_keys;
 
-    logic [255:0] eff_k3_q;
+    logic [255:0] eff_k3_r;
+    logic         k3_eq_q;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            eff_k3_r <= 256'h0;
+            k3_eq_q  <= 1'b0;
+        end else begin
+            eff_k3_r <= eff_k3_w;
+            k3_eq_q  <= (eff_k3_w == eff_k3_r);
+        end
+    end
+
     logic [127:0] h_auto_reg;
     logic         h_auto_valid;
-    wire          k3_stable  = eff_k3_valid && k3_valid && (eff_k3 == eff_k3_q);
+    wire [255:0]  eff_k3     = eff_k3_r;
+    wire          k3_stable  = eff_k3_valid && k3_valid && k3_eq_q;
     wire  [127:0] eff_h      = (i_h != 128'h0) ? i_h : h_auto_reg;
     wire          k3_h_ready = k3_stable && ((i_h != 128'h0) || h_auto_valid);
 
@@ -366,9 +426,9 @@ module qshield_axi_crypto_bridge #(
     logic        ml_flush_done_seen;
 
     localparam int META_FIFO_D = 64;
-    logic [63:0]  meta_fifo_addr [META_FIFO_D];
-    logic [511:0] meta_fifo_data [META_FIFO_D];
-    logic [3:0]   meta_fifo_id   [META_FIFO_D];
+    (* ram_style = "distributed" *) logic [63:0]  meta_fifo_addr [META_FIFO_D];
+    (* ram_style = "distributed" *) logic [511:0] meta_fifo_data [META_FIFO_D];
+    (* ram_style = "distributed" *) logic [3:0]   meta_fifo_id   [META_FIFO_D];
     logic [5:0]   meta_fifo_wptr;
     logic [5:0]   meta_fifo_rptr;
     logic [6:0]   meta_fifo_cnt;
@@ -521,6 +581,21 @@ module qshield_axi_crypto_bridge #(
     wire meta_fifo_push_any   = meta_fifo_push_bmt || meta_fifo_push_ml || meta_fifo_push_reenc;
     wire meta_fifo_pop_en     = (wr_bus_owner == WR_NONE) && (meta_fifo_cnt > 0);
 
+    // No-reset SDP distributed RAM write port for metadata write FIFO (~800 LUT6 vs ~37k FFs)
+    wire [63:0]  meta_fifo_din_addr = meta_fifo_push_bmt ? bmt_dram_wr_addr :
+                                      (meta_fifo_push_ml ? ml_dram_wr_addr : reenc_dram_wr_addr);
+    wire [511:0] meta_fifo_din_data = meta_fifo_push_bmt ? bmt_dram_wr_data :
+                                      (meta_fifo_push_ml ? ml_dram_wr_data : reenc_dram_wr_data);
+    wire [3:0]   meta_fifo_din_id   = meta_fifo_push_bmt ? 4'b1000 :
+                                      (meta_fifo_push_ml ? 4'b1001 : 4'b1010);
+    always_ff @(posedge clk) begin
+        if (meta_fifo_push_any) begin
+            meta_fifo_addr[meta_fifo_wptr] <= meta_fifo_din_addr;
+            meta_fifo_data[meta_fifo_wptr] <= meta_fifo_din_data;
+            meta_fifo_id[meta_fifo_wptr]   <= meta_fifo_din_id;
+        end
+    end
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             meta_rd_ar_pending <= 1'b0;
@@ -563,23 +638,14 @@ module qshield_axi_crypto_bridge #(
 
             // Đẩy lệnh ghi metadata (BMT ưu tiên cao nhất không mất xung; ML/REENC chờ ack)
             if (meta_fifo_push_bmt) begin
-                meta_fifo_addr[meta_fifo_wptr] <= bmt_dram_wr_addr;
-                meta_fifo_data[meta_fifo_wptr] <= bmt_dram_wr_data;
-                meta_fifo_id[meta_fifo_wptr]   <= 4'b1000;
                 meta_fifo_wptr    <= meta_fifo_wptr + 1'b1;
                 bmt_dram_wr_ready <= 1'b1;
                 reg_meta_wr_cnt   <= reg_meta_wr_cnt + 1'b1;
             end else if (meta_fifo_push_ml) begin
-                meta_fifo_addr[meta_fifo_wptr] <= ml_dram_wr_addr;
-                meta_fifo_data[meta_fifo_wptr] <= ml_dram_wr_data;
-                meta_fifo_id[meta_fifo_wptr]   <= 4'b1001;
                 meta_fifo_wptr  <= meta_fifo_wptr + 1'b1;
                 ml_dram_wr_ack  <= 1'b1;
                 reg_meta_wr_cnt <= reg_meta_wr_cnt + 1'b1;
             end else if (meta_fifo_push_reenc) begin
-                meta_fifo_addr[meta_fifo_wptr] <= reenc_dram_wr_addr;
-                meta_fifo_data[meta_fifo_wptr] <= reenc_dram_wr_data;
-                meta_fifo_id[meta_fifo_wptr]   <= 4'b1010;
                 meta_fifo_wptr    <= meta_fifo_wptr + 1'b1;
                 reenc_dram_wr_ack <= 1'b1;
                 reg_meta_wr_cnt   <= reg_meta_wr_cnt + 1'b1;
@@ -1088,7 +1154,6 @@ module qshield_axi_crypto_bridge #(
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             mac_fsm               <= MAC_IDLE;
-            eff_k3_q              <= 256'h0;
             h_auto_reg            <= 128'h0;
             h_auto_valid          <= 1'b0;
             mask_pipe_in_valid    <= 1'b0;
@@ -1123,7 +1188,6 @@ module qshield_axi_crypto_bridge #(
             ml_req_valid       <= 1'b0;
             wr_mac_done        <= 1'b0;
             rd_mac_done        <= 1'b0;
-            eff_k3_q           <= eff_k3;
 
             if (!k3_stable) begin
                 h_auto_valid <= 1'b0;
@@ -1414,18 +1478,18 @@ module qshield_axi_crypto_bridge #(
     //-------------------------------------------------------------------------
     // Khai báo cấu trúc hàng đợi đọc (AR FIFO) và FSM Re-encryption nền (S7)
     //-------------------------------------------------------------------------
-    logic [AXI_ADDR_WIDTH-1:0] rd_fifo_addr        [64];
-    logic [AXI_LEN_WIDTH-1:0]  rd_fifo_len         [64];
-    logic [3:0]                rd_fifo_asid        [64];
-    logic [18:0]               rd_fifo_epoch       [64];
-    logic [127:0]              rd_fifo_tweak0      [64];
-    logic [127:0]              rd_fifo_tweak1      [64];
-    logic [127:0]              rd_fifo_tweak2      [64];
-    logic [127:0]              rd_fifo_tweak3      [64];
+    (* ram_style = "distributed" *) logic [AXI_ADDR_WIDTH-1:0] rd_fifo_addr  [64];
+    (* ram_style = "distributed" *) logic [AXI_LEN_WIDTH-1:0]  rd_fifo_len   [64];
+    (* ram_style = "distributed" *) logic [3:0]                rd_fifo_asid  [64];
+    (* ram_style = "distributed" *) logic [18:0]               rd_fifo_epoch [64];
+    (* ram_style = "distributed" *) logic [127:0]              rd_fifo_tweak0 [64];
+    (* ram_style = "distributed" *) logic [127:0]              rd_fifo_tweak1 [64];
+    (* ram_style = "distributed" *) logic [127:0]              rd_fifo_tweak2 [64];
+    (* ram_style = "distributed" *) logic [127:0]              rd_fifo_tweak3 [64];
     logic                      rd_fifo_tweak_valid [64];
     logic                      rd_fifo_is_bypass   [64];
-    logic [63:0]               rd_fifo_maj         [64];
-    logic [6:0]                rd_fifo_min         [64];
+    (* ram_style = "distributed" *) logic [63:0]               rd_fifo_maj   [64];
+    (* ram_style = "distributed" *) logic [6:0]                rd_fifo_min   [64];
     logic                      rd_fifo_bmt_fail    [64];
 
     logic [1:0] rd_head  [16];
@@ -1519,9 +1583,9 @@ module qshield_axi_crypto_bridge #(
     assign s_axi_awready = (aw_count < 3'd4) && (!eff_integ_enable || (bmt_can_accept && !reenc_aw_block && (aw_count == 3'd0)));
     wire aw_fire = s_axi_awvalid && s_axi_awready;
 
-    assign s_axi_arready = !rej_rd_active && !rd_id_full && !meta_rd_active && !reenc_ar_block &&
-                           (!eff_integ_enable || (bmt_can_accept && !s_axi_awvalid && !user_rd_pending)) &&
-                           (i_enc_enable ? 1'b1 : m_axi_arready);
+    wire ar_bridge_ready = !rej_rd_active && !rd_id_full && !meta_rd_active && !reenc_ar_block &&
+                           (!eff_integ_enable || (bmt_can_accept && !s_axi_awvalid && !user_rd_pending));
+    assign s_axi_arready = ar_bridge_ready && (i_enc_enable ? 1'b1 : m_axi_arready);
     wire ar_fire = s_axi_arvalid && s_axi_arready;
 
     // Quản lý BMT verify và update cho Ghi & Đọc
@@ -1535,6 +1599,7 @@ module qshield_axi_crypto_bridge #(
     logic [7:0]                user_rd_len;
     logic [AXI_QOS_WIDTH-1:0]  user_rd_qos;
     logic                      user_rd_dispatch;
+    logic                      user_rd_tweak_ready_q;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -1564,6 +1629,7 @@ module qshield_axi_crypto_bridge #(
             user_rd_len            <= 8'h0;
             user_rd_qos            <= '0;
             user_rd_dispatch       <= 1'b0;
+            user_rd_tweak_ready_q  <= 1'b0;
             reenc_trigger_pulse    <= 1'b0;
             reenc_trig_old_cb      <= 512'h0;
             reenc_trig_cb_idx      <= 20'd0;
@@ -1589,9 +1655,14 @@ module qshield_axi_crypto_bridge #(
             if (bmt_update_valid && bmt_update_ready) begin
                 bmt_update_valid <= 1'b0;
             end
+            if (tweak_rsp_valid && !tweak_rsp_meta[7] && (tweak_rsp_meta[6] == 1'b1) &&
+                user_rd_dispatch && ({tweak_rsp_meta[5:2], tweak_rsp_meta[1:0]} == user_rd_slot)) begin
+                user_rd_tweak_ready_q <= 1'b1;
+            end
             if (m_axi_arvalid && m_axi_arready && (m_axi_arid[3] == 1'b0) && user_rd_dispatch) begin
-                user_rd_dispatch <= 1'b0;
-                user_rd_pending  <= 1'b0;
+                user_rd_dispatch      <= 1'b0;
+                user_rd_pending       <= 1'b0;
+                user_rd_tweak_ready_q <= 1'b0;
             end
 
             case (bmt_state)
@@ -1626,6 +1697,7 @@ module qshield_axi_crypto_bridge #(
                         user_rd_len            <= s_axi_arlen;
                         user_rd_qos            <= s_axi_arqos;
                         user_rd_dispatch       <= 1'b0;
+                        user_rd_tweak_ready_q  <= 1'b0;
                     end
                 end
 
@@ -1705,20 +1777,20 @@ module qshield_axi_crypto_bridge #(
                                 c_maj = bmt_cb_data[511:448];
                                 c_min = bmt_cb_data[bmt_cb_slot * 7 +: 7];
 
-                                rd_fifo_maj[bmt_req_rd_slot]      <= c_maj;
-                                rd_fifo_min[bmt_req_rd_slot]      <= c_min;
                                 rd_fifo_bmt_fail[bmt_req_rd_slot] <= 1'b0;
 
-                                rd_tweak_req_valid <= 1'b1;
-                                rd_tweak_req_in    <= {c_maj, c_min, rd_fifo_asid[bmt_req_rd_slot], 27'h0, rd_fifo_addr[bmt_req_rd_slot][31:6]};
-                                rd_tweak_req_meta  <= {1'b0, 1'b1, bmt_req_rd_slot[5:2], bmt_req_rd_slot[1:0]};
-                                user_rd_dispatch   <= 1'b1;
+                                rd_tweak_req_valid    <= 1'b1;
+                                rd_tweak_req_in       <= {c_maj, c_min, rd_fifo_asid[bmt_req_rd_slot], 27'h0, rd_fifo_addr[bmt_req_rd_slot][31:6]};
+                                rd_tweak_req_meta     <= {1'b0, 1'b1, bmt_req_rd_slot[5:2], bmt_req_rd_slot[1:0]};
+                                user_rd_dispatch      <= 1'b1;
+                                user_rd_tweak_ready_q <= !i_enc_enable;
                             end else begin
                                 rd_fifo_bmt_fail[bmt_req_rd_slot]    <= 1'b1;
                                 rd_fifo_tweak_valid[bmt_req_rd_slot] <= 1'b1;
                                 bmt_wr_rejected_alert                <= 1'b1;
-                                user_rd_pending   <= 1'b0;
-                                user_rd_dispatch  <= 1'b0;
+                                user_rd_pending       <= 1'b0;
+                                user_rd_dispatch      <= 1'b0;
+                                user_rd_tweak_ready_q <= 1'b0;
                                 rd_stream_active  <= 1'b1;
                                 rd_stream_fail    <= 1'b1;
                                 rd_stream_id      <= user_rd_id;
@@ -2084,7 +2156,8 @@ module qshield_axi_crypto_bridge #(
             m_axi_arsize  = 3'b011;
             m_axi_arburst = 2'b01;
             m_axi_arqos   = 4'h0;
-        end else if (user_rd_dispatch && rd_fifo_tweak_valid[user_rd_slot]) begin
+        // Thay mux 64:1 rd_fifo_tweak_valid[user_rd_slot] bằng FF 1-bit và tách m_axi_arvalid khỏi m_axi_arready để cắt vòng AR
+        end else if (user_rd_dispatch && user_rd_tweak_ready_q) begin
             m_axi_arvalid = 1'b1;
             m_axi_arid    = {1'b0, user_rd_id[2:0]};
             m_axi_araddr  = user_rd_addr;
@@ -2093,7 +2166,7 @@ module qshield_axi_crypto_bridge #(
             m_axi_arburst = 2'b01;
             m_axi_arqos   = user_rd_qos;
         end else begin
-            m_axi_arvalid = (!eff_integ_enable) && ar_fire && (!i_enc_enable || ar_qualified);
+            m_axi_arvalid = (!eff_integ_enable) && s_axi_arvalid && ar_bridge_ready && (!i_enc_enable || ar_qualified);
             m_axi_arid    = {1'b0, s_axi_arid[2:0]};
             m_axi_araddr  = s_axi_araddr;
             m_axi_arlen   = s_axi_arlen;
@@ -2125,8 +2198,6 @@ module qshield_axi_crypto_bridge #(
             for (int j = 0; j < 64; j++) begin
                 rd_fifo_tweak_valid[j] <= 1'b0;
                 rd_fifo_is_bypass[j]   <= 1'b0;
-                rd_fifo_maj[j]         <= 64'h0;
-                rd_fifo_min[j]         <= 7'h0;
                 rd_fifo_bmt_fail[j]    <= 1'b0;
             end
             rej_rd_active      <= 1'b0;
@@ -2148,8 +2219,6 @@ module qshield_axi_crypto_bridge #(
                 if (!i_enc_enable) begin
                     rd_fifo_is_bypass[cur_ar_slot]   <= 1'b1;
                     rd_fifo_tweak_valid[cur_ar_slot] <= 1'b1;
-                    rd_fifo_addr[cur_ar_slot]        <= s_axi_araddr;
-                    rd_fifo_len[cur_ar_slot]         <= s_axi_arlen;
                     rd_tail[cur_arid]  <= rd_tail[cur_arid] + 1'b1;
                     rd_count[cur_arid] <= rd_count[cur_arid] + 1'b1;
                 end else if (!ar_qualified) begin
@@ -2161,10 +2230,6 @@ module qshield_axi_crypto_bridge #(
                 end else begin
                     rd_fifo_is_bypass[cur_ar_slot]   <= 1'b0;
                     rd_fifo_tweak_valid[cur_ar_slot] <= 1'b0;
-                    rd_fifo_addr[cur_ar_slot]        <= s_axi_araddr;
-                    rd_fifo_len[cur_ar_slot]         <= s_axi_arlen;
-                    rd_fifo_asid[cur_ar_slot]        <= i_asid;
-                    rd_fifo_epoch[cur_ar_slot]       <= i_epoch;
 
                     if (!eff_integ_enable) begin
                         rd_tweak_req_valid <= 1'b1;
@@ -2181,10 +2246,6 @@ module qshield_axi_crypto_bridge #(
                 logic [5:0] rsp_slot_idx;
                 rsp_slot_idx = {tweak_rsp_meta[5:2], tweak_rsp_meta[1:0]};
 
-                rd_fifo_tweak0[rsp_slot_idx]      <= tweak_rsp_t0;
-                rd_fifo_tweak1[rsp_slot_idx]      <= tweak_rsp_t1;
-                rd_fifo_tweak2[rsp_slot_idx]      <= tweak_rsp_t2;
-                rd_fifo_tweak3[rsp_slot_idx]      <= tweak_rsp_t3;
                 rd_fifo_tweak_valid[rsp_slot_idx] <= 1'b1;
             end
 
@@ -2204,6 +2265,39 @@ module qshield_axi_crypto_bridge #(
                     rd_count[fin_id] <= rd_count[fin_id] - 1'b1;
                 end
             end
+        end
+    end
+
+    // No-reset distributed RAM write ports for read FIFO payload & tweaks (~1.4k LUT6 vs ~45k FFs)
+`ifdef QSHIELD_TEST
+    wire bmt_rd_maj_wr_en = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
+                            !bmt_req_is_force_minor && bmt_req_is_read && bmt_verify_pass;
+`else
+    wire bmt_rd_maj_wr_en = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
+                            bmt_req_is_read && bmt_verify_pass;
+`endif
+    wire       rd_tw_wr_en   = tweak_rsp_valid && !tweak_rsp_meta[7] && (tweak_rsp_meta[6] == 1'b1);
+    wire [5:0] rd_tw_wr_addr = {tweak_rsp_meta[5:2], tweak_rsp_meta[1:0]};
+    wire       ar_info_wr_en = ar_fire && (!i_enc_enable || ar_qualified);
+
+    always_ff @(posedge clk) begin
+        if (ar_info_wr_en) begin
+            rd_fifo_addr[cur_ar_slot] <= s_axi_araddr;
+            rd_fifo_len[cur_ar_slot]  <= s_axi_arlen;
+        end
+        if (ar_fire && i_enc_enable && ar_qualified) begin
+            rd_fifo_asid[cur_ar_slot]  <= i_asid;
+            rd_fifo_epoch[cur_ar_slot] <= i_epoch;
+        end
+        if (rd_tw_wr_en) begin
+            rd_fifo_tweak0[rd_tw_wr_addr] <= tweak_rsp_t0;
+            rd_fifo_tweak1[rd_tw_wr_addr] <= tweak_rsp_t1;
+            rd_fifo_tweak2[rd_tw_wr_addr] <= tweak_rsp_t2;
+            rd_fifo_tweak3[rd_tw_wr_addr] <= tweak_rsp_t3;
+        end
+        if (bmt_rd_maj_wr_en) begin
+            rd_fifo_maj[bmt_req_rd_slot] <= bmt_cb_data[511:448];
+            rd_fifo_min[bmt_req_rd_slot] <= bmt_cb_data[bmt_cb_slot * 7 +: 7];
         end
     end
 

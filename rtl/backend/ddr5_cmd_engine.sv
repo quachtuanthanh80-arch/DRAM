@@ -463,7 +463,7 @@ module ddr5_cmd_engine #(
     //=========================================================================
     // Điều kiện sẵn sàng theo bank: chỉ là AND của các flop (cờ *_z, phân loại k_*, trạng thái slot)
     //=========================================================================
-    logic [NB-1:0] cas_rdy, cas_is_wr, act_rdy, pre_rdy, pre_clamp, mit_done, ras_lt;
+    logic [NB-1:0] cas_rdy_raw, cas_bank_rdy_raw, cas_is_wr, act_rdy_raw, pre_rdy, pre_clamp, mit_done, ras_lt;
     logic [NB-1:0] rd_pend_b;
     logic [5:0]    pac [NB];
     always_comb begin
@@ -472,16 +472,18 @@ module ddr5_cmd_engine #(
             int   g;
             g        = b / BANK_COUNT;
             fresh    = !k_chg[b];
-            // ABO: chỉ lệnh giảm thiểu được tiến; RMW đang chờ trộn dữ liệu không phát CAS
-            user_ok  = abo_ok && !s_mit[b];
+            // ABO: factor global abo_ok after rr_pick/iss_cas_cand to cut o_abo_active->pk_oh/rd_wait_cnt
+            user_ok  = !s_mit[b];
             want_cas = s_v[b] && fresh && user_ok && k_hit[b] && !tras_clamp_pending[b] &&
                        !(s_rmw[b] && s_ph[b] == 2'd1);
             cas_is_wr[b] = s_wr[b] && (!s_rmw[b] || s_ph[b] == 2'd2);
-            cas_rdy[b] = want_cas && rcd_z[b] && ccd_s_z && (cas_is_wr[b] ? wr_ok_g[g] : rd_ok_g[g]);
+            cas_bank_rdy_raw[b] = want_cas && rcd_z[b] && ccd_z[g] &&
+                                  (cas_is_wr[b] ? (dq_wr_ok && ccdw_z[g]) : (dq_rd_ok && wtr_l_z[g]));
+            cas_rdy_raw[b] = cas_bank_rdy_raw[b] && ccd_s_z && (cas_is_wr[b] || rd_gate);
             // Refresh nạn nhân: hàng nạn nhân đang mở nghĩa là đã được làm tươi lúc ACT
             mit_done[b] = s_v[b] && fresh && s_mit[b] && k_hit[b];
-            act_rdy[b]  = s_v[b] && fresh && !k_open[b] && (abo_ok || s_mit[b]) && !ref_mode &&
-                          rp_z[b] && rrd_l_z[g] && act_gate;
+            act_rdy_raw[b] = s_v[b] && fresh && !k_open[b] && !ref_mode &&
+                             rp_z[b] && rrd_l_z[g] && act_gate;
             // Bank giữ mở khi slot của nó còn CAS tới đúng hàng đang mở (kể cả RMW đang chờ trộn)
             keep_open   = s_v[b] && k_hit[b] && !s_mit[b] && !tras_clamp_pending[b] && ko_glob;
             want_pre    = k_open[b] && fresh && !keep_open &&
@@ -513,7 +515,9 @@ module ddr5_cmd_engine #(
         for (int i = 0; i < NB; i++) if (oh[i]) oh2idx = oh2idx | IW'(i);
     endfunction
 
-    wire           any_cas  = |cas_rdy;
+    wire [NB-1:0]  cas_rdy  = abo_ok ? cas_rdy_raw : '0;
+    wire [NB-1:0]  act_rdy  = abo_ok ? act_rdy_raw : (act_rdy_raw & s_mit);
+    wire           any_cas  = abo_ok && (|cas_rdy_raw);
     wire           any_act  = |act_rdy;
     wire           any_pre  = |pre_rdy;
 
@@ -526,13 +530,18 @@ module ddr5_cmd_engine #(
     logic [NB-1:0]        pk_oh;
     logic [2:0]           pk_t;
     logic [ROW_WIDTH-1:0] pk_drow;
-    wire [NB-1:0] c1_rd = cas_rdy & ~cas_is_wr & ~pk_oh;
-    wire block_wr_cas   = rd_starve_q || (wr_pace_cnt != '0);
-    wire [NB-1:0] c1    = block_wr_cas ? c1_rd : (cas_rdy & ~pk_oh);
-    wire  [NB-1:0] a1 = act_rdy & ~pk_oh;
-    wire  [NB-1:0] p1 = pre_rdy & ~pk_oh;
+    wire [NB-1:0] c1_rd  = cas_rdy_raw & ~cas_is_wr & ~pk_oh;
+    wire block_wr_cas    = rd_starve_q || (wr_pace_cnt != '0);
+    wire [NB-1:0] c1_raw = block_wr_cas ? c1_rd : (cas_rdy_raw & ~pk_oh);
+    wire [NB-1:0] a1_all = act_rdy_raw & ~pk_oh;
+    wire [NB-1:0] a1_mit = a1_all & s_mit;
+    wire [NB-1:0] p1     = pre_rdy & ~pk_oh;
     wire           cas_late = (pk_t == PK_CAS) && (T_CCD_S > 1);
     wire           act_late = (pk_t == PK_ACT);
+    wire [NB-1:0] pk_c   = rr_pick(c1_raw, rr_mask);
+    wire [NB-1:0] pk_a   = rr_pick(a1_all, rr_mask);
+    wire [NB-1:0] pk_am  = rr_pick(a1_mit, rr_mask);
+    wire [NB-1:0] pk_p   = rr_pick(p1, rr_mask);
     logic [NB-1:0] nxt_oh;
     logic [2:0]    nxt_t;
     // Truy cập mồi là loại ứng viên thấp nhất của tầng 1 (khi không còn việc nào): địa chỉ {bg, bank, row} từ PRF ngoài
@@ -542,21 +551,28 @@ module ddr5_cmd_engine #(
     wire [ROW_WIDTH-1:0]  decoy_row  = i_decoy_addr[ROW_WIDTH-1:0];
     wire [IW-1:0]         decoy_b    = bidx(decoy_bg, decoy_bank);
     wire                  decoy_c    = cfg_decoy_en && i_decoy_avail && !any_cas && !any_act && !any_pre && !ref_mode && abo_ok && (pk_t != PK_DEC);
+    wire                  c1_v       = abo_ok && (|c1_raw) && !cas_late;
+    wire                  a1_v       = (abo_ok ? (|a1_all) : (|a1_mit)) && !act_late;
     always_comb begin
-        if ((|c1) && !cas_late)      begin nxt_oh = rr_pick(c1, rr_mask); nxt_t = PK_CAS; end
-        else if ((|a1) && !act_late) begin nxt_oh = rr_pick(a1, rr_mask); nxt_t = PK_ACT; end
-        else if (|p1)                begin nxt_oh = rr_pick(p1, rr_mask); nxt_t = PK_PRE; end
-        else if (decoy_c)            begin nxt_oh = NB'(1) << decoy_b;    nxt_t = PK_DEC; end
-        else                         begin nxt_oh = '0;                   nxt_t = PK_NONE; end
+        if (c1_v)         begin nxt_oh = pk_c;                  nxt_t = PK_CAS; end
+        else if (a1_v)    begin nxt_oh = abo_ok ? pk_a : pk_am; nxt_t = PK_ACT; end
+        else if (|p1)     begin nxt_oh = pk_p;                  nxt_t = PK_PRE; end
+        else if (decoy_c) begin nxt_oh = NB'(1) << decoy_b;     nxt_t = PK_DEC; end
+        else              begin nxt_oh = '0;                    nxt_t = PK_NONE; end
     end
 
     // Tầng 2: sự kiện phát one-hot theo bank; mọi cập nhật trạng thái bank dùng thẳng bit này
-    wire [NB-1:0]  iss_cas  = (pk_t == PK_CAS) ? (pk_oh & cas_rdy) : '0;
-    wire [NB-1:0]  iss_act  = (pk_t == PK_ACT) ? (pk_oh & act_rdy) : '0;
-    wire [NB-1:0]  iss_pre  = (pk_t == PK_PRE) ? (pk_oh & pre_rdy) : '0;
-    wire           is_cas   = |iss_cas;
-    wire           is_act   = |iss_act;
-    wire           is_pre   = |iss_pre;
+    // Factor global timing & ABO gates after the 32-bit OR tree to shorten abo_ok/rd_gate->is_cas
+    wire           sel_is_wr    = |(pk_oh & cas_is_wr);
+    wire [NB-1:0]  iss_cas_cand = (pk_t == PK_CAS) ? (pk_oh & cas_bank_rdy_raw) : '0;
+    wire           cas_g_ok     = abo_ok && ccd_s_z && (sel_is_wr || rd_gate);
+    wire [NB-1:0]  iss_cas      = cas_g_ok ? iss_cas_cand : '0;
+    wire [NB-1:0]  iss_act_all  = (pk_t == PK_ACT) ? (pk_oh & act_rdy_raw) : '0;
+    wire [NB-1:0]  iss_act      = abo_ok ? iss_act_all : (iss_act_all & s_mit);
+    wire [NB-1:0]  iss_pre      = (pk_t == PK_PRE) ? (pk_oh & pre_rdy) : '0;
+    wire           is_cas       = cas_g_ok && (|iss_cas_cand);
+    wire           is_act       = |iss_act;
+    wire           is_pre       = |iss_pre;
     wire [NB-1:0]  pick     = iss_cas | iss_act | iss_pre;
     // Chỉ số và trường lấy từ ứng viên đã đăng ký (không phụ thuộc phép kiểm tra lại)
     wire [IW-1:0]  pick_b   = oh2idx(pk_oh);
@@ -569,9 +585,13 @@ module ddr5_cmd_engine #(
     always_comb
         for (int b = 0; b < NB; b++)
             dec_rdy[b] = !bank_open[b] && !s_v[b] && rp_z[b] && rrd_l_z[b / BANK_COUNT];
-    wire           do_decoy = (pk_t == PK_DEC) && cfg_decoy_en && !ref_mode && abo_ok && act_gate &&
-                              ((pk_oh & dec_rdy) != '0);
-    wire [NB-1:0]  iss_dec = do_decoy ? pk_oh : '0;
+    // Per-bank decoy enable avoids 32-bank OR-tree (do_decoy) entering each bank's rcd_timer/open_row cone
+    wire           dec_g_ok = (pk_t == PK_DEC) && cfg_decoy_en && !ref_mode && abo_ok && act_gate;
+    (* keep = "true" *) logic [NB-1:0] iss_dec;
+    always_comb
+        for (int b = 0; b < NB; b++)
+            iss_dec[b] = dec_g_ok && pk_oh[b] && dec_rdy[b];
+    wire           do_decoy = |iss_dec;
     assign o_decoy_take = do_decoy || ((pk_t == PK_DEC) && ((pk_oh & dec_rdy) == '0));
 
     // Trường của slot được chọn: AND-OR theo one-hot thay cho mux 32:1 theo chỉ số
@@ -602,7 +622,6 @@ module ddr5_cmd_engine #(
         end
         sel_row = row_cas;
     end
-    wire sel_is_wr  = |(pk_oh & cas_is_wr);
     wire sel_rmw    = |(pk_oh & s_rmw);
     wire sel_mit    = |(pk_oh & s_mit);
     // Kẹp tRAS(max) vừa được phát. Cảnh báo được đăng ký và phát ở chu kỳ sau từ bank đã lưu (open_row giữ nguyên sau
@@ -1137,8 +1156,23 @@ module ddr5_cmd_engine #(
             end else if (do_ref) begin
                 o_dfi_bg   <= '0;
                 o_dfi_bank <= '0;
+                o_dfi_cmd  <= (lat_kind == K_REF) ? CMD_REF : CMD_RFM;
+            end else if (do_decoy) begin
+                // Truy cập mồi THẬT: ACT một hàng từ PRF có khoá ở bank đang đóng rồi PRE sau tRAS, làm nhiễu
+                // mẫu ACT/row-buffer mà kẻ tấn công quan sát.
+                o_decoy_active <= 1'b1;
+                o_decoy_cnt    <= o_decoy_cnt + 1'b1;
+                o_dfi_cmd      <= CMD_ACT;
+                last_act       <= 1'b1;
+                o_dfi_bg       <= pick_b[IW-1:BANK_WIDTH];
+                o_dfi_bank     <= pick_b[BANK_WIDTH-1:0];
+                o_dfi_row      <= pk_drow;
+            end
+
+            // Decouple refresh/RFM timer & rolling ACT updates from is_cas/is_act/is_pre priority chain:
+            // do_ref implies ref_mode & all_closed & !any_rp_busy, eliminating is_cas->rolling_act_cnt/CE.
+            if (do_ref) begin
                 if (lat_kind == K_REF) begin
-                    o_dfi_cmd  <= CMD_REF;
                     rfc_timer  <= 8'(T_RFC);
                     rfc_z      <= (T_RFC == 0);
                     rfc_z2     <= (T_RFC == 0);
@@ -1152,7 +1186,6 @@ module ddr5_cmd_engine #(
                     o_ref_tick <= 1'b1;
                 end else begin
                     // RFMab (hoặc phục hồi khi lat_kind sai mã): làm tươi mọi bank, xoá RAA và bảo toàn nợ REF
-                    o_dfi_cmd      <= CMD_RFM;
                     rfc_timer      <= 8'(T_RFM);
                     rfc_z          <= (T_RFM == 0);
                     rfc_z2         <= (T_RFM == 0);
@@ -1166,16 +1199,6 @@ module ddr5_cmd_engine #(
                     o_rfm_auto_cnt <= o_rfm_auto_cnt + 1'b1;
                     o_rfm_active   <= 1'b1;
                 end
-            end else if (do_decoy) begin
-                // Truy cập mồi THẬT: ACT một hàng từ PRF có khoá ở bank đang đóng rồi PRE sau tRAS, làm nhiễu
-                // mẫu ACT/row-buffer mà kẻ tấn công quan sát.
-                o_decoy_active <= 1'b1;
-                o_decoy_cnt    <= o_decoy_cnt + 1'b1;
-                o_dfi_cmd      <= CMD_ACT;
-                last_act       <= 1'b1;
-                o_dfi_bg       <= pick_b[IW-1:BANK_WIDTH];
-                o_dfi_bank     <= pick_b[BANK_WIDTH-1:0];
-                o_dfi_row      <= pk_drow;
             end
         end
     end

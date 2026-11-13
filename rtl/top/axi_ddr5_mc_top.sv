@@ -637,8 +637,9 @@ module axi_ddr5_mc_top #(
     logic                                arb_grant_valid;
     logic [BG_WIDTH-1:0]                 arb_grant_bg;
     logic [2:0]                          arb_grant_idx;
-    logic [BG_WIDTH-1:0]   wcmd_bg;
-    logic [BANK_WIDTH-1:0] wcmd_bank;
+    logic [BG_WIDTH-1:0]   wcmd_bg, wcmd_bg_raw;
+    logic [BANK_WIDTH-1:0] wcmd_bank, wcmd_bank_raw;
+    logic                  cfg_rehash_q;
     logic [BANK_WIDTH-1:0] iq_sel_bank, fe_rd_req_bank;
     // SCARF xáo trộn cả bank trong bộ ánh xạ nên bank vật lý ở arbiter không suy ra được từ địa chỉ: bank logic dùng
     // khi trừ tín dụng được lưu theo tag của lệnh (ROB tag cho đọc, tag slot cho ghi) lúc lệnh vào bộ ánh xạ, và
@@ -666,8 +667,11 @@ module axi_ddr5_mc_top #(
     logic [ROW_WIDTH-1:0]     cs_row;
     logic [COL_WIDTH-1:0]     cs_col;
     logic [AXI_LEN_WIDTH-1:0] cs_len;
-    wire  [BANK_WIDTH-1:0] rel_bank = cs_is_write ? wr_cbank[cs_id[ROB_PTR_WIDTH-1:0]] : rd_cbank[cs_id[ROB_PTR_WIDTH-1:0]];
-    wire  [BG_WIDTH-1:0]   rel_bg   = cs_is_write ? wr_cbg[cs_id[ROB_PTR_WIDTH-1:0]]   : rd_cbg[cs_id[ROB_PTR_WIDTH-1:0]];
+    logic                     cs_rel_valid_d1;
+    logic [BANK_WIDTH-1:0]    cs_rel_bank_d1;
+    logic [BG_WIDTH-1:0]      cs_rel_bg_d1;
+    wire  [BANK_WIDTH-1:0] rel_bank = cs_rel_bank_d1;
+    wire  [BG_WIDTH-1:0]   rel_bg   = cs_rel_bg_d1;
     logic [NBK-1:0]      bank_credit, wbank_credit;
     logic [BG_COUNT-1:0] iq_bg_pend;
     logic                rd_iq_empty, mapper_busy;
@@ -691,7 +695,7 @@ module axi_ddr5_mc_top #(
         .i_wr_fire      (wr_fire),
         .i_wr_bg        (wcmd_bg),
         .i_wr_bank      (wcmd_bank),
-        .i_rel_valid    (cs_valid && !cs_is_mitigation),
+        .i_rel_valid    (cs_rel_valid_d1),
         .i_rel_bg       (rel_bg),
         .i_rel_bank     (rel_bank),
         .o_bank_credit  (bank_credit),
@@ -727,14 +731,17 @@ module axi_ddr5_mc_top #(
             cfg_pend_q   <= 1'b0;
             map_idle_q   <= 1'b1;
             wr_blk_cfg_q <= 1'b0;
+            cfg_rehash_q <= 1'b0;
         end else begin
-            map_idle_q <= map_idle_c;
+            map_idle_q   <= map_idle_c;
+            cfg_rehash_q <= 1'b0;
             if (cfg_diff) begin
                 // Doi cau hinh chi khi duong ong da idle (map_idle_q=1 va map_idle_c=1) va cfg_pend_q da bat (M-08)
                 if (cfg_pend_q && map_idle_q && map_idle_c) begin
                     map_cfg_q    <= live_map_cfg;
                     cfg_pend_q   <= 1'b0;
                     wr_blk_cfg_q <= 1'b0;
+                    cfg_rehash_q <= 1'b1;
                 end else begin
                     cfg_pend_q   <= 1'b1;
                     // Trong cfg_pend_q IQ khong nhan muc moi nen khong the het rong: ban tre mot chu ky an toan
@@ -803,7 +810,9 @@ module axi_ddr5_mc_top #(
         .i_aw_backlog         (fe_aw_backlog)
     );
 
-    // BG của lệnh ghi (cùng hàm băm/bank coloring với bộ ánh xạ)
+    // Pre-compute and register write {bg, bank} at wbuf->wds acceptance (at least 1 cycle of S_FILL before wcmd_valid)
+    // to eliminate u_wds/cur_addr -> domain_bank_coloring -> u_bank_credit critical path.
+    wire wcmd_start_fire = wbuf_cmd_valid && wbuf_cmd_ready;
     domain_bank_coloring #(
         .AXI_ID_WIDTH   (AXI_ID_WIDTH),
         .AXI_ADDR_WIDTH (AXI_ADDR_WIDTH),
@@ -813,11 +822,20 @@ module axi_ddr5_mc_top #(
         .cfg_bank_coloring_en (eff_bank_coloring_en),
         .cfg_mapping_mode     (eff_mapping_mode),
         .cfg_is_ddr5          (eff_is_ddr5),
-        .i_req_id             (wcmd_id),
-        .i_req_addr           (wcmd_addr),
-        .o_bg                 (wcmd_bg),
-        .o_bank               (wcmd_bank)
+        .i_req_id             (wcmd_start_fire ? wbuf_cmd_id   : wcmd_id),
+        .i_req_addr           (wcmd_start_fire ? wbuf_cmd_addr : wcmd_addr),
+        .o_bg                 (wcmd_bg_raw),
+        .o_bank               (wcmd_bank_raw)
     );
+    always_ff @(posedge clk_axi or negedge rst_n_axi) begin
+        if (!rst_n_axi) begin
+            wcmd_bg   <= '0;
+            wcmd_bank <= '0;
+        end else if (wcmd_start_fire || cfg_rehash_q) begin
+            wcmd_bg   <= wcmd_bg_raw;
+            wcmd_bank <= wcmd_bank_raw;
+        end
+    end
 
     wire can_issue_read  = fe_rd_req_valid && rob_alloc_ready;
     wire bg_hold_w       = chg_rd_q && chg_rd_bg_q == wcmd_bg;
@@ -825,7 +843,7 @@ module axi_ddr5_mc_top #(
     // iq_bg_pend của BG đó đã bật: ghi dùng tín dụng chừa chỗ cho đọc đồng thời (RT-02). Hai mux 32:1 và mux 8:1 song song.
     wire wr_use_wbank    = iq_bg_pend[wcmd_bg];
     wire w_cred_ok       = wr_use_wbank ? wbank_credit[{wcmd_bg, wcmd_bank}] : bank_credit[{wcmd_bg, wcmd_bank}];
-    wire can_issue_write = wcmd_valid && w_cred_ok && !bg_hold_w && !wr_blk_cfg_q;
+    wire can_issue_write = wcmd_valid && w_cred_ok && !bg_hold_w && !wr_blk_cfg_q && !cfg_rehash_q;
 
     // Hợp đồng cổng req_to_map_* (RT-11): valid/payload được đổi khi chưa bắt tay (đọc ưu tiên, tín dụng đổi mỗi chu kỳ);
     // hợp lệ vì bộ ánh xạ là pipeline stall-all chỉ chốt khi en = 1. Không chèn skid buffer hay assert ổn định kiểu AXI ở đây.
@@ -1397,6 +1415,18 @@ module axi_ddr5_mc_top #(
         cs_row           <= arb_cmd_row;
         cs_col           <= arb_cmd_col;
         cs_len           <= arb_cmd_len;
+    end
+    // Stage-2 registered credit release breaks u_qos_queue -> arb_cmd_id -> rd_cbank RAMD32 -> FF critical path
+    always_ff @(posedge clk_axi or negedge rst_n_axi) begin
+        if (!rst_n_axi) begin
+            cs_rel_valid_d1 <= 1'b0;
+            cs_rel_bank_d1  <= '0;
+            cs_rel_bg_d1    <= '0;
+        end else begin
+            cs_rel_valid_d1 <= cs_valid && !cs_is_mitigation;
+            cs_rel_bank_d1  <= cs_is_write ? wr_cbank[cs_id[ROB_PTR_WIDTH-1:0]] : rd_cbank[cs_id[ROB_PTR_WIDTH-1:0]];
+            cs_rel_bg_d1    <= cs_is_write ? wr_cbg[cs_id[ROB_PTR_WIDTH-1:0]]   : rd_cbg[cs_id[ROB_PTR_WIDTH-1:0]];
+        end
     end
     assign ddr_bank_free = eng_bank_free & ~cs_oh;
 

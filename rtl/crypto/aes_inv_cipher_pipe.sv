@@ -227,11 +227,59 @@ module aes_inv_round_pipe (
 endmodule
 
 //-----------------------------------------------------------------------------
+// Module: aes_inv_skid_stage
+// Cơ chế: Bộ đệm trượt 2 tầng ngắt chuỗi lan truyền tổ hợp out_ready -> in_ready.
+//-----------------------------------------------------------------------------
+module aes_inv_skid_stage #(
+    parameter int Width = 144
+) (
+    input  logic             clk,
+    input  logic             rst_n,
+    input  logic             s_valid,
+    output logic             s_ready,
+    input  logic [Width-1:0] s_data,
+    output logic             m_valid,
+    input  logic             m_ready,
+    output logic [Width-1:0] m_data
+);
+    logic [Width-1:0] skid_data_q;
+    logic             skid_valid_q;
+
+    // Xuất in_ready trực tiếp từ FF để chặn chuỗi ready tổ hợp 14 vòng AES
+    assign s_ready = ~skid_valid_q;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            m_valid      <= 1'b0;
+            m_data       <= '0;
+            skid_valid_q <= 1'b0;
+            skid_data_q  <= '0;
+        end else begin
+            if (m_ready || !m_valid) begin
+                if (skid_valid_q) begin
+                    m_valid      <= 1'b1;
+                    m_data       <= skid_data_q;
+                    skid_valid_q <= 1'b0;
+                end else begin
+                    m_valid <= s_valid;
+                    if (s_valid) begin
+                        m_data <= s_data;
+                    end
+                end
+            end else if (s_valid && s_ready) begin
+                skid_valid_q <= 1'b1;
+                skid_data_q  <= s_data;
+            end
+        end
+    end
+endmodule
+
+//-----------------------------------------------------------------------------
 // Module: aes_inv_cipher_pipe
 // Cơ chế: Toàn bộ đường ống 14 tầng giải mã AES-256 (InvCipher FIPS-197 Algorithm 5).
 // Rationale: Nhận 15 khoá vòng chuẩn từ aes256_key_expand, áp dụng theo thứ tự đảo:
 //            Vòng khởi tạo AddRoundKey(RK14), sau đó 13 vòng InvRound(RK13..RK1),
-//            và vòng cuối InvRoundFinal(RK0).
+//            và vòng cuối InvRoundFinal(RK0). Cắt trượt ready tại tầng 0, 7, 14.
 //-----------------------------------------------------------------------------
 module aes_inv_cipher_pipe #(
     parameter int DataWidth = 128,
@@ -266,15 +314,33 @@ module aes_inv_cipher_pipe #(
     logic [127:0] initial_state;
     assign initial_state = data_in ^ rk[14];
 
-    // Các tầng trung gian trong 14 vòng
-    logic [127:0] stage_state [15];
-    logic         stage_valid [15];
-    logic         stage_ready [15];
-    logic [MetaWidth-1:0] meta_pipe [1:14];
+    localparam int StagePackW = DataWidth + MetaWidth;
 
-    assign stage_state[0] = initial_state;
-    assign stage_valid[0] = in_valid;
-    assign in_ready       = stage_ready[0];
+    // Các tầng trung gian trong 14 vòng
+    logic [127:0]           stage_state [15];
+    logic                   stage_valid [15];
+    logic                   stage_ready [15];
+    logic [MetaWidth-1:0]   meta_pipe [1:14];
+    logic [MetaWidth-1:0]   s0_meta;
+    logic [MetaWidth-1:0]   mid_meta;
+
+    // Tầng 0 dùng đệm trượt 2 mức để dec_in_ready là thanh ghi thuần, tách mux/tweak bên ngoài
+    aes_inv_skid_stage #(
+        .Width (StagePackW)
+    ) u_s0_skid (
+        .clk     (clk),
+        .rst_n   (rst_n),
+        .s_valid (in_valid),
+        .s_ready (in_ready),
+        .s_data  ({meta_in, initial_state}),
+        .m_valid (stage_valid[0]),
+        .m_ready (stage_ready[0]),
+        .m_data  ({s0_meta, stage_state[0]})
+    );
+
+    logic [127:0] r7_state;
+    logic         r7_valid;
+    logic         r7_ready;
 
     // Khởi tạo 14 tầng giải mã:
     // Vòng 1 dùng rk[13], vòng 2 dùng rk[12], ..., vòng 13 dùng rk[1], vòng 14 dùng rk[0]
@@ -282,6 +348,9 @@ module aes_inv_cipher_pipe #(
     generate
         for (r = 1; r <= 14; r++) begin : gen_inv_rounds
             localparam bit IsFinal = (r == 14);
+            logic [127:0] round_out_st;
+            logic         round_out_v;
+            logic         round_out_r;
 
             aes_inv_round_pipe u_inv_round (
                 .clk           (clk),
@@ -291,10 +360,20 @@ module aes_inv_cipher_pipe #(
                 .is_final_round(IsFinal),
                 .state_in      (stage_state[r-1]),
                 .round_key     (rk[14 - r]),
-                .out_valid     (stage_valid[r]),
-                .out_ready     (stage_ready[r]),
-                .state_out     (stage_state[r])
+                .out_valid     (round_out_v),
+                .out_ready     (round_out_r),
+                .state_out     (round_out_st)
             );
+
+            if (r == 7) begin : gen_mid_tap
+                assign r7_state    = round_out_st;
+                assign r7_valid    = round_out_v;
+                assign round_out_r = r7_ready;
+            end else begin : gen_direct_stage
+                assign stage_state[r] = round_out_st;
+                assign stage_valid[r] = round_out_v;
+                assign round_out_r    = stage_ready[r];
+            end
 
             // Bắt nhịp luồng metadata cùng dữ liệu
             always_ff @(posedge clk or negedge rst_n) begin
@@ -302,7 +381,9 @@ module aes_inv_cipher_pipe #(
                     meta_pipe[r] <= '0;
                 end else if (stage_ready[r-1] && stage_valid[r-1]) begin
                     if (r == 1) begin
-                        meta_pipe[r] <= meta_in;
+                        meta_pipe[r] <= s0_meta;
+                    end else if (r == 8) begin
+                        meta_pipe[r] <= mid_meta;
                     end else begin
                         meta_pipe[r] <= meta_pipe[r-1];
                     end
@@ -311,9 +392,32 @@ module aes_inv_cipher_pipe #(
         end
     endgenerate
 
-    assign stage_ready[14] = out_ready;
-    assign out_valid       = stage_valid[14];
-    assign data_out        = stage_state[14];
-    assign meta_out        = meta_pipe[14];
+    // Cắt đôi đường lan truyền ready giữa vòng 7 và vòng 8
+    aes_inv_skid_stage #(
+        .Width (StagePackW)
+    ) u_mid_skid (
+        .clk     (clk),
+        .rst_n   (rst_n),
+        .s_valid (r7_valid),
+        .s_ready (r7_ready),
+        .s_data  ({meta_pipe[7], r7_state}),
+        .m_valid (stage_valid[7]),
+        .m_ready (stage_ready[7]),
+        .m_data  ({mid_meta, stage_state[7]})
+    );
+
+    // Đệm trượt đầu ra cách ly dec_out_ready khỏi 14 tầng vòng AES
+    aes_inv_skid_stage #(
+        .Width (StagePackW)
+    ) u_out_skid (
+        .clk     (clk),
+        .rst_n   (rst_n),
+        .s_valid (stage_valid[14]),
+        .s_ready (stage_ready[14]),
+        .s_data  ({meta_pipe[14], stage_state[14]}),
+        .m_valid (out_valid),
+        .m_ready (out_ready),
+        .m_data  ({meta_out, data_out})
+    );
 
 endmodule
