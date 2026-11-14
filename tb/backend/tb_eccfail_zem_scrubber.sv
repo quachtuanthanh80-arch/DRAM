@@ -21,6 +21,7 @@ module tb_eccfail_zem_scrubber;
     logic [2:0]  i_data_bg = 0;
     logic [1:0]  i_data_bank = 0;
     logic [16:0] i_data_row = 0;
+    logic [12:0] i_data_col = 0;
     logic        o_corrected_valid;
     logic [63:0] o_corrected_data;
     logic        o_single_err, o_double_err;
@@ -32,6 +33,7 @@ module tb_eccfail_zem_scrubber;
     logic [2:0]  i_zem_lookup_bg = 0;
     logic [1:0]  i_zem_lookup_bank = 0;
     logic [16:0] i_zem_lookup_row = 0;
+    logic [12:0] i_zem_lookup_col = 0;
     logic        o_zem_hit;
     logic [63:0] o_zem_mask;
     logic [15:0] o_zem_hit_cnt;
@@ -41,7 +43,7 @@ module tb_eccfail_zem_scrubber;
         .o_scrub_req(o_scrub_req), .o_scrub_bg(o_scrub_bg), .o_scrub_bank(o_scrub_bank), .o_scrub_row(o_scrub_row),
         .i_scrub_grant(i_scrub_grant),
         .i_data_valid(i_data_valid), .i_raw_data(i_raw_data), .i_raw_ecc(i_raw_ecc),
-        .i_data_bg(i_data_bg), .i_data_bank(i_data_bank), .i_data_row(i_data_row),
+        .i_data_bg(i_data_bg), .i_data_bank(i_data_bank), .i_data_row(i_data_row), .i_data_col(i_data_col),
         .i_fault_inject_en(1'b0), .i_fault_inject_type(2'b00), .i_fault_inject_bit(6'd0),
         .o_corrected_valid(o_corrected_valid), .o_corrected_data(o_corrected_data),
         .o_single_err(o_single_err), .o_double_err(o_double_err),
@@ -49,7 +51,7 @@ module tb_eccfail_zem_scrubber;
         .o_ecc_miscorrect_alert(o_ecc_miscorrect_alert), .o_ecc_miscorrect_cnt(o_ecc_miscorrect_cnt),
         .o_chipkill_fallback_req(o_chipkill_fallback_req),
         .i_zem_lookup_valid(i_zem_lookup_valid), .i_zem_lookup_bg(i_zem_lookup_bg),
-        .i_zem_lookup_bank(i_zem_lookup_bank), .i_zem_lookup_row(i_zem_lookup_row),
+        .i_zem_lookup_bank(i_zem_lookup_bank), .i_zem_lookup_row(i_zem_lookup_row), .i_zem_lookup_col(i_zem_lookup_col),
         .o_zem_hit(o_zem_hit), .o_zem_mask(o_zem_mask), .o_zem_hit_cnt(o_zem_hit_cnt)
     );
 
@@ -147,11 +149,12 @@ module tb_eccfail_zem_scrubber;
         apply({calc_ecc(64'h0), 64'h0});
         tb_check(!o_single_err && !o_double_err && o_corrected_data == 64'h0, "Encoded zero data still decodes cleanly");
 
-        // 5. ZEM ghi đúng địa chỉ của beat có lỗi đã sửa (không phải toạ độ patrol) và đúng bit
+        // 5. ZEM ghi đúng địa chỉ của beat có lỗi đã sửa (bg/bank/row/col) và đúng bit sau >= 2 lần xác nhận (R-69)
         @(negedge clk);
         i_data_bg   = 3'd5;
         i_data_bank = 2'd2;
         i_data_row  = 17'h1_2345;
+        i_data_col  = 13'h0007;
         apply(cw ^ (72'd1 << 17));
         @(negedge clk);
         i_data_valid       = 0;
@@ -159,11 +162,80 @@ module tb_eccfail_zem_scrubber;
         i_zem_lookup_bg    = 3'd5;
         i_zem_lookup_bank  = 2'd2;
         i_zem_lookup_row   = 17'h1_2345;
+        i_zem_lookup_col   = 13'h0007;
         #0.1;
-        tb_check(o_zem_hit && o_zem_mask == (64'd1 << 17), $sformatf("ZEM records the faulty beat's row and bit (hit %0b mask %h)", o_zem_hit, o_zem_mask));
+        tb_check(!o_zem_hit && o_zem_mask == 64'd0,
+                 "R-69 ZEM does NOT activate mask after only 1 single-bit scan (anti-poisoning)");
+
+        // Xác nhận lần 2 cùng bit 17 tại cùng {bg, bank, row, col} -> kích hoạt ZEM
+        i_zem_lookup_valid = 0;
+        apply(cw ^ (72'd1 << 17));
+        @(negedge clk);
+        i_data_valid       = 0;
+        i_zem_lookup_valid = 1;
+        #0.1;
+        tb_check(o_zem_hit && o_zem_mask == (64'd1 << 17), $sformatf("ZEM records the faulty beat's row, col and bit after 2nd confirm (hit %0b mask %h)", o_zem_hit, o_zem_mask));
+        i_zem_lookup_col = 13'h0008;
+        #0.1;
+        tb_check(!o_zem_hit, "ZEM does not hit for a different column on the same row");
+        i_zem_lookup_col = 13'h0007;
         i_zem_lookup_row = 17'h0_0000;
         #0.1;
         tb_check(!o_zem_hit, "ZEM does not hit for a different row");
+        i_zem_lookup_valid = 0;
+
+        // 5b. Ca tấn công R-69: tạo lỗi 1-shot / lệch bit / lỗi check-bit / UE để dụ ZEM học sai phải bị chặn
+        @(negedge clk);
+        i_data_bg   = 3'd3;
+        i_data_bank = 2'd1;
+        i_data_row  = 17'h0_0ABC;
+        i_data_col  = 13'h0010;
+        apply(cw ^ (72'd1 << 25)); // Lần 1 bit 25
+        apply(cw);                 // Đọc sạch -> xoá ứng viên lỗi thoáng qua
+        apply(cw ^ (72'd1 << 25)); // Lần nữa bit 25 -> vẫn chỉ là đếm 1, chưa vào ZEM
+        apply(cw ^ (72'd1 << 29)); // Đổi sang bit khác (bit 29) -> đặt lại, không tích luỹ
+        @(negedge clk);
+        i_data_valid       = 0;
+        i_zem_lookup_valid = 1;
+        i_zem_lookup_bg    = 3'd3;
+        i_zem_lookup_bank  = 2'd1;
+        i_zem_lookup_row   = 17'h0_0ABC;
+        i_zem_lookup_col   = 13'h0010;
+        #0.1;
+        tb_check(!o_zem_hit && o_zem_mask == 64'd0,
+                 "R-69 attack guard: transient/switching 1-bit attacks never promote into active ZEM");
+
+        // Kiểm tra tự vô hiệu hoá entry ZEM khi gặp lỗi check-bit hoặc UE ở dòng đó
+        i_zem_lookup_valid = 0;
+        @(negedge clk);
+        i_data_bg   = 3'd5;
+        i_data_bank = 2'd2;
+        i_data_row  = 17'h1_2345;
+        i_data_col  = 13'h0007;
+        apply(cw ^ (72'd1 << 65)); // Lỗi 1-bit tại ECC check-bit -> vô hiệu hoá dòng
+        @(negedge clk);
+        i_data_valid       = 0;
+        i_zem_lookup_valid = 1;
+        i_zem_lookup_bg    = 3'd5;
+        i_zem_lookup_bank  = 2'd2;
+        i_zem_lookup_row   = 17'h1_2345;
+        i_zem_lookup_col   = 13'h0007;
+        #0.1;
+        tb_check(!o_zem_hit && o_zem_mask == 64'd0,
+                 "R-69 check-bit error invalidates active ZEM entry on that row");
+
+        // Nạp lại 2 lần rồi kiểm lỗi 2-bit UE phát hiện đầy đủ và tự vô hiệu hoá ZEM
+        i_zem_lookup_valid = 0;
+        apply(cw ^ (72'd1 << 17));
+        apply(cw ^ (72'd1 << 17));
+        apply(cw ^ (72'd1 << 3) ^ (72'd1 << 41));
+        tb_check(o_double_err && !o_single_err, "R-69 2-bit UE still detected cleanly on target coordinate");
+        @(negedge clk);
+        i_data_valid       = 0;
+        i_zem_lookup_valid = 1;
+        #0.1;
+        tb_check(!o_zem_hit && o_zem_mask == 64'd0,
+                 "R-69 2-bit UE auto-invalidates active ZEM entry on that row");
         i_zem_lookup_valid = 0;
 
         // 6. Patrol: yêu cầu scrub khi hết khoảng thời gian, được hạ khi cấp phép
