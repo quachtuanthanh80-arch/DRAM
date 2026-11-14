@@ -204,44 +204,83 @@ module qshield_meta_cache #(
     assign o_lookup_pinned   = lk_set_pinned[lk_set];
 
     // -------------------------------------------------------------------------
-    // Logic Fill & Victim Selection tổ hợp
+    // Logic Fill & Victim Selection tổ hợp 2 tầng LUT (tách b0/empty trước khi mux 16:1)
     // -------------------------------------------------------------------------
     logic [SET_BITS-1:0]  fl_set;
     logic [TAG_WIDTH-1:0] fl_tag;
     assign fl_set = i_fill_addr[6 +: SET_BITS];
     assign fl_tag = i_fill_addr[6 + SET_BITS +: TAG_WIDTH];
 
-    wire fl_val_0 = line_valid[{fl_set, 2'd0}];
-    wire fl_val_1 = line_valid[{fl_set, 2'd1}];
-    wire fl_val_2 = line_valid[{fl_set, 2'd2}];
-    wire fl_val_3 = line_valid[{fl_set, 2'd3}];
+    (* keep = "true" *) logic [MC_WAYS-1:0] set_fill_oh     [0:MC_SETS-1];
+    (* keep = "true" *) logic [1:0]           set_fill_way    [0:MC_SETS-1];
+    logic [MC_SETS-1:0]   set_evict_val, set_evict_dirty, set_evict_wb;
+    logic [TAG_WIDTH-1:0] set_evict_tag   [0:MC_SETS-1];
+    (* keep = "true" *) logic [MC_SETS-1:0]   fill_vp01, fill_vp23, fill_ew0;
+    (* keep = "true" *) logic [1:0]           fill_u0         [0:MC_SETS-1];
+    (* keep = "true" *) logic [1:0]           fill_u1         [0:MC_SETS-1];
 
-    wire fl_pin_0 = line_pinned[{fl_set, 2'd0}];
-    wire fl_pin_1 = line_pinned[{fl_set, 2'd1}];
-    wire fl_pin_2 = line_pinned[{fl_set, 2'd2}];
-    wire fl_pin_3 = line_pinned[{fl_set, 2'd3}];
+    always_comb begin
+        for (int s = 0; s < MC_SETS; s++) begin
+            logic v0, v1, v2, v3;
+            logic p0, p1, p2, p3;
+            logic d0, d1, d2, d3;
+            logic vp0, vp1, vp2, vp3;
+            logic b0, b1, b2;
+            logic [1:0] w_s;
 
-    wire [2:0] fl_cur_plru = set_plru[fl_set];
-    wire fl_b0 = fl_cur_plru[2];
-    wire fl_b1 = fl_cur_plru[1];
-    wire fl_b2 = fl_cur_plru[0];
-    wire [1:0] fl_plru_cand = fl_b0 ? (fl_b2 ? 2'd3 : 2'd2) : (fl_b1 ? 2'd1 : 2'd0);
-    wire fl_cand_pinned = (fl_plru_cand == 2'd0) ? fl_pin_0 :
-                         ((fl_plru_cand == 2'd1) ? fl_pin_1 :
-                         ((fl_plru_cand == 2'd2) ? fl_pin_2 : fl_pin_3));
+            v0 = line_valid[s*MC_WAYS + 0];  v1 = line_valid[s*MC_WAYS + 1];
+            v2 = line_valid[s*MC_WAYS + 2];  v3 = line_valid[s*MC_WAYS + 3];
+            p0 = line_pinned[s*MC_WAYS + 0]; p1 = line_pinned[s*MC_WAYS + 1];
+            p2 = line_pinned[s*MC_WAYS + 2]; p3 = line_pinned[s*MC_WAYS + 3];
+            d0 = line_dirty[s*MC_WAYS + 0];  d1 = line_dirty[s*MC_WAYS + 1];
+            d2 = line_dirty[s*MC_WAYS + 2];  d3 = line_dirty[s*MC_WAYS + 3];
 
-    wire [1:0] fl_first_unpinned = !fl_pin_0 ? 2'd0 : (!fl_pin_1 ? 2'd1 : (!fl_pin_2 ? 2'd2 : 2'd3));
+            vp0 = v0 || p0; vp1 = v1 || p1; vp2 = v2 || p2; vp3 = v3 || p3;
+            fill_vp01[s] = vp0 && vp1;
+            fill_vp23[s] = vp2 && vp3;
+            fill_ew0[s]  = vp0 && (!vp1 || vp2);
 
-    assign o_fill_way = (!fl_val_0 && !fl_pin_0) ? 2'd0 :
-                       ((!fl_val_1 && !fl_pin_1) ? 2'd1 :
-                       ((!fl_val_2 && !fl_pin_2) ? 2'd2 :
-                       ((!fl_val_3 && !fl_pin_3) ? 2'd3 :
-                       (!fl_cand_pinned ? fl_plru_cand : fl_first_unpinned))));
+            b0 = set_plru[s][2]; b1 = set_plru[s][1]; b2 = set_plru[s][0];
+            if (!b1 && !p0)      fill_u0[s] = 2'd0;
+            else if (b1 && !p1)  fill_u0[s] = 2'd1;
+            else if (!p0)        fill_u0[s] = 2'd0;
+            else if (!p1)        fill_u0[s] = 2'd1;
+            else if (!p2)        fill_u0[s] = 2'd2;
+            else                 fill_u0[s] = 2'd3;
+
+            if (!b2 && !p2)      fill_u1[s] = 2'd2;
+            else if (b2 && !p3)  fill_u1[s] = 2'd3;
+            else if (!p0)        fill_u1[s] = 2'd0;
+            else if (!p1)        fill_u1[s] = 2'd1;
+            else if (!p2)        fill_u1[s] = 2'd2;
+            else                 fill_u1[s] = 2'd3;
+
+            w_s[1] = (!fill_vp01[s] || !fill_vp23[s]) ? fill_vp01[s] : (b0 ? fill_u1[s][1] : fill_u0[s][1]);
+            w_s[0] = (!fill_vp01[s] || !fill_vp23[s]) ? fill_ew0[s]  : (b0 ? fill_u1[s][0] : fill_u0[s][0]);
+            set_fill_way[s] = w_s;
+
+            set_fill_oh[s][0] = (w_s == 2'd0);
+            set_fill_oh[s][1] = (w_s == 2'd1);
+            set_fill_oh[s][2] = (w_s == 2'd2);
+            set_fill_oh[s][3] = (w_s == 2'd3);
+
+            set_evict_val[s]   = w_s[1] ? (w_s[0] ? v3 : v2) : (w_s[0] ? v1 : v0);
+            set_evict_dirty[s] = w_s[1] ? (w_s[0] ? d3 : d2) : (w_s[0] ? d1 : d0);
+            set_evict_wb[s]    = w_s[1] ? (w_s[0] ? (v3 && d3) : (v2 && d2))
+                                        : (w_s[0] ? (v1 && d1) : (v0 && d0));
+            set_evict_tag[s]   = ({TAG_WIDTH{set_fill_oh[s][0]}} & line_tag[s*MC_WAYS + 0]) |
+                                 ({TAG_WIDTH{set_fill_oh[s][1]}} & line_tag[s*MC_WAYS + 1]) |
+                                 ({TAG_WIDTH{set_fill_oh[s][2]}} & line_tag[s*MC_WAYS + 2]) |
+                                 ({TAG_WIDTH{set_fill_oh[s][3]}} & line_tag[s*MC_WAYS + 3]);
+        end
+    end
+
+    assign o_fill_way = set_fill_way[fl_set];
 
     wire [5:0] fl_victim_entry = {fl_set, o_fill_way};
-    assign o_evict_valid = i_fill_valid && line_valid[fl_victim_entry];
-    assign o_evict_dirty = line_dirty[fl_victim_entry];
-    assign o_evict_addr  = {line_tag[fl_victim_entry], fl_set, 6'd0};
+    assign o_evict_valid = i_fill_valid && set_evict_val[fl_set];
+    assign o_evict_dirty = set_evict_dirty[fl_set];
+    assign o_evict_addr  = {set_evict_tag[fl_set], fl_set, 6'd0};
     assign o_evict_data  = rd_data_mux;
 
     // -------------------------------------------------------------------------
@@ -254,6 +293,7 @@ module qshield_meta_cache #(
 
     (* keep = "true" *) logic [MC_WAYS-1:0] up_match [0:MC_SETS-1];
     logic [MC_WAYS-1:0] up_oh [0:MC_SETS-1];
+    (* keep = "true" *) logic [MC_SETS-1:0] up_set_hit;
     always_comb begin
         for (int s = 0; s < MC_SETS; s++) begin
             for (int w = 0; w < MC_WAYS; w++) begin
@@ -263,6 +303,7 @@ module qshield_meta_cache #(
             up_oh[s][1] = !up_match[s][0] && up_match[s][1];
             up_oh[s][2] = !up_match[s][0] && !up_match[s][1] && up_match[s][2];
             up_oh[s][3] = !up_match[s][0] && !up_match[s][1] && !up_match[s][2] && up_match[s][3];
+            up_set_hit[s] = up_match[s][0] | up_match[s][1] | up_match[s][2] | up_match[s][3];
         end
     end
 
@@ -271,7 +312,7 @@ module qshield_meta_cache #(
     wire up_hit_2 = up_match[up_set][2];
     wire up_hit_3 = up_match[up_set][3];
 
-    assign o_update_hit = up_hit_0 | up_hit_1 | up_hit_2 | up_hit_3;
+    assign o_update_hit = up_set_hit[up_set];
     assign o_update_way = {!up_hit_0 && !up_hit_1 && (up_hit_2 || up_hit_3),
                            !up_hit_0 && (up_hit_1 || (!up_hit_2 && up_hit_3))};
     wire [5:0] up_entry = {up_set, o_update_way};
@@ -393,7 +434,6 @@ module qshield_meta_cache #(
                 FLUSH_WAIT: begin
                     if (i_flush_ready) begin
                         line_dirty[flush_idx] <= 1'b0;
-                        reg_wb_cnt            <= reg_wb_cnt + 1'b1;
                         if (flush_idx == 6'd63) begin
                             flush_st <= FLUSH_DONE;
                         end else begin
@@ -410,6 +450,10 @@ module qshield_meta_cache #(
                 end
                 default: flush_st <= FLUSH_IDLE;
             endcase
+
+            if (((flush_st == FLUSH_WAIT) && i_flush_ready) || (i_fill_valid && set_evict_wb[fl_set])) begin
+                reg_wb_cnt <= reg_wb_cnt + 1'b1;
+            end
 
             // 2. Tra cứu (Lookup): tách line_pinned khỏi o_lookup_hit để không đi qua mux 16:1 toàn cục
             if (i_lookup_valid) begin
@@ -430,29 +474,28 @@ module qshield_meta_cache #(
                 end
             end
 
-            // 3. Nạp dòng (Fill)
+            // 3. Nạp dòng (Fill): dùng trực tiếp (fl_set, set_fill_oh) để bỏ bộ giải mã 64:1 qua o_fill_way
             if (i_fill_valid) begin
-                if (line_valid[fl_victim_entry]) begin
+                if (set_evict_val[fl_set]) begin
                     reg_evict_cnt <= reg_evict_cnt + 1'b1;
-                    if (line_dirty[fl_victim_entry]) begin
-                        reg_wb_cnt <= reg_wb_cnt + 1'b1;
+                end
+
+                for (int s = 0; s < MC_SETS; s++) begin
+                    if (fl_set == SET_BITS'(s)) begin
+                        for (int w = 0; w < MC_WAYS; w++) begin
+                            if (set_fill_oh[s][w]) begin
+                                line_valid[s*MC_WAYS + w]    <= 1'b1;
+                                line_dirty[s*MC_WAYS + w]    <= 1'b0;
+                                line_verified[s*MC_WAYS + w] <= i_fill_verified;
+                                line_tag[s*MC_WAYS + w]      <= fl_tag;
+                                line_pinned[s*MC_WAYS + w]   <= i_fill_pin && o_set_can_pin[s];
+                            end
+                        end
                     end
                 end
 
-                line_valid[fl_victim_entry]    <= 1'b1;
-                line_dirty[fl_victim_entry]    <= 1'b0;
-                line_verified[fl_victim_entry] <= i_fill_verified;
-                line_tag[fl_victim_entry]      <= fl_tag;
-
-                if (i_fill_pin) begin
-                    if (o_set_can_pin[fl_set]) begin
-                        line_pinned[fl_victim_entry] <= 1'b1;
-                    end else begin
-                        line_pinned[fl_victim_entry] <= 1'b0;
-                        reg_pin_violation            <= 1'b1;
-                    end
-                end else begin
-                    line_pinned[fl_victim_entry] <= 1'b0;
+                if (i_fill_pin && !o_set_can_pin[fl_set]) begin
+                    reg_pin_violation <= 1'b1;
                 end
             end
 
@@ -479,7 +522,7 @@ module qshield_meta_cache #(
             // 6. Cập nhật Tree-PLRU trực tiếp theo từng set (giữ đúng ưu tiên Update > Fill > Lookup)
             for (int s = 0; s < MC_SETS; s++) begin
                 if (up_do_plru[s])      set_plru[s] <= next_plru(set_plru[s], up_way_s[s]);
-                else if (fl_do_plru[s]) set_plru[s] <= next_plru(set_plru[s], o_fill_way);
+                else if (fl_do_plru[s]) set_plru[s] <= next_plru(set_plru[s], set_fill_way[s]);
                 else if (lk_do_plru[s]) set_plru[s] <= next_plru(set_plru[s], lk_way_s[s]);
             end
         end

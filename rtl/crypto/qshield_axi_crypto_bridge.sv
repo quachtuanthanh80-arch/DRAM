@@ -1529,6 +1529,8 @@ module qshield_axi_crypto_bridge #(
 
     logic [511:0] reenc_old_cb;
     logic [19:0]  reenc_cb_idx;
+    logic [63:0]  reenc_cb_lo_q;
+    logic [63:0]  reenc_cb_hi_q;
     logic [63:0]  reenc_old_maj;
     logic [63:0]  reenc_new_maj;
     logic [5:0]   reenc_trig_slot;
@@ -1554,26 +1556,34 @@ module qshield_axi_crypto_bridge #(
                            (reenc_state != REENC_SCAN) &&
                            (reenc_state != REENC_YIELD);
 
-    // Chặn giao dịch tới đúng CB đang re-encrypt; các CB khác đi bình thường khi không kẹt step
-    wire [19:0] aw_cb_idx = 20'((s_axi_awaddr - eff_prot_base) >> 12);
-    wire [19:0] ar_cb_idx = 20'((s_axi_araddr - eff_prot_base) >> 12);
+    // Chặn giao dịch tới đúng CB đang re-encrypt bằng so sánh ngưỡng đăng ký (bỏ bộ trừ 64-bit khỏi s_axi_awready)
+    wire [63:0] s_awaddr_64 = {{(64-AXI_ADDR_WIDTH){1'b0}}, s_axi_awaddr};
+    wire [63:0] s_araddr_64 = {{(64-AXI_ADDR_WIDTH){1'b0}}, s_axi_araddr};
+    wire aw_hit_reenc_cb = (s_awaddr_64 >= reenc_cb_lo_q) && (s_awaddr_64 < reenc_cb_hi_q);
+    wire ar_hit_reenc_cb = (s_araddr_64 >= reenc_cb_lo_q) && (s_araddr_64 < reenc_cb_hi_q);
     wire reenc_aw_block = eff_integ_enable && reenc_active &&
-                          (reenc_step_busy || (aw_in_prot && (aw_cb_idx == reenc_cb_idx)));
+                          (reenc_step_busy || (aw_in_prot && aw_hit_reenc_cb));
     wire reenc_ar_block = eff_integ_enable && reenc_active &&
-                          (reenc_step_busy || (ar_in_prot && (ar_cb_idx == reenc_cb_idx)));
+                          (reenc_step_busy || (ar_in_prot && ar_hit_reenc_cb));
 
     // FSM đồng bộ xác minh và cập nhật BMT cho cả luồng Ghi và Đọc
     typedef enum logic [1:0] {
         BMT_IDLE,
         BMT_WAIT_VERIFY,
+        BMT_PREP_UPDATE,
         BMT_WAIT_UPDATE
     } bmt_fsm_t;
     bmt_fsm_t bmt_state;
 
-    logic        bmt_req_is_read;
-    logic        bmt_req_is_force_minor;
-    logic [5:0]  bmt_req_rd_slot;
-    logic        bmt_wr_rejected_alert;
+    logic         bmt_req_is_read;
+    logic         bmt_req_is_force_minor;
+    logic [5:0]   bmt_req_rd_slot;
+    logic         bmt_wr_rejected_alert;
+    // Thanh ghi trung gian tách đường BRAM/64:1 mux -> ==127 -> +1 -> 512b insert (Fmax 400 MHz)
+    logic [511:0] v_cb_data_q;
+    logic [5:0]   v_cb_slot_q;
+    logic [6:0]   v_c_min_q;
+    logic [63:0]  v_c_maj_p1_q;
 
 `ifdef QSHIELD_TEST
     logic [6:0]  test_force_minor_val_q;
@@ -1608,6 +1618,10 @@ module qshield_axi_crypto_bridge #(
             bmt_req_is_force_minor <= 1'b0;
             bmt_req_rd_slot        <= 6'd0;
             bmt_wr_rejected_alert  <= 1'b0;
+            v_cb_data_q            <= 512'h0;
+            v_cb_slot_q            <= 6'd0;
+            v_c_min_q              <= 7'd0;
+            v_c_maj_p1_q           <= 64'd0;
             aw_wr_ptr              <= 2'd0;
             aw_count               <= 3'd0;
             reject_cnt_reg         <= 16'h0;
@@ -1706,13 +1720,11 @@ module qshield_axi_crypto_bridge #(
 `ifdef QSHIELD_TEST
                         if (bmt_req_is_force_minor) begin
                             if (bmt_verify_pass) begin
-                                logic [511:0] f_cb;
-                                f_cb = bmt_cb_data;
-                                f_cb[bmt_cb_slot * 7 +: 7] = test_force_minor_val_q;
-                                bmt_update_valid   <= 1'b1;
-                                bmt_update_addr    <= bmt_verify_addr;
-                                bmt_update_cb_data <= f_cb;
-                                bmt_state          <= BMT_WAIT_UPDATE;
+                                v_cb_data_q  <= bmt_cb_data;
+                                v_cb_slot_q  <= bmt_cb_slot;
+                                v_c_min_q    <= bmt_cb_data[bmt_cb_slot * 7 +: 7];
+                                v_c_maj_p1_q <= bmt_cb_data[511:448] + 1'b1;
+                                bmt_state    <= BMT_PREP_UPDATE;
                             end else begin
                                 bmt_req_is_force_minor <= 1'b0;
                                 bmt_state              <= BMT_IDLE;
@@ -1720,50 +1732,13 @@ module qshield_axi_crypto_bridge #(
                         end else
 `endif
                         if (!bmt_req_is_read) begin
-                            // Xác minh xong cho luồng Ghi
+                            // Xác minh xong cho luồng Ghi: chốt minor & major+1 sang chu kỳ kế trước khi dựng CB mới
                             if (bmt_verify_pass) begin
-                                logic [63:0] c_maj;
-                                logic [6:0]  c_min;
-                                c_maj = bmt_cb_data[511:448];
-                                c_min = bmt_cb_data[bmt_cb_slot * 7 +: 7];
-
-                                if (c_min == 7'd127) begin
-                                    reg_reencrypt_events <= reg_reencrypt_events + 1'b1;
-                                    cur_wr_maj           <= c_maj + 1'b1;
-                                    cur_wr_min           <= 7'd0;
-
-                                    bmt_update_valid     <= 1'b1;
-                                    bmt_update_addr      <= aw_fifo_addr[aw_rd_ptr];
-                                    bmt_update_cb_data   <= {c_maj + 1'b1, 448'h0};
-
-                                    wr_tweak_req_valid   <= 1'b1;
-                                    wr_tweak_req_in      <= {c_maj + 1'b1, 7'd0, aw_fifo_asid[aw_rd_ptr], 27'h0, aw_fifo_addr[aw_rd_ptr][31:6]};
-                                    wr_tweak_req_meta    <= {1'b0, 1'b0, 4'h0, aw_rd_ptr};
-
-                                    // Kích hoạt FSM re-encryption toàn bộ sibling đã ghi của CB này
-                                    reenc_trigger_pulse  <= 1'b1;
-                                    reenc_trig_old_cb    <= bmt_cb_data;
-                                    reenc_trig_cb_idx    <= 20'((aw_fifo_addr[aw_rd_ptr] - eff_prot_base) >> 12);
-                                    reenc_trig_new_maj   <= c_maj + 1'b1;
-                                    reenc_trig_slot_w    <= bmt_cb_slot;
-                                    reenc_trig_asid_w    <= aw_fifo_asid[aw_rd_ptr];
-                                end else begin
-                                    logic [511:0] n_cb;
-                                    n_cb = bmt_cb_data;
-                                    n_cb[bmt_cb_slot * 7 +: 7] = c_min + 1'b1;
-
-                                    cur_wr_maj         <= c_maj;
-                                    cur_wr_min         <= c_min + 1'b1;
-
-                                    bmt_update_valid   <= 1'b1;
-                                    bmt_update_addr    <= aw_fifo_addr[aw_rd_ptr];
-                                    bmt_update_cb_data <= n_cb;
-
-                                    wr_tweak_req_valid <= 1'b1;
-                                    wr_tweak_req_in    <= {c_maj, c_min + 1'b1, aw_fifo_asid[aw_rd_ptr], 27'h0, aw_fifo_addr[aw_rd_ptr][31:6]};
-                                    wr_tweak_req_meta  <= {1'b0, 1'b0, 4'h0, aw_rd_ptr};
-                                end
-                                bmt_state <= BMT_WAIT_UPDATE;
+                                v_cb_data_q  <= bmt_cb_data;
+                                v_cb_slot_q  <= bmt_cb_slot;
+                                v_c_min_q    <= bmt_cb_data[bmt_cb_slot * 7 +: 7];
+                                v_c_maj_p1_q <= bmt_cb_data[511:448] + 1'b1;
+                                bmt_state    <= BMT_PREP_UPDATE;
                             end else begin
                                 bmt_wr_rejected_alert        <= 1'b1;
                                 aw_fifo_is_reject[aw_rd_ptr] <= 1'b1;
@@ -1799,6 +1774,60 @@ module qshield_axi_crypto_bridge #(
                             bmt_state <= BMT_IDLE;
                         end
                     end
+                end
+
+                BMT_PREP_UPDATE: begin
+`ifdef QSHIELD_TEST
+                    if (bmt_req_is_force_minor) begin
+                        logic [511:0] f_cb;
+                        f_cb = v_cb_data_q;
+                        f_cb[v_cb_slot_q * 7 +: 7] = test_force_minor_val_q;
+                        bmt_update_valid   <= 1'b1;
+                        bmt_update_addr    <= bmt_verify_addr;
+                        bmt_update_cb_data <= f_cb;
+                    end else
+`endif
+                    begin
+                        if (v_c_min_q == 7'd127) begin
+                            reg_reencrypt_events <= reg_reencrypt_events + 1'b1;
+                            cur_wr_maj           <= v_c_maj_p1_q;
+                            cur_wr_min           <= 7'd0;
+
+                            bmt_update_valid     <= 1'b1;
+                            bmt_update_addr      <= aw_fifo_addr[aw_rd_ptr];
+                            bmt_update_cb_data   <= {v_c_maj_p1_q, 448'h0};
+
+                            wr_tweak_req_valid   <= 1'b1;
+                            wr_tweak_req_in      <= {v_c_maj_p1_q, 7'd0, aw_fifo_asid[aw_rd_ptr], 27'h0, aw_fifo_addr[aw_rd_ptr][31:6]};
+                            wr_tweak_req_meta    <= {1'b0, 1'b0, 4'h0, aw_rd_ptr};
+
+                            // Kích hoạt FSM re-encryption toàn bộ sibling đã ghi của CB này
+                            reenc_trigger_pulse  <= 1'b1;
+                            reenc_trig_old_cb    <= v_cb_data_q;
+                            reenc_trig_cb_idx    <= 20'((aw_fifo_addr[aw_rd_ptr] - eff_prot_base) >> 12);
+                            reenc_trig_new_maj   <= v_c_maj_p1_q;
+                            reenc_trig_slot_w    <= v_cb_slot_q;
+                            reenc_trig_asid_w    <= aw_fifo_asid[aw_rd_ptr];
+                        end else begin
+                            logic [511:0] n_cb;
+                            logic [6:0]   n_min;
+                            n_min = v_c_min_q + 1'b1;
+                            n_cb  = v_cb_data_q;
+                            n_cb[v_cb_slot_q * 7 +: 7] = n_min;
+
+                            cur_wr_maj         <= v_cb_data_q[511:448];
+                            cur_wr_min         <= n_min;
+
+                            bmt_update_valid   <= 1'b1;
+                            bmt_update_addr    <= aw_fifo_addr[aw_rd_ptr];
+                            bmt_update_cb_data <= n_cb;
+
+                            wr_tweak_req_valid <= 1'b1;
+                            wr_tweak_req_in    <= {v_cb_data_q[511:448], n_min, aw_fifo_asid[aw_rd_ptr], 27'h0, aw_fifo_addr[aw_rd_ptr][31:6]};
+                            wr_tweak_req_meta  <= {1'b0, 1'b0, 4'h0, aw_rd_ptr};
+                        end
+                    end
+                    bmt_state <= BMT_WAIT_UPDATE;
                 end
 
                 BMT_WAIT_UPDATE: begin
@@ -2187,6 +2216,19 @@ module qshield_axi_crypto_bridge #(
     logic [63:0] cur_rd_maj;
     logic [6:0]  cur_rd_min;
     logic        cur_rd_bmt_fail;
+    logic [15:0] rd_head_bypass_q;
+    logic [15:0] rd_head_tweak_valid_q;
+    logic [15:0] rd_pop_id_vec;
+
+`ifdef QSHIELD_TEST
+    wire bmt_rd_fail_set_tw = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
+                              !bmt_req_is_force_minor && bmt_req_is_read && !bmt_verify_pass;
+`else
+    wire bmt_rd_fail_set_tw = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
+                              bmt_req_is_read && !bmt_verify_pass;
+`endif
+    wire tw_rsp_set_tw  = tweak_rsp_valid && !tweak_rsp_meta[7] && (tweak_rsp_meta[6] == 1'b1);
+    wire [5:0] tw_rsp_slot = {tweak_rsp_meta[5:2], tweak_rsp_meta[1:0]};
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -2195,6 +2237,8 @@ module qshield_axi_crypto_bridge #(
                 rd_tail[i]  <= 2'd0;
                 rd_count[i] <= 3'd0;
             end
+            rd_head_bypass_q      <= 16'h0;
+            rd_head_tweak_valid_q <= 16'h0;
             for (int j = 0; j < 64; j++) begin
                 rd_fifo_tweak_valid[j] <= 1'b0;
                 rd_fifo_is_bypass[j]   <= 1'b0;
@@ -2257,12 +2301,35 @@ module qshield_axi_crypto_bridge #(
                 end
             end
 
-            if (s_axi_rvalid && s_axi_rready && s_axi_rlast && !rej_rd_active) begin
-                logic [3:0] fin_id;
-                fin_id = s_axi_rid[3:0];
-                if (rd_count[fin_id] > 0) begin
-                    rd_head[fin_id]  <= rd_head[fin_id] + 1'b1;
-                    rd_count[fin_id] <= rd_count[fin_id] - 1'b1;
+            // Đăng ký trước bit bypass và tweak_valid theo từng ID để cắt mux 64:1 khỏi m_axi_rready/rd_ct_buffer
+            for (int i = 0; i < 16; i++) begin
+                logic push_i, pop_i, tw_head_i, tw_next_i;
+                logic [5:0] slot_head_i, slot_next_i;
+                slot_head_i = {4'(i), rd_head[i]};
+                slot_next_i = {4'(i), rd_head[i] + 2'd1};
+                push_i = ar_fire && (!i_enc_enable || ar_qualified) && (cur_arid == 4'(i));
+                pop_i  = rd_pop_id_vec[i] && (rd_count[i] > 0);
+                tw_head_i = (tw_rsp_set_tw && (tw_rsp_slot == slot_head_i)) ||
+                            (bmt_rd_fail_set_tw && (bmt_req_rd_slot == slot_head_i));
+                tw_next_i = (tw_rsp_set_tw && (tw_rsp_slot == slot_next_i)) ||
+                            (bmt_rd_fail_set_tw && (bmt_req_rd_slot == slot_next_i));
+                if (pop_i) begin
+                    rd_head[i]  <= rd_head[i] + 1'b1;
+                    rd_count[i] <= rd_count[i] - 1'b1;
+                    if (rd_count[i] > 3'd1) begin
+                        rd_head_bypass_q[i]      <= rd_fifo_is_bypass[slot_next_i];
+                        rd_head_tweak_valid_q[i] <= tw_next_i || rd_fifo_tweak_valid[slot_next_i];
+                    end else if (push_i) begin
+                        rd_head_bypass_q[i]      <= !i_enc_enable;
+                        rd_head_tweak_valid_q[i] <= !i_enc_enable;
+                    end else begin
+                        rd_head_tweak_valid_q[i] <= 1'b0;
+                    end
+                end else if (push_i && (rd_count[i] == 3'd0)) begin
+                    rd_head_bypass_q[i]      <= !i_enc_enable;
+                    rd_head_tweak_valid_q[i] <= !i_enc_enable;
+                end else if (tw_head_i) begin
+                    rd_head_tweak_valid_q[i] <= 1'b1;
                 end
             end
         end
@@ -2340,8 +2407,8 @@ module qshield_axi_crypto_bridge #(
     wire [1:0] cur_m_head = rd_head[cur_m_rid];
     wire [5:0] cur_rd_slot_idx = {cur_m_rid, cur_m_head};
 
-    wire cur_rd_is_bypass   = rd_fifo_is_bypass[cur_rd_slot_idx];
-    wire cur_rd_tweak_valid = rd_fifo_tweak_valid[cur_rd_slot_idx];
+    wire cur_rd_is_bypass   = rd_head_bypass_q[cur_m_rid];
+    wire cur_rd_tweak_valid = rd_head_tweak_valid_q[cur_m_rid];
     wire [AXI_ADDR_WIDTH-1:0] cur_rd_addr = rd_fifo_addr[cur_rd_slot_idx];
     wire [1:0] cur_rd_addr_slice = cur_rd_addr[5:4];
     wire [1:0] cur_rd_block_idx = (r_beat_cnt[7:1]) + cur_rd_addr_slice;
@@ -2437,8 +2504,8 @@ module qshield_axi_crypto_bridge #(
                               (rd_count[12] != 3'd0) || (rd_count[13] != 3'd0) ||
                               (rd_count[14] != 3'd0) || (rd_count[15] != 3'd0);
 
-    wire user_nonblock_waiting = (s_axi_awvalid && !(aw_in_prot && (aw_cb_idx == reenc_cb_idx))) ||
-                                 (s_axi_arvalid && !(ar_in_prot && (ar_cb_idx == reenc_cb_idx)));
+    wire user_nonblock_waiting = (s_axi_awvalid && !(aw_in_prot && aw_hit_reenc_cb)) ||
+                                 (s_axi_arvalid && !(ar_in_prot && ar_hit_reenc_cb));
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -2446,6 +2513,8 @@ module qshield_axi_crypto_bridge #(
             reenc_active          <= 1'b0;
             reenc_old_cb          <= 512'h0;
             reenc_cb_idx          <= 20'd0;
+            reenc_cb_lo_q         <= 64'h0;
+            reenc_cb_hi_q         <= 64'h1000;
             reenc_old_maj         <= 64'h0;
             reenc_new_maj         <= 64'h0;
             reenc_trig_slot       <= 6'd0;
@@ -2513,6 +2582,8 @@ module qshield_axi_crypto_bridge #(
                 reenc_old_cb    <= reenc_trig_old_cb;
                 reenc_old_maj   <= reenc_trig_old_cb[511:448];
                 reenc_cb_idx    <= reenc_trig_cb_idx;
+                reenc_cb_lo_q   <= eff_prot_base + {32'd0, reenc_trig_cb_idx, 12'd0};
+                reenc_cb_hi_q   <= eff_prot_base + {32'd0, reenc_trig_cb_idx, 12'd0} + 64'd4096;
                 reenc_new_maj   <= reenc_trig_new_maj;
                 reenc_trig_slot <= reenc_trig_slot_w;
                 reenc_asid      <= reenc_trig_asid_w;
@@ -2839,6 +2910,20 @@ module qshield_axi_crypto_bridge #(
             end else if (bmt_verify_done || bmt_update_done) begin
                 bmt_saw_dram_rd <= 1'b0;
             end
+        end
+    end
+
+    wire pop_byp = !rej_rd_active && cur_rd_is_bypass && m_axi_rvalid && (m_axi_rid[3] == 1'b0) && m_axi_rlast && s_axi_rready;
+    wire pop_int = !rej_rd_active && !cur_rd_is_bypass && !reenc_step_busy && eff_integ_enable &&
+                   rd_stream_active && (rd_stream_beat == 3'd7) && s_axi_rready;
+    wire pop_dec = !rej_rd_active && !cur_rd_is_bypass && !reenc_step_busy && !eff_integ_enable &&
+                   (dec_out_phase == 1'b1) && dec_out_last_reg && s_axi_rready;
+
+    always_comb begin
+        for (int i = 0; i < 16; i++) begin
+            rd_pop_id_vec[i] = (pop_byp && (m_axi_rid[3:0]      == 4'(i))) ||
+                               (pop_int && (rd_stream_id[3:0]   == 4'(i))) ||
+                               (pop_dec && (dec_out_id_reg[3:0] == 4'(i)));
         end
     end
 

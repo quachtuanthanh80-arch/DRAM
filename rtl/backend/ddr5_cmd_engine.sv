@@ -326,6 +326,9 @@ module ddr5_cmd_engine #(
 
     // Slot lệnh của từng bank
     logic [NB-1:0]            s_v, s_wr, s_mit, s_rmw;
+    logic [NB-1:0]            cas_is_wr_q, cas_ph1_q;
+    logic [5:0]               pac_q [NB];
+    logic [NB-1:0]            pac_z_q;
     logic [1:0]               s_ph [NB];   // RMW: 0 = cần RD, 1 = chờ dữ liệu cũ trộn vào slot ghi, 2 = cần WR
     logic [ROW_WIDTH-1:0]     s_row [NB];
     logic [COL_WIDTH-1:0]     s_col [NB];
@@ -367,10 +370,11 @@ module ddr5_cmd_engine #(
     assign o_precomp_addr     = 34'({i_cmd_row, i_cmd_bg, i_cmd_bank, i_cmd_col, 2'b00});
     assign o_precomp_key_id   = 8'h01;
 
-    // Tra cờ RMW (ghi thiếu byte) của slot vừa nạp ở chu kỳ sau: slot chưa được phân loại trong chu kỳ đó
-    logic          ld_q;
-    logic [IW-1:0] ld_b_q;
-    assign o_slice_tag = s_tag[ld_b_q];
+    // Tra cờ RMW (ghi thiếu byte) của slot vừa nạp ở chu kỳ sau: chốt luôn tag và user-write tại c_load để bỏ mux 32:1 trước u_wds
+    logic                     ld_q, ld_wr_user_q;
+    logic [IW-1:0]            ld_b_q;
+    logic [ROB_PTR_WIDTH-1:0] ld_tag_q;
+    assign o_slice_tag = ld_tag_q;
 
     //=========================================================================
     // Theo dõi dữ liệu đọc trả về: DRAM trả beat theo đúng thứ tự lệnh RD, không kèm địa chỉ.
@@ -466,10 +470,10 @@ module ddr5_cmd_engine #(
     //=========================================================================
     // Điều kiện sẵn sàng theo bank: chỉ là AND của các flop (cờ *_z, phân loại k_*, trạng thái slot)
     //=========================================================================
-    logic [NB-1:0] cas_rdy_raw, cas_bank_rdy_raw, cas_is_wr, act_rdy_raw, pre_rdy, pre_clamp, mit_done, ras_lt;
+    wire  [NB-1:0] cas_is_wr = cas_is_wr_q;
+    logic [NB-1:0] cas_rdy_raw, cas_bank_rdy_raw, cas_loc_rdy, act_bank_rdy, act_rdy_raw, pre_rdy, pre_clamp, mit_done, ras_lt;
     (* keep = "true" *) logic [NB-1:0] c1_cand;
     logic [NB-1:0] rd_pend_b;
-    logic [5:0]    pac [NB];
     always_comb begin
         for (int b = 0; b < NB; b++) begin
             logic fresh, user_ok, cas_base_ok, want_cas, want_pre, keep_open;
@@ -479,29 +483,30 @@ module ddr5_cmd_engine #(
             // ABO: factor global abo_ok after rr_pick/iss_cas_cand to cut o_abo_active->pk_oh/rd_wait_cnt
             user_ok     = !s_mit[b];
             cas_base_ok = s_v[b] && fresh && user_ok && k_hit[b] && !tras_clamp_pending[b] && rcd_z[b];
-            want_cas    = cas_base_ok && !(s_rmw[b] && s_ph[b] == 2'd1);
-            cas_is_wr[b] = s_wr[b] && (!s_rmw[b] || s_ph[b] == 2'd2);
+            want_cas    = cas_base_ok && !cas_ph1_q[b];
+            cas_loc_rdy[b] = cas_base_ok && ccd_z[g] &&
+                             (cas_is_wr_q[b] ? ccdw_z[g] : (!cas_ph1_q[b] && wtr_l_z[g]));
             cas_bank_rdy_raw[b] = cas_base_ok &&
-                                  ((s_wr[b] && (!s_rmw[b] || s_ph[b] == 2'd2)) ? wr_ok_g[g]
-                                                                               : (!(s_rmw[b] && s_ph[b] == 2'd1) && cas_rd_ok_g[g]));
-            cas_rdy_raw[b] = cas_bank_rdy_raw[b] && ccd_s_z && (cas_is_wr[b] || rd_gate);
+                                  (cas_is_wr_q[b] ? wr_ok_g[g]
+                                                  : (!cas_ph1_q[b] && cas_rd_ok_g[g]));
+            cas_rdy_raw[b] = cas_bank_rdy_raw[b] && ccd_s_z && (cas_is_wr_q[b] || rd_gate);
             // Đưa ccd_s_z ra c1_v và tách điều kiện pha RD/WR/RMW thành LUT5 trước khi AND với cas_base_ok & ~pk_oh
             c1_cand[b]     = !pk_oh[b] && cas_base_ok &&
-                             ((s_wr[b] && (!s_rmw[b] || s_ph[b] == 2'd2)) ? c1_wr_ok_g[g]
-                                                                          : (!(s_rmw[b] && s_ph[b] == 2'd1) && rd_ok_g[g]));
+                             (cas_is_wr_q[b] ? c1_wr_ok_g[g]
+                                             : (!cas_ph1_q[b] && rd_ok_g[g]));
             // Refresh nạn nhân: hàng nạn nhân đang mở nghĩa là đã được làm tươi lúc ACT
             mit_done[b] = s_v[b] && fresh && s_mit[b] && k_hit[b];
-            act_rdy_raw[b] = s_v[b] && fresh && !k_open[b] && !ref_mode &&
-                             rp_z[b] && rrd_l_z[g] && act_gate;
+            act_bank_rdy[b] = s_v[b] && fresh && !k_open[b] && !ref_mode &&
+                              rp_z[b] && rrd_l_z[g];
+            act_rdy_raw[b]  = act_bank_rdy[b] && act_gate;
             // Bank giữ mở khi slot của nó còn CAS tới đúng hàng đang mở (kể cả RMW đang chờ trộn)
             keep_open   = s_v[b] && k_hit[b] && !s_mit[b] && !tras_clamp_pending[b] && ko_glob;
             want_pre    = k_open[b] && fresh && !keep_open &&
                           ((s_v[b] && !k_hit[b]) || close_req[b] || ref_mode || tras_clamp_pending[b]);
             pre_rdy[b]  = want_pre && ras_z[b] && rcd_z[b];
             pre_clamp[b] = tras_clamp_pending[b] && (cfg_tras_max_thresh != 16'd0);
-            // Mốc PRE sau CAS của slot tính sẵn song song (không qua mux theo bank được chọn)
-            pac[b]      = pre_after_cas(cas_is_wr[b], s_len[b]);
-            ras_lt[b]   = ras_timer[b] < pac[b];
+            // Mốc PRE sau CAS đã đăng ký sẵn (pac_q) theo bank để cắt s_wr/s_len -> ras_z
+            ras_lt[b]   = ras_timer[b] < pac_q[b];
             rd_pend_b[b] = s_v[b] && !s_wr[b];
         end
     end
@@ -527,7 +532,7 @@ module ddr5_cmd_engine #(
     wire [NB-1:0]  cas_rdy  = abo_ok ? cas_rdy_raw : '0;
     wire [NB-1:0]  act_rdy  = abo_ok ? act_rdy_raw : (act_rdy_raw & s_mit);
     wire           any_cas  = abo_ok && (|cas_rdy_raw);
-    wire           any_act  = |act_rdy;
+    wire           any_act  = act_gate && (abo_ok ? (|act_bank_rdy) : (|(act_bank_rdy & s_mit)));
     wire           any_pre  = |pre_rdy;
 
     // Bộ lập lịch hai tầng. Tầng 1 chọn ứng viên (bank one-hot + loại lệnh, CAS > ACT > PRE, round-robin) từ điều kiện
@@ -554,7 +559,7 @@ module ddr5_cmd_engine #(
             c1_a_grp[g] = |c1_a_pad[g*6 +: 6];
         end
     end
-    wire [NB-1:0] a1_all = act_rdy_raw & ~pk_oh;
+    wire [NB-1:0] a1_all = act_bank_rdy & ~pk_oh;
     wire [NB-1:0] a1_mit = a1_all & s_mit;
     wire [NB-1:0] p1     = pre_rdy & ~pk_oh;
     wire           cas_late = (pk_t == PK_CAS) && (T_CCD_S > 1);
@@ -573,7 +578,7 @@ module ddr5_cmd_engine #(
     wire [IW-1:0]         decoy_b    = bidx(decoy_bg, decoy_bank);
     wire                  decoy_c    = cfg_decoy_en && i_decoy_avail && !any_cas && !any_act && !any_pre && !ref_mode && abo_ok && (pk_t != PK_DEC);
     wire                  c1_v       = abo_ok && ccd_s_z && (|c1_a_grp) && !cas_late;
-    wire                  a1_v       = (abo_ok ? (|a1_all) : (|a1_mit)) && !act_late;
+    wire                  a1_v       = act_gate && (abo_ok ? (|a1_all) : (|a1_mit)) && !act_late;
     always_comb begin
         if (c1_v)         begin nxt_oh = pk_c;                  nxt_t = PK_CAS; end
         else if (a1_v)    begin nxt_oh = abo_ok ? pk_a : pk_am; nxt_t = PK_ACT; end
@@ -582,24 +587,32 @@ module ddr5_cmd_engine #(
         else              begin nxt_oh = '0;                    nxt_t = PK_NONE; end
     end
 
-    // Tầng 2: sự kiện phát one-hot theo bank; mọi cập nhật trạng thái bank dùng thẳng bit này
-    // Cân bằng cây OR 32-bit của iss_cas_cand qua 2 tầng LUT6 để rút đường s_wr -> is_cas
-    wire           sel_is_wr    = |(pk_oh & cas_is_wr);
-    (* keep = "true" *) wire [NB-1:0] iss_cas_cand = (pk_t == PK_CAS) ? (pk_oh & cas_bank_rdy_raw) : '0;
-    wire           cas_g_ok     = abo_ok && ccd_s_z && (sel_is_wr || rd_gate);
-    logic [(N_G6*6)-1:0] iss_cas_pad;
-    (* keep = "true" *) logic [N_G6-1:0] iss_cas_grp;
+    // Tầng 2: tách điều kiện toàn cục (rd_gate, dq_*_ok) khỏi cây OR 32-bit của cas_loc_rdy
+    wire           sel_is_wr    = |(pk_oh & cas_is_wr_q);
+    wire           pk_is_cas    = (pk_t == PK_CAS) && abo_ok && ccd_s_z;
+    wire           pk_is_cas_wr = pk_is_cas && dq_wr_ok && sel_is_wr;
+    wire           pk_is_cas_rd = pk_is_cas && dq_rd_ok && rd_gate && !sel_is_wr;
+    logic [(N_G6*6)-1:0] pk_loc_pad;
+    (* keep = "true" *) logic [N_G6-1:0] pk_loc_grp;
     always_comb begin
-        iss_cas_pad         = '0;
-        iss_cas_pad[NB-1:0] = iss_cas_cand;
+        pk_loc_pad         = '0;
+        pk_loc_pad[NB-1:0] = pk_oh & cas_loc_rdy;
         for (int g = 0; g < N_G6; g++)
-            iss_cas_grp[g] = |iss_cas_pad[g*6 +: 6];
+            pk_loc_grp[g] = |pk_loc_pad[g*6 +: 6];
     end
-    wire [NB-1:0]  iss_cas      = cas_g_ok ? iss_cas_cand : '0;
-    wire [NB-1:0]  iss_act_all  = (pk_t == PK_ACT) ? (pk_oh & act_rdy_raw) : '0;
+    (* keep = "true" *) logic pk_cas_loc;
+    assign pk_cas_loc = |pk_loc_grp;
+    wire           is_cas_wr    = pk_is_cas_wr && pk_cas_loc;
+    wire           is_cas_rd    = pk_is_cas_rd && pk_cas_loc;
+    wire           is_cas       = is_cas_wr || is_cas_rd;
+    (* keep = "true" *) logic [NB-1:0] iss_cas;
+    always_comb
+        for (int b = 0; b < NB; b++)
+            iss_cas[b] = pk_is_cas && pk_oh[b] && cas_loc_rdy[b] &&
+                         (cas_is_wr_q[b] ? dq_wr_ok : (dq_rd_ok && rd_gate));
+    wire [NB-1:0]  iss_act_all  = ((pk_t == PK_ACT) && act_gate) ? (pk_oh & act_bank_rdy) : '0;
     wire [NB-1:0]  iss_act      = abo_ok ? iss_act_all : (iss_act_all & s_mit);
     wire [NB-1:0]  iss_pre      = (pk_t == PK_PRE) ? (pk_oh & pre_rdy) : '0;
-    wire           is_cas       = cas_g_ok && (|iss_cas_grp);
     wire           is_act       = |iss_act;
     wire           is_pre       = |iss_pre;
     wire [NB-1:0]  pick     = iss_cas | iss_act | iss_pre;
@@ -674,30 +687,47 @@ module ddr5_cmd_engine #(
         end
     end
 
-    // Phát hiện lỗi phần cứng trong silicon (ngoài đường chọn lệnh tới hạn)
+    // Phát hiện lỗi phần cứng trong silicon: cây LUT6 cân bằng theo nhóm 6 bank (cắt 11 tầng chuỗi xuống 5 tầng LUT)
+    (* keep = "true" *) logic f_err_sc0, f_err_sc1;
+    (* keep = "true" *) logic [BG_COUNT-1:0] f_err_bg;
+    localparam int F_NG6 = (NB + 5) / 6;
+    logic [F_NG6*6-1:0] f_err_rcd, f_err_rp, f_err_ras;
+    (* keep = "true" *) logic [F_NG6-1:0] f_rcd_g, f_rp_g, f_ras_g;
+    (* keep = "true" *) logic f_rcd_top, f_rp_top, f_ras_top, f_misc_top;
     logic flag_err;
     always_comb begin
-        flag_err = (ccd_s_z  != (ccd_s_timer == '0)) ||
-                   (rrd_s_z  != (rrd_s_timer == '0)) ||
-                   (wtr_s_z  != (wtr_s_timer == '0)) ||
-                   (rfc_z    != (rfc_timer   == '0)) ||
-                   (rfc_z2   != (rfc_timer   == '0)) ||
-                   (rfc_z    != rfc_z2)              ||
-                   (dq_wr_ok != (6'(T_CWL) > dq_busy)) ||
-                   (dq_rd_ok != (6'(T_CL)  > dq_busy));
+        f_err_sc0 = (ccd_s_z  != (ccd_s_timer == '0)) ||
+                    (rrd_s_z  != (rrd_s_timer == '0)) ||
+                    (wtr_s_z  != (wtr_s_timer == '0)) ||
+                    (rfc_z    != (rfc_timer   == '0));
+        f_err_sc1 = (rfc_z2   != (rfc_timer   == '0)) ||
+                    (rfc_z    != rfc_z2)              ||
+                    (dq_wr_ok != (6'(T_CWL) > dq_busy)) ||
+                    (dq_rd_ok != (6'(T_CL)  > dq_busy));
         for (int bg = 0; bg < BG_COUNT; bg++) begin
-            if ((ccd_z[bg]   != (ccd_timer[bg]   == '0)) ||
-                (ccdw_z[bg]  != (ccdw_timer[bg]  == '0)) ||
-                (rrd_l_z[bg] != (rrd_l_timer[bg] == '0)) ||
-                (wtr_l_z[bg] != (wtr_l_timer[bg] == '0)))
-                flag_err = 1'b1;
+            f_err_bg[bg] = (ccd_z[bg]   != (ccd_timer[bg]   == '0)) ||
+                           (ccdw_z[bg]  != (ccdw_timer[bg]  == '0)) ||
+                           (rrd_l_z[bg] != (rrd_l_timer[bg] == '0)) ||
+                           (wtr_l_z[bg] != (wtr_l_timer[bg] == '0));
         end
+        f_err_rcd = '0;
+        f_err_rp  = '0;
+        f_err_ras = '0;
         for (int b = 0; b < NB; b++) begin
-            if ((rcd_z[b] != (rcd_timer[b] == '0)) ||
-                (rp_z[b]  != (rp_timer[b]  == '0)) ||
-                (ras_z[b] != (ras_timer[b] == '0)))
-                flag_err = 1'b1;
+            f_err_rcd[b] = (rcd_z[b] != (rcd_timer[b] == '0));
+            f_err_rp[b]  = (rp_z[b]  != (rp_timer[b]  == '0));
+            f_err_ras[b] = (ras_z[b] != (ras_timer[b] == '0));
         end
+        for (int g = 0; g < F_NG6; g++) begin
+            f_rcd_g[g] = |f_err_rcd[g*6 +: 6];
+            f_rp_g[g]  = |f_err_rp[g*6 +: 6];
+            f_ras_g[g] = |f_err_ras[g*6 +: 6];
+        end
+        f_rcd_top  = |f_rcd_g;
+        f_rp_top   = |f_rp_g;
+        f_ras_top  = |f_ras_g;
+        f_misc_top = f_err_sc0 || f_err_sc1 || (|f_err_bg);
+        flag_err   = f_rcd_top || f_rp_top || f_ras_top || f_misc_top;
     end
 
     // Bản bù của ref_owed (Q7): khi lệch, giá trị dùng tiếp là OR của hai bản (owed_rep == ref_owed khi khớp)
@@ -746,7 +776,9 @@ module ddr5_cmd_engine #(
             pk_drow           <= '0;
             rr_ptr            <= '0;
             ld_q              <= 1'b0;
+            ld_wr_user_q      <= 1'b0;
             ld_b_q            <= '0;
+            ld_tag_q          <= '0;
 
             ccd_s_timer       <= '0;
             ccd_s_z           <= 1'b1;
@@ -761,6 +793,8 @@ module ddr5_cmd_engine #(
             rp_alerted         <= '0;
             rp_due             <= '0;
             close_req          <= '0;
+            cas_is_wr_q        <= '0;
+            cas_ph1_q          <= '0;
             s_v                <= '0;
             s_rmw              <= '0;
             k_hit              <= '0;
@@ -776,6 +810,8 @@ module ddr5_cmd_engine #(
                 ras_timer[b]    <= '0;
                 act_duration[b] <= 16'd0;
                 s_ph[b]         <= '0;
+                pac_q[b]        <= pre_after_cas(1'b0, '0);
+                pac_z_q[b]      <= (pre_after_cas(1'b0, '0) == '0);
             end
 
             rt_wr             <= '0;
@@ -1041,7 +1077,13 @@ module ddr5_cmd_engine #(
                     rt_beat <= rt_beat + 1'b1;
                 end
             end
-            if (rmw_done) s_ph[rmw_done_b] <= 2'd2;
+            if (rmw_done) begin
+                s_ph[rmw_done_b]        <= 2'd2;
+                cas_is_wr_q[rmw_done_b] <= s_wr[rmw_done_b];
+                cas_ph1_q[rmw_done_b]   <= 1'b0;
+                pac_q[rmw_done_b]       <= pre_after_cas(s_wr[rmw_done_b], s_len[rmw_done_b]);
+                pac_z_q[rmw_done_b]     <= (pre_after_cas(s_wr[rmw_done_b], s_len[rmw_done_b]) == '0);
+            end
 
             // 5. Phân loại đăng ký của mọi bank
             for (int b = 0; b < NB; b++) begin
@@ -1050,21 +1092,34 @@ module ddr5_cmd_engine #(
                 k_chg[b]  <= 1'b0;
             end
             ld_q <= c_load;
-            if (ld_q) s_rmw[ld_b_q] <= s_rmw[ld_b_q] | (s_wr[ld_b_q] && !s_mit[ld_b_q] && i_slice_rmw);
+            if (ld_q) begin
+                s_rmw[ld_b_q] <= s_rmw[ld_b_q] | (ld_wr_user_q && i_slice_rmw);
+                if (ld_wr_user_q && i_slice_rmw) begin
+                    cas_is_wr_q[ld_b_q] <= 1'b0;
+                    pac_q[ld_b_q]       <= 6'(T_RTP);
+                    pac_z_q[ld_b_q]     <= (T_RTP == 0);
+                end
+            end
 
             // 6. Nạp slot
             if (c_load) begin
-                s_v[in_b]   <= 1'b1;
-                s_wr[in_b]  <= i_cmd_is_write;
-                s_mit[in_b] <= i_cmd_is_mitigation;
-                s_rmw[in_b] <= i_cmd_is_write && !i_cmd_is_mitigation && i_cmd_rmw;
-                s_ph[in_b]  <= '0;
-                s_row[in_b] <= i_cmd_row;
-                s_col[in_b] <= i_cmd_col;
-                s_len[in_b] <= i_cmd_len;
-                s_tag[in_b] <= i_cmd_tag;
-                k_chg[in_b] <= 1'b1;
-                ld_b_q      <= in_b;
+                s_v[in_b]         <= 1'b1;
+                s_wr[in_b]        <= i_cmd_is_write;
+                s_mit[in_b]       <= i_cmd_is_mitigation;
+                s_rmw[in_b]       <= i_cmd_is_write && !i_cmd_is_mitigation && i_cmd_rmw;
+                s_ph[in_b]        <= '0;
+                cas_is_wr_q[in_b] <= i_cmd_is_write && (i_cmd_is_mitigation || !i_cmd_rmw);
+                cas_ph1_q[in_b]   <= 1'b0;
+                pac_q[in_b]       <= pre_after_cas(i_cmd_is_write && (i_cmd_is_mitigation || !i_cmd_rmw), i_cmd_len);
+                pac_z_q[in_b]     <= (pre_after_cas(i_cmd_is_write && (i_cmd_is_mitigation || !i_cmd_rmw), i_cmd_len) == '0);
+                s_row[in_b]       <= i_cmd_row;
+                s_col[in_b]       <= i_cmd_col;
+                s_len[in_b]       <= i_cmd_len;
+                s_tag[in_b]       <= i_cmd_tag;
+                k_chg[in_b]       <= 1'b1;
+                ld_b_q            <= in_b;
+                ld_tag_q          <= i_cmd_tag;
+                ld_wr_user_q      <= i_cmd_is_write && !i_cmd_is_mitigation;
             end
             for (int b = 0; b < NB; b++) if (mit_done[b]) s_v[b] <= 1'b0;
 
@@ -1073,11 +1128,15 @@ module ddr5_cmd_engine #(
                 if (iss_cas[b]) begin
                     // ras_timer đóng vai mốc PRE sớm nhất: WR cần tWR từ dữ liệu cuối, RD cần tRTP
                     if (ras_lt[b]) begin
-                        ras_timer[b] <= pac[b];
-                        ras_z[b]     <= (pac[b] == '0);
+                        ras_timer[b] <= pac_q[b];
+                        ras_z[b]     <= pac_z_q[b];
                     end
-                    if (s_rmw[b] && !cas_is_wr[b]) s_ph[b] <= 2'd1;   // RMW: RD xong, chờ trộn
-                    else                           s_v[b]  <= 1'b0;
+                    if (s_rmw[b] && !cas_is_wr_q[b]) begin
+                        s_ph[b]      <= 2'd1;   // RMW: RD xong, chờ trộn
+                        cas_ph1_q[b] <= 1'b1;
+                    end else begin
+                        s_v[b]       <= 1'b0;
+                    end
                 end
                 if (iss_act[b] || iss_dec[b]) begin
                     bank_open[b] <= 1'b1;
@@ -1113,27 +1172,27 @@ module ddr5_cmd_engine #(
                 end
             end
 
-            // Cap nhat bo dem doi doc M-13 (đẩy reset về ngõ D để tránh cổng CE chậm hơn)
-            if (!rd_pend || (is_cas && !sel_is_wr)) begin
+            // Cap nhat bo dem doi doc M-13 (đẩy reset về ngõ D và dùng is_cas_rd/is_cas_wr tách sẵn)
+            if (!rd_pend || is_cas_rd) begin
                 rd_starve_q <= 1'b0;
             end else begin
                 rd_starve_q <= (rd_wait_cnt >= 10'(RD_STARVE_MAX - 1)) && rd_pend;
             end
-            rd_wait_cnt <= (!rd_pend || (is_cas && !sel_is_wr)) ? 10'd0 :
+            rd_wait_cnt <= (!rd_pend || is_cas_rd) ? 10'd0 :
                            ((rd_wait_cnt != 10'(RD_STARVE_MAX)) ? (rd_wait_cnt + 1'b1) : rd_wait_cnt);
 
             // Pacing ghi: sau 24 CAS ghi lien tuc khong co bong bong, tao khoang nghi 4 chu ky (tCCD_S) de tranh DoS doc o frontend
             if (wr_pace_cnt != 3'd0) begin
                 wr_pace_cnt <= wr_pace_cnt - 1'b1;
                 wr_burst_cnt <= '0;
-            end else if (is_cas && sel_is_wr) begin
+            end else if (is_cas_wr) begin
                 if (wr_burst_cnt >= 6'(WR_PACE_BURST - 1)) begin
                     wr_pace_cnt <= 3'(WR_PACE_IDLE);
                     wr_burst_cnt <= '0;
                 end else begin
                     wr_burst_cnt <= wr_burst_cnt + 1'b1;
                 end
-            end else if (is_cas && !sel_is_wr) begin
+            end else if (is_cas_rd) begin
                 wr_burst_cnt <= '0;
             end
 
@@ -1160,10 +1219,6 @@ module ddr5_cmd_engine #(
                     if (sel_bg_oh[bg]) begin
                         ccd_timer[bg] <= 4'(T_CCD_L);
                         ccd_z[bg]     <= (T_CCD_L == 0);
-                        if (sel_is_wr) begin
-                            ccdw_timer[bg] <= 4'(T_CCD_L_WR);
-                            ccdw_z[bg]     <= (T_CCD_L_WR == 0);
-                        end
                     end
                 ccd_s_timer <= 3'(T_CCD_S);
                 ccd_s_z     <= (T_CCD_S == 0);
@@ -1201,6 +1256,14 @@ module ddr5_cmd_engine #(
                 o_dfi_bg       <= pick_b[IW-1:BANK_WIDTH];
                 o_dfi_bank     <= pick_b[BANK_WIDTH-1:0];
                 o_dfi_row      <= pk_drow;
+            end
+            // Cập nhật riêng ccdw_timer bằng is_cas_wr để loại rd_st_reg khỏi CE của ccdw_timer
+            if (is_cas_wr) begin
+                for (int bg = 0; bg < BG_COUNT; bg++)
+                    if (sel_bg_oh[bg]) begin
+                        ccdw_timer[bg] <= 4'(T_CCD_L_WR);
+                        ccdw_z[bg]     <= (T_CCD_L_WR == 0);
+                    end
             end
 
             // Decouple refresh/RFM timer & rolling ACT updates from is_cas/is_act/is_pre priority chain:

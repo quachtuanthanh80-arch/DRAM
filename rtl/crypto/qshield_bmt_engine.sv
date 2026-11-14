@@ -372,7 +372,14 @@ module qshield_bmt_engine #(
         ST_EVICT_RD_PARENT      = 6'd33,
         ST_EVICT_FILL_PARENT    = 6'd34,
         ST_EVICT_DIRTY_PARENT   = 6'd35,
-        ST_EVICT_ACK            = 6'd36
+        ST_EVICT_ACK            = 6'd36,
+        ST_VERIFY_CHK_L1        = 6'd37,
+        ST_VERIFY_CHK_L2        = 6'd38,
+        ST_UPDATE_CHK           = 6'd39,
+        ST_VERIFY_CB_RES        = 6'd40,
+        ST_VERIFY_L1_RES        = 6'd41,
+        ST_VERIFY_L2_RES        = 6'd42,
+        ST_EVICT_PAR_RES        = 6'd43
     } state_t;
 
     state_t state;
@@ -415,6 +422,11 @@ module qshield_bmt_engine #(
     logic         normal_evict_pending;
     logic         pending_ev_data_cap;
     logic         lk_data_ready;
+    logic         lk_hit_ver_q;
+    logic [63:0]  cmp_slot_data;
+    logic         cmp_cb_ok_q;
+    logic         cmp_l1_ok_q;
+    logic         up_hit_q;
     logic [63:0]  pending_ev_addr;
     logic [511:0] pending_ev_data;
 
@@ -498,6 +510,11 @@ module qshield_bmt_engine #(
             normal_evict_pending <= 1'b0;
             pending_ev_data_cap  <= 1'b0;
             lk_data_ready        <= 1'b0;
+            lk_hit_ver_q         <= 1'b0;
+            cmp_slot_data        <= 64'd0;
+            cmp_cb_ok_q          <= 1'b0;
+            cmp_l1_ok_q          <= 1'b0;
+            up_hit_q             <= 1'b0;
             pending_ev_addr      <= '0;
             pending_ev_data      <= '0;
 
@@ -688,16 +705,18 @@ module qshield_bmt_engine #(
                 // Flow Verify: Tra cứu MC -> trượt thì đọc DRAM và xác minh lên gốc
                 // -------------------------------------------------------------
                 ST_VERIFY_LK_CB: begin
-                    if (lk_data_ready) begin
-                        lk_data_ready <= 1'b0;
+                    // Chốt kết quả hit+verified cùng chu kỳ đọc BRAM để cắt mc_lk_addr -> o_dram_rd_addr/CE
+                    lk_hit_ver_q <= mc_lk_hit && mc_lk_verified;
+                    state        <= ST_VERIFY_CB_RES;
+                end
+
+                ST_VERIFY_CB_RES: begin
+                    if (lk_hit_ver_q) begin
                         o_cb_data     <= mc_lk_data;
                         o_cb_slot     <= cur_cb_slot;
                         o_verify_pass <= 1'b1;
                         o_verify_done <= 1'b1;
                         state         <= ST_IDLE;
-                    end else if (mc_lk_hit && mc_lk_verified) begin
-                        // Wait 1 cycle for synchronous cache BRAM read
-                        lk_data_ready <= 1'b1;
                     end else begin
                         o_dram_rd_valid <= 1'b1;
                         o_dram_rd_addr  <= cur_cb_addr;
@@ -738,32 +757,39 @@ module qshield_bmt_engine #(
                 end
 
                 ST_VERIFY_LK_L1: begin
-                    if (lk_data_ready) begin
-                        lk_data_ready <= 1'b0;
-                        if (calc_cb_hash == mc_lk_data[cur_l1_slot*64 +: 64]) begin
-                            mc_fl_valid     <= 1'b1;
-                            mc_fl_addr      <= cur_cb_addr;
-                            mc_fl_data      <= fetched_cb_data;
-                            mc_fl_verified  <= 1'b1;
-                            mc_fl_pin       <= 1'b0;
-                            o_cb_data       <= fetched_cb_data;
-                            o_cb_slot       <= cur_cb_slot;
-                            o_verify_pass   <= 1'b1;
-                            o_verify_done   <= 1'b1;
-                            state           <= ST_IDLE;
-                        end else begin
-                            reg_tree_fail_cnt   <= reg_tree_fail_cnt + 1'b1;
-                            reg_integrity_alert <= 1'b1;
-                            o_verify_fail       <= 1'b1;
-                            o_verify_done       <= 1'b1;
-                            state               <= ST_IDLE;
-                        end
-                    end else if (mc_lk_hit && mc_lk_verified) begin
-                        lk_data_ready <= 1'b1;
+                    lk_hit_ver_q <= mc_lk_hit && mc_lk_verified;
+                    state        <= ST_VERIFY_L1_RES;
+                end
+
+                ST_VERIFY_L1_RES: begin
+                    if (lk_hit_ver_q) begin
+                        cmp_slot_data <= mc_lk_data[cur_l1_slot*64 +: 64];
+                        state         <= ST_VERIFY_CHK_L1;
                     end else begin
                         o_dram_rd_valid <= 1'b1;
                         o_dram_rd_addr  <= cur_l1_addr;
                         state           <= ST_VERIFY_RD_L1;
+                    end
+                end
+
+                ST_VERIFY_CHK_L1: begin
+                    if (calc_cb_hash == cmp_slot_data) begin
+                        mc_fl_valid     <= 1'b1;
+                        mc_fl_addr      <= cur_cb_addr;
+                        mc_fl_data      <= fetched_cb_data;
+                        mc_fl_verified  <= 1'b1;
+                        mc_fl_pin       <= 1'b0;
+                        o_cb_data       <= fetched_cb_data;
+                        o_cb_slot       <= cur_cb_slot;
+                        o_verify_pass   <= 1'b1;
+                        o_verify_done   <= 1'b1;
+                        state           <= ST_IDLE;
+                    end else begin
+                        reg_tree_fail_cnt   <= reg_tree_fail_cnt + 1'b1;
+                        reg_integrity_alert <= 1'b1;
+                        o_verify_fail       <= 1'b1;
+                        o_verify_done       <= 1'b1;
+                        state               <= ST_IDLE;
                     end
                 end
 
@@ -800,32 +826,15 @@ module qshield_bmt_engine #(
                 end
 
                 ST_VERIFY_LK_L2: begin
-                    if (lk_data_ready) begin
-                        lk_data_ready <= 1'b0;
-                        if (calc_l1_hash == mc_lk_data[cur_l2_slot*64 +: 64]) begin
-                            if (calc_cb_hash == fetched_l1_data[cur_l1_slot*64 +: 64]) begin
-                                mc_fl_valid     <= 1'b1;
-                                mc_fl_addr      <= cur_l1_addr;
-                                mc_fl_data      <= fetched_l1_data;
-                                mc_fl_verified  <= 1'b1;
-                                mc_fl_pin       <= 1'b0;
-                                state           <= ST_VERIFY_FINISH;
-                            end else begin
-                                reg_tree_fail_cnt   <= reg_tree_fail_cnt + 1'b1;
-                                reg_integrity_alert <= 1'b1;
-                                o_verify_fail       <= 1'b1;
-                                o_verify_done       <= 1'b1;
-                                state               <= ST_IDLE;
-                            end
-                        end else begin
-                            reg_tree_fail_cnt   <= reg_tree_fail_cnt + 1'b1;
-                            reg_integrity_alert <= 1'b1;
-                            o_verify_fail       <= 1'b1;
-                            o_verify_done       <= 1'b1;
-                            state               <= ST_IDLE;
-                        end
-                    end else if (mc_lk_hit && mc_lk_verified) begin
-                        lk_data_ready <= 1'b1;
+                    lk_hit_ver_q <= mc_lk_hit && mc_lk_verified;
+                    state        <= ST_VERIFY_L2_RES;
+                end
+
+                ST_VERIFY_L2_RES: begin
+                    if (lk_hit_ver_q) begin
+                        cmp_slot_data <= mc_lk_data[cur_l2_slot*64 +: 64];
+                        cmp_cb_ok_q   <= (calc_cb_hash == fetched_l1_data[cur_l1_slot*64 +: 64]);
+                        state         <= ST_VERIFY_CHK_L2;
                     end else begin
                         o_dram_rd_valid <= 1'b1;
                         o_dram_rd_addr  <= cur_l2_addr;
@@ -833,9 +842,27 @@ module qshield_bmt_engine #(
                     end
                 end
 
+                ST_VERIFY_CHK_L2: begin
+                    if ((calc_l1_hash == cmp_slot_data) && cmp_cb_ok_q) begin
+                        mc_fl_valid     <= 1'b1;
+                        mc_fl_addr      <= cur_l1_addr;
+                        mc_fl_data      <= fetched_l1_data;
+                        mc_fl_verified  <= 1'b1;
+                        mc_fl_pin       <= 1'b0;
+                        state           <= ST_VERIFY_FINISH;
+                    end else begin
+                        reg_tree_fail_cnt   <= reg_tree_fail_cnt + 1'b1;
+                        reg_integrity_alert <= 1'b1;
+                        o_verify_fail       <= 1'b1;
+                        o_verify_done       <= 1'b1;
+                        state               <= ST_IDLE;
+                    end
+                end
+
                 ST_VERIFY_RD_L2: begin
                     if (i_dram_rd_valid) begin
                         fetched_l2_data <= i_dram_rd_data;
+                        cmp_cb_ok_q     <= (calc_cb_hash == fetched_l1_data[cur_l1_slot*64 +: 64]);
                         aes_in_valid    <= 1'b1;
                         aes_in_pt       <= {8'h02, 4'd2, 60'(cur_l2_idx), 56'd0};
                         state           <= ST_VERIFY_L2_HASH;
@@ -844,6 +871,7 @@ module qshield_bmt_engine #(
 
                 ST_VERIFY_L2_HASH: begin
                     if (aes_out_valid) begin
+                        cmp_l1_ok_q  <= (calc_l1_hash == fetched_l2_data[cur_l2_slot*64 +: 64]);
                         mac_valid    <= 1'b1;
                         mac_data     <= fetched_l2_data;
                         mac_mask     <= aes_out_ct;
@@ -856,29 +884,13 @@ module qshield_bmt_engine #(
                 ST_VERIFY_L2_HWAIT: begin
                     if (mac_out_valid) begin
                         calc_l2_hash <= mac_tag;
-                        if (mac_tag == reg_tree_root) begin
-                            if (calc_l1_hash == fetched_l2_data[cur_l2_slot*64 +: 64]) begin
-                                if (calc_cb_hash == fetched_l1_data[cur_l1_slot*64 +: 64]) begin
-                                    mc_fl_valid     <= 1'b1;
-                                    mc_fl_addr      <= cur_l2_addr;
-                                    mc_fl_data      <= fetched_l2_data;
-                                    mc_fl_verified  <= 1'b1;
-                                    mc_fl_pin       <= 1'b0;
-                                    state           <= ST_VERIFY_FILL_L1;
-                                end else begin
-                                    reg_tree_fail_cnt   <= reg_tree_fail_cnt + 1'b1;
-                                    reg_integrity_alert <= 1'b1;
-                                    o_verify_fail       <= 1'b1;
-                                    o_verify_done       <= 1'b1;
-                                    state               <= ST_IDLE;
-                                end
-                            end else begin
-                                reg_tree_fail_cnt   <= reg_tree_fail_cnt + 1'b1;
-                                reg_integrity_alert <= 1'b1;
-                                o_verify_fail       <= 1'b1;
-                                o_verify_done       <= 1'b1;
-                                state               <= ST_IDLE;
-                            end
+                        if ((mac_tag == reg_tree_root) && cmp_l1_ok_q && cmp_cb_ok_q) begin
+                            mc_fl_valid     <= 1'b1;
+                            mc_fl_addr      <= cur_l2_addr;
+                            mc_fl_data      <= fetched_l2_data;
+                            mc_fl_verified  <= 1'b1;
+                            mc_fl_pin       <= 1'b0;
+                            state           <= ST_VERIFY_FILL_L1;
                         end else begin
                             reg_tree_fail_cnt   <= reg_tree_fail_cnt + 1'b1;
                             reg_integrity_alert <= 1'b1;
@@ -915,7 +927,13 @@ module qshield_bmt_engine #(
                 // Flow Update: Cập nhật CB vào MC (dirty=1)
                 // -------------------------------------------------------------
                 ST_UPDATE_EXEC: begin
-                    if (mc_up_hit) begin
+                    // Chốt o_update_hit sang chu kỳ kế để cắt chuỗi CARRY8 so sánh tag 54-bit -> FSM BMT
+                    up_hit_q <= mc_up_hit;
+                    state    <= ST_UPDATE_CHK;
+                end
+
+                ST_UPDATE_CHK: begin
+                    if (up_hit_q) begin
                         o_update_done <= 1'b1;
                         state         <= ST_IDLE;
                     end else begin
@@ -1049,8 +1067,12 @@ module qshield_bmt_engine #(
                 end
 
                 ST_EVICT_LK_PARENT: begin
-                    if (lk_data_ready) begin
-                        lk_data_ready <= 1'b0;
+                    lk_hit_ver_q <= mc_lk_hit;
+                    state        <= ST_EVICT_PAR_RES;
+                end
+
+                ST_EVICT_PAR_RES: begin
+                    if (lk_hit_ver_q) begin
                         parent_data = mc_lk_data;
                         parent_data[p_slot*64 +: 64] = ev_hash;
                         mc_up_valid   <= 1'b1;
@@ -1059,8 +1081,6 @@ module qshield_bmt_engine #(
                         mc_up_dirty   <= 1'b1;
                         mc_up_data_en <= 1'b1;
                         state         <= ST_EVICT_ACK;
-                    end else if (mc_lk_hit) begin
-                        lk_data_ready <= 1'b1;
                     end else begin
                         o_dram_rd_valid <= 1'b1;
                         o_dram_rd_addr  <= p_addr;
