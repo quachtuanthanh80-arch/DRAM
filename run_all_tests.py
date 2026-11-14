@@ -235,6 +235,21 @@ def main():
             "makefile": "Makefile",
             "env_overrides": {},
         },
+        {
+            "name": "PyUVM Constrained-Random & Corner Verification (MC + CSR)",
+            "stage": "UVM",
+            "cwd": root_dir,
+            "makefile": "",
+            "python_cmd": [
+                sys.executable,
+                os.path.join(root_dir, "tb", "uvm", "run_uvm.py"),
+                "--env",
+                "all",
+                "--seeds",
+                "1",
+            ],
+            "env_overrides": {},
+        },
     ]
 
     # Check execution environment
@@ -300,29 +315,35 @@ def main():
             test_results.append({"name": name, "stage": stage, "status": "SKIPPED", "runtime_seconds": 0.0, "exit_code": -1})
             continue
 
-        cmd = ["make", "-f", makefile, "sim"]
-        run_env = env.copy()
-
-        # Check Verilator version:
-        # - Verilator >= 5.030 (e.g. 5.032 in WSL) supports all SV2017 constructs; pass VLT_MIN=5.030 for Cocotb 2.1
-        # - Verilator < 5.030 (e.g. 5.020 in Ubuntu 24.04 apt) falls back to Icarus Verilog 12.0
-        use_icarus_fallback = False
-        verilator_bin = shutil.which("verilator")
-        if not verilator_bin:
-            use_icarus_fallback = True
+        python_cmd = item.get("python_cmd")
+        if python_cmd:
+            cmd = list(python_cmd)
+            run_env = env.copy()
+            use_icarus_fallback = False
         else:
-            try:
-                v_out = subprocess.run([verilator_bin, "--version"], capture_output=True, text=True).stdout
-                v_match = re.search(r"Verilator\s+(\d+)\.(\d+)", v_out)
-                if v_match:
-                    major, minor = int(v_match.group(1)), int(v_match.group(2))
-                    if (major, minor) < (5, 30):
-                        use_icarus_fallback = True
-                    elif (major, minor) < (5, 36):
-                        cmd.append("VLT_MIN=5.030")
-                        run_env["VLT_MIN"] = "5.030"
-            except Exception:
+            cmd = ["make", "-f", makefile, "sim"]
+            run_env = env.copy()
+
+            # Check Verilator version:
+            # - Verilator >= 5.030 (e.g. 5.032 in WSL) supports all SV2017 constructs; pass VLT_MIN=5.030 for Cocotb 2.1
+            # - Verilator < 5.030 (e.g. 5.020 in Ubuntu 24.04 apt) falls back to Icarus Verilog 12.0
+            use_icarus_fallback = False
+            verilator_bin = shutil.which("verilator")
+            if not verilator_bin:
                 use_icarus_fallback = True
+            else:
+                try:
+                    v_out = subprocess.run([verilator_bin, "--version"], capture_output=True, text=True).stdout
+                    v_match = re.search(r"Verilator\s+(\d+)\.(\d+)", v_out)
+                    if v_match:
+                        major, minor = int(v_match.group(1)), int(v_match.group(2))
+                        if (major, minor) < (5, 30):
+                            use_icarus_fallback = True
+                        elif (major, minor) < (5, 36):
+                            cmd.append("VLT_MIN=5.030")
+                            run_env["VLT_MIN"] = "5.030"
+                except Exception:
+                    use_icarus_fallback = True
 
         if use_icarus_fallback and shutil.which("iverilog"):
             cmd.extend(["SIM=icarus", "EXTRA_ARGS=", "WAVES=0"])
