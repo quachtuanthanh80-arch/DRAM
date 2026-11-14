@@ -148,3 +148,33 @@ The following findings on `sec_ddr5_controller_top` are closed by scope (documen
 
 *(Note: In addition to C-3, C-4, and H-1, `u_qshield_crypto` inside `sec_ddr5_controller_top.sv` lines 618–651 has its datapath valid inputs `i_precomp_valid`, `i_wr_valid`, and `i_rd_valid` tied to `1'b0` — tracked as demo finding **[C-1]** and reproduced by `check_c1` in `tb/findings/run_findings.py`.)*
 
+---
+
+## 7. Unwired / Standalone ECC & Chipkill Extensions (`M-7`, `M-8`)
+
+### 7.1 [M-7] ZEM Fault-Masking Cache Disconnected on Canonical Read Path (`axi_ddr5_mc_top.sv`)
+- **Location**: `rtl/top/axi_ddr5_mc_top.sv` (`u_ecc_scrubber` instantiation, lines 1752–1758) and `rtl/backend/ecc_scrubber.sv`.
+- **Current RTL State**: `ecc_scrubber.sv` implements ZEM fault masking (`COL_WIDTH = 13`, 16 entries) hardened with a 2-scan confirmation learn policy (`i_cfg_zem_auto_learn`, transient switching guard `o_zem_learn_blocked_cnt`, manual override `i_cfg_zem_manual_load`) and automatic row-level ZEM entry invalidation on ECC check-bit errors or 2-bit uncorrectable errors (`checks=18 fails=0` in `tb_eccfail_zem_scrubber`). However, on the canonical controller read path in `axi_ddr5_mc_top.sv`, ZEM lookup inputs remain tied off (`.i_zem_lookup_valid(1'b0)`, `.o_zem_hit()`, `.o_zem_mask()`, `.o_zem_hit_cnt()`).
+- **Root Cause & Decision (T39 / D4 R-69 Fallback)**: Connecting ZEM CAM lookup and pre-decode masking onto the critical DFI read path in `axi_ddr5_mc_top.sv` initially degraded 400 MHz (`2.500 ns`) Vivado OOC timing to `WNS = -1.432 ns` (`t39_zem`). Across 3 R-69 optimization rounds (`t39_r1` `-0.575 ns` -> `t39_r2` `-0.469 ns` -> `t39_r3` `-0.077 ns`, failing arbiter path `u_qos_queue/o_cand_starved_reg[1]/C -> u_arbiter/last_served_bg_reg[0]/CE`), core WNS remained `0.055 ns` worse than T43 baseline (`-0.022 ns`), exceeding the R-69 `0.050 ns` regression cap. Per R-69 fallback, read-path ZEM wiring was rolled back (`t39_fallback`: `WNS = -0.022 ns`, `TNS = -0.429 ns`), leaving canonical read beats protected solely by Hamming SEC-DED (72,64).
+- **Reproduction**:
+  ```bash
+  # Standalone 2-scan ZEM & anti-poisoning verification (18/18 checks):
+  python run_iverilog_regression.py --only tb_eccfail_zem_scrubber
+  # Canonical core read integrity & top-level regression without read-path ZEM:
+  python run_iverilog_regression.py --only tb_rt03_rd_integrity,tb_axi_ddr5_mc_top
+  ```
+
+### 7.2 [M-8] Reed-Solomon Chipkill `RS(18,16)` Standalone Over `GF(2^8)` — Not Wired Into Controller Top
+- **Location**: `rtl/backend/gf256_arith_pkg.sv`, `rtl/backend/rs_chipkill_encoder.sv`, `rtl/backend/rs_chipkill_decoder.sv`; `rtl/top/axi_ddr5_mc_top.sv` lines 1241, 1750 (`ecc_chipkill_fallback_req`).
+- **Scope & Integration Gap**: `rs_chipkill_encoder.sv` and `rs_chipkill_decoder.sv` are standalone IP blocks that are **not instantiated** in `axi_ddr5_mc_top.sv` or `axi_ddr5_mc_secure_top.sv`. Inside `axi_ddr5_mc_top.sv`, `u_ecc_scrubber.o_chipkill_fallback_req` (`o_ecc_miscorrect_alert || o_double_err`) drives only an unread local wire `ecc_chipkill_fallback_req`; there is **no** closed-loop `"ECC trial -> MAC -> Chipkill"` failover pipeline in the memory controller.
+- **Mathematical Field & Distance Limit (`GF(2^8)`, `d = 3`)**:
+  - The standalone RS codec operates on **`RS(18,16)` over `GF(2^8)`** (`gf256_arith_pkg.sv`, polynomial $x^8 + x^4 + x^3 + x^2 + 1$, $\alpha = 2$; 16 data symbols + 2 parity symbols = 18 8-bit symbols = two x4 DRAM beats). A `GF(2^4)` field (`gf16_arith_pkg.sv` in older drafts, which does not exist in the repository) is mathematically infeasible for `RS(18,16)` because `GF(2^4)` has only 15 nonzero elements for 18 symbol locators.
+  - Because `rs_chipkill_decoder.sv` computes only two syndromes (`s0, s1`; minimum distance `d = 3`, with no third syndrome `S_2` or $\Delta = S_0 S_2 \oplus S_1^2$ and no `o_double_detected` port), it guarantees single-symbol (1 x4 chip) correction and accurate parity-chip (`p16`, `p17`) identification, but does **not** provide 100% Double-Symbol Detection (DSD): two-chip errors are flagged on `o_uncorrectable` only when the syndrome misses the 18 valid locators (~93.5%–93.7% detection probability; full DSD requires 3 parity symbols, `d = 4`).
+- **Reproduction**:
+  ```bash
+  # Standalone GF(2^8) RS(18,16) unit verification (not top-level controller integration):
+  python run_iverilog_regression.py --only tb_rs_parity_chip
+  iverilog -g2012 -o test_rs.vvp rtl/backend/gf256_arith_pkg.sv rtl/backend/rs_chipkill_encoder.sv rtl/backend/rs_chipkill_decoder.sv tb/backend/tb_rs_parity_chip.sv && vvp test_rs.vvp
+  ```
+
+
