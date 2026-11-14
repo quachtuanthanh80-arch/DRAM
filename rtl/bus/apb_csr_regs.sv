@@ -56,6 +56,7 @@ module apb_csr_regs #(
     output logic [1:0]           cfg_mapping_mode,
     output logic [1:0]           cfg_crypto_mode,
     output logic [1:0]           cfg_ecc_mode,
+    output logic                 cfg_parity_check_en,
     output logic                 cfg_pmu_en,
     output logic                 cfg_pmu_reset,
 
@@ -214,6 +215,7 @@ module apb_csr_regs #(
     assign cfg_mapping_mode     = tmr_scramble_mode;
     assign cfg_crypto_mode      = reg_ext_config[9:8];
     assign cfg_ecc_mode         = reg_ext_config[11:10];
+    assign cfg_parity_check_en  = reg_ext_config[12];
     assign cfg_scramble_seed    = {reg_scramble_seed_h, reg_scramble_seed_l};
     assign cfg_pmu_en           = reg_pmu_ctrl[0];
     assign cfg_pmu_reset        = reg_pmu_ctrl[1];

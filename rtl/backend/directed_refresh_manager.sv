@@ -71,6 +71,8 @@ module directed_refresh_manager #(
 );
 
     localparam int PTR_W = $clog2(QUEUE_DEPTH);
+    localparam logic [ROW_WIDTH-1:0] ROW_ZERO = {ROW_WIDTH{1'b0}};
+    localparam logic [ROW_WIDTH-1:0] ROW_MAX  = {ROW_WIDTH{1'b1}};
 
     // Victim Queue Storage
     logic [BG_WIDTH-1:0]   q_bg   [QUEUE_DEPTH];
@@ -202,10 +204,11 @@ module directed_refresh_manager #(
     end
 
     // PROQ In-Flight Blacklist CAM Match Logic (MORDOR MICRO 2026)
-    // Chặn cả hàng kề (±1) nạn nhân đang chờ: đó là aggressor; refresh nạn nhân bằng ACT mất ~tRAS+tRP nên nếu chỉ chặn
-    // chính hàng nạn nhân, aggressor vẫn hammer tiếp trong lúc chờ (Jailbreak/MOAT: hàng chục ACT chưa được bù).
+    // Chặn cả hàng kề (±1) nạn nhân đang chờ: không wrap qua biên 0 / ROW_MAX
     wire [ROW_WIDTH-1:0] cand_row_p1 = i_check_cand_row + 1'b1;
     wire [ROW_WIDTH-1:0] cand_row_m1 = i_check_cand_row - 1'b1;
+    wire                 cand_p1_ok  = (i_check_cand_row < ROW_MAX);
+    wire                 cand_m1_ok  = (i_check_cand_row > ROW_ZERO);
     logic [QUEUE_DEPTH-1:0] pq_region;
     logic [QUEUE_DEPTH-1:0] cam_match;
     always_comb begin
@@ -221,7 +224,9 @@ module directed_refresh_manager #(
             cam_match[i] = pq_region[i] &&
                            (q_bg[i]   == i_check_cand_bg) &&
                            (q_bank[i] == i_check_cand_bank) &&
-                           ((q_row[i] == i_check_cand_row) || (q_row[i] == cand_row_p1) || (q_row[i] == cand_row_m1));
+                           ((q_row[i] == i_check_cand_row) ||
+                            (cand_p1_ok && (q_row[i] == cand_row_p1)) ||
+                            (cand_m1_ok && (q_row[i] == cand_row_m1)));
         end
     end
 
@@ -354,14 +359,18 @@ module directed_refresh_manager #(
                 case (inj_oh)
                     S_IDLE: begin
                         if (seq_accept) begin
-                            // Enqueue Victim 1: Row + 1
-                            q_bg[wr_idx]   <= head_bg;
-                            q_bank[wr_idx] <= head_bank;
-                            q_row[wr_idx]  <= head_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1};
-                            q_rp1[wr_idx]  <= (head_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1}) + 1'b1;
-                            q_rm1[wr_idx]  <= (head_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1}) - 1'b1;
-                            wr_ptr         <= wr_ptr + 1'b1;
-                            pq_v[wr_idx]   <= 1'b1;
+                            // Enqueue Victim 1: Row + 1 (bỏ qua nếu Row == ROW_MAX, kẹp q_rp1 tại biên để PROQ không wrap)
+                            if (head_row <= (ROW_MAX - ROW_WIDTH'(1))) begin
+                                logic [ROW_WIDTH-1:0] vrow;
+                                vrow = head_row + ROW_WIDTH'(1);
+                                q_bg[wr_idx]   <= head_bg;
+                                q_bank[wr_idx] <= head_bank;
+                                q_row[wr_idx]  <= vrow;
+                                q_rp1[wr_idx]  <= (vrow == ROW_MAX) ? vrow : (vrow + 1'b1);
+                                q_rm1[wr_idx]  <= vrow - 1'b1;
+                                wr_ptr         <= wr_ptr + 1'b1;
+                                pq_v[wr_idx]   <= 1'b1;
+                            end
 
                             inj_bg      <= head_bg;
                             inj_bank    <= head_bank;
@@ -373,13 +382,15 @@ module directed_refresh_manager #(
                     end
 
                     S_P1R: begin
-                        // Phục hồi sau lỗi FSM: nạp lại từ Victim 1 (Row + 1) để không bỏ sót dòng nạn nhân nào
-                        if (!queue_full) begin
+                        // Phục hồi sau lỗi FSM: nạp lại từ Victim 1 (Row + 1) nếu chưa chạm biên ROW_MAX
+                        if (!queue_full && (inj_row <= (ROW_MAX - ROW_WIDTH'(1)))) begin
+                            logic [ROW_WIDTH-1:0] vrow;
+                            vrow = inj_row + ROW_WIDTH'(1);
                             q_bg[wr_idx]   <= inj_bg;
                             q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= inj_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1};
-                            q_rp1[wr_idx]  <= (inj_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1}) + 1'b1;
-                            q_rm1[wr_idx]  <= (inj_row + {{(ROW_WIDTH-1){1'b0}}, 1'b1}) - 1'b1;
+                            q_row[wr_idx]  <= vrow;
+                            q_rp1[wr_idx]  <= (vrow == ROW_MAX) ? vrow : (vrow + 1'b1);
+                            q_rm1[wr_idx]  <= vrow - 1'b1;
                             wr_ptr         <= wr_ptr + 1'b1;
                             pq_v[wr_idx]   <= 1'b1;
                         end
@@ -389,13 +400,15 @@ module directed_refresh_manager #(
                     end
 
                     S_M1: begin
-                        // Enqueue Victim 2: Row - 1
-                        if (!queue_full) begin
+                        // Enqueue Victim 2: Row - 1 (bỏ qua nếu Row < 1, kẹp q_rm1 ở 0 để PROQ không wrap)
+                        if (!queue_full && (inj_row >= ROW_WIDTH'(1))) begin
+                            logic [ROW_WIDTH-1:0] vrow;
+                            vrow = inj_row - ROW_WIDTH'(1);
                             q_bg[wr_idx]   <= inj_bg;
                             q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-1){1'b0}}, 1'b1};
-                            q_rp1[wr_idx]  <= (inj_row - {{(ROW_WIDTH-1){1'b0}}, 1'b1}) + 1'b1;
-                            q_rm1[wr_idx]  <= (inj_row - {{(ROW_WIDTH-1){1'b0}}, 1'b1}) - 1'b1;
+                            q_row[wr_idx]  <= vrow;
+                            q_rp1[wr_idx]  <= vrow + 1'b1;
+                            q_rm1[wr_idx]  <= (vrow == ROW_ZERO) ? vrow : (vrow - 1'b1);
                             wr_ptr         <= wr_ptr + 1'b1;
                             pq_v[wr_idx]   <= 1'b1;
                         end
@@ -403,13 +416,15 @@ module directed_refresh_manager #(
                     end
 
                     S_P2: begin
-                        // Enqueue Victim 3: Row + 2
-                        if (!queue_full) begin
+                        // Enqueue Victim 3: Row + 2 (bỏ qua nếu vượt ROW_MAX)
+                        if (!queue_full && (inj_row <= (ROW_MAX - ROW_WIDTH'(2)))) begin
+                            logic [ROW_WIDTH-1:0] vrow;
+                            vrow = inj_row + ROW_WIDTH'(2);
                             q_bg[wr_idx]   <= inj_bg;
                             q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd2};
-                            q_rp1[wr_idx]  <= (inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd2}) + 1'b1;
-                            q_rm1[wr_idx]  <= (inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd2}) - 1'b1;
+                            q_row[wr_idx]  <= vrow;
+                            q_rp1[wr_idx]  <= (vrow == ROW_MAX) ? vrow : (vrow + 1'b1);
+                            q_rm1[wr_idx]  <= vrow - 1'b1;
                             wr_ptr         <= wr_ptr + 1'b1;
                             pq_v[wr_idx]   <= 1'b1;
                         end
@@ -417,13 +432,15 @@ module directed_refresh_manager #(
                     end
 
                     S_M2: begin
-                        // Enqueue Victim 4: Row - 2
-                        if (!queue_full) begin
+                        // Enqueue Victim 4: Row - 2 (bỏ qua nếu Row < 2)
+                        if (!queue_full && (inj_row >= ROW_WIDTH'(2))) begin
+                            logic [ROW_WIDTH-1:0] vrow;
+                            vrow = inj_row - ROW_WIDTH'(2);
                             q_bg[wr_idx]   <= inj_bg;
                             q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd2};
-                            q_rp1[wr_idx]  <= (inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd2}) + 1'b1;
-                            q_rm1[wr_idx]  <= (inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd2}) - 1'b1;
+                            q_row[wr_idx]  <= vrow;
+                            q_rp1[wr_idx]  <= vrow + 1'b1;
+                            q_rm1[wr_idx]  <= (vrow == ROW_ZERO) ? vrow : (vrow - 1'b1);
                             wr_ptr         <= wr_ptr + 1'b1;
                             pq_v[wr_idx]   <= 1'b1;
                         end
@@ -431,13 +448,15 @@ module directed_refresh_manager #(
                     end
 
                     S_P3: begin
-                        // Enqueue Victim 5: Row + 3 (blast radius ±3)
-                        if (!queue_full) begin
+                        // Enqueue Victim 5: Row + 3 (bỏ qua nếu vượt ROW_MAX)
+                        if (!queue_full && (inj_row <= (ROW_MAX - ROW_WIDTH'(3)))) begin
+                            logic [ROW_WIDTH-1:0] vrow;
+                            vrow = inj_row + ROW_WIDTH'(3);
                             q_bg[wr_idx]   <= inj_bg;
                             q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd3};
-                            q_rp1[wr_idx]  <= (inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd3}) + 1'b1;
-                            q_rm1[wr_idx]  <= (inj_row + {{(ROW_WIDTH-2){1'b0}}, 2'd3}) - 1'b1;
+                            q_row[wr_idx]  <= vrow;
+                            q_rp1[wr_idx]  <= (vrow == ROW_MAX) ? vrow : (vrow + 1'b1);
+                            q_rm1[wr_idx]  <= vrow - 1'b1;
                             wr_ptr         <= wr_ptr + 1'b1;
                             pq_v[wr_idx]   <= 1'b1;
                         end
@@ -445,13 +464,15 @@ module directed_refresh_manager #(
                     end
 
                     S_M3: begin
-                        // Enqueue Victim 6: Row - 3 (blast radius ±3)
-                        if (!queue_full) begin
+                        // Enqueue Victim 6: Row - 3 (bỏ qua nếu Row < 3)
+                        if (!queue_full && (inj_row >= ROW_WIDTH'(3))) begin
+                            logic [ROW_WIDTH-1:0] vrow;
+                            vrow = inj_row - ROW_WIDTH'(3);
                             q_bg[wr_idx]   <= inj_bg;
                             q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd3};
-                            q_rp1[wr_idx]  <= (inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd3}) + 1'b1;
-                            q_rm1[wr_idx]  <= (inj_row - {{(ROW_WIDTH-2){1'b0}}, 2'd3}) - 1'b1;
+                            q_row[wr_idx]  <= vrow;
+                            q_rp1[wr_idx]  <= vrow + 1'b1;
+                            q_rm1[wr_idx]  <= (vrow == ROW_ZERO) ? vrow : (vrow - 1'b1);
                             wr_ptr         <= wr_ptr + 1'b1;
                             pq_v[wr_idx]   <= 1'b1;
                         end

@@ -183,8 +183,24 @@ module axi_slave_frontend #(
     logic [W_PAYLOAD_W-1:0] w_payload_out;
     logic                   w_skid_valid;
     logic                   w_skid_ready;
+    logic                   w_parity_mismatch;
 
-    assign w_payload_in = {s_axi_wdata, s_axi_wstrb, s_axi_wlast};
+    // Kiểm tra ASIL-D odd parity trên toàn bộ các byte hợp lệ (không bỏ qua trường hợp wchk == 0).
+    // Khi phát hiện lỗi parity: triệt tiêu WSTRB thành 0 để chặn beat lỗi ghi đè DRAM nhưng vẫn giữ
+    // đúng số beat và WLAST của burst AXI4 (tránh treo wr_data_store ở hạ lưu).
+    always_comb begin
+        w_parity_mismatch = 1'b0;
+        if (cfg_parity_check_en && s_axi_wvalid) begin
+            for (int b = 0; b < AXI_DATA_WIDTH/8; b++) begin
+                if (s_axi_wstrb[b] && (s_axi_wchk[b] != ~(^s_axi_wdata[b*8 +: 8]))) begin
+                    w_parity_mismatch = 1'b1;
+                end
+            end
+        end
+    end
+
+    wire [AXI_DATA_WIDTH/8-1:0] w_strb_safe = w_parity_mismatch ? {(AXI_DATA_WIDTH/8){1'b0}} : s_axi_wstrb;
+    assign w_payload_in = {s_axi_wdata, w_strb_safe, s_axi_wlast};
 
     axi4_skid_buffer #(
         .DATA_WIDTH(W_PAYLOAD_W)
@@ -302,17 +318,8 @@ module axi_slave_frontend #(
     always_ff @(posedge clk_axi or negedge aresetn_axi) begin
         if (!aresetn_axi) begin
             parity_err_reg <= 1'b0;
-        end else if (cfg_parity_check_en && s_axi_wvalid && (s_axi_wchk != '0)) begin
-            logic mismatch;
-            mismatch = 1'b0;
-            for (int b = 0; b < AXI_DATA_WIDTH/8; b++) begin
-                if (s_axi_wstrb[b] && (s_axi_wchk[b] != ~(^s_axi_wdata[b*8 +: 8]))) begin
-                    mismatch = 1'b1;
-                end
-            end
-            parity_err_reg <= mismatch;
         end else begin
-            parity_err_reg <= 1'b0;
+            parity_err_reg <= w_parity_mismatch;
         end
     end
 

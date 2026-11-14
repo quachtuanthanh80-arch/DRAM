@@ -177,4 +177,28 @@ The following findings on `sec_ddr5_controller_top` are closed by scope (documen
   iverilog -g2012 -o test_rs.vvp rtl/backend/gf256_arith_pkg.sv rtl/backend/rs_chipkill_encoder.sv rtl/backend/rs_chipkill_decoder.sv tb/backend/tb_rs_parity_chip.sv && vvp test_rs.vvp
   ```
 
+---
+
+## 8. Side-Channel, Parity Enable & ABO Timing Boundaries (`L-1`, `L-2`, `L-3`)
+
+### 8.1 [L-1] Unmasked LUT S-Box, Unused `aes_sbox_composite`, & SCARF Seed Width
+- **Scope & Design Choice**:
+  - **AES S-Box LUT & Side-Channel Non-Goal**: Q-Shield's symmetric cipher datapaths prioritize single-cycle/pipelined 400 MHz FPGA/ASIC timing closure and functional DRAM security (RowHammer/RowPress mitigation, SEC-DED, bus scrambling) over physical power/EM side-channel masking (`Section 5.3`). Active AES instances use unmasked LUT S-boxes (`aes_sbox.sv`), which are vulnerable to first-order DPA/CPA power analysis if exposed to physical power probing.
+  - **`aes_sbox_composite.sv` Unused Reference**: `rtl/crypto/aes_sbox_composite.sv` provides an uninstantiated composite-field $\text{GF}(((2^2)^2)^2)$ S-box implementation kept intact for structural reference and future masked-S-box extensions without modifying active datapaths.
+  - **SCARF Randomizer Seed Width ($\le 62$ bits)**: `rtl/core/scarf_dram_randomizer.sv` restricts the internal hardware SCARF tweakable block permutation seed/key width to $\le 62$ bits for single-cycle 400 MHz combinational address translation. This provides fast hardware address isolation against physical RowHammer hammering patterns, not full 128-bit cryptographic brute-force resistance.
+
+### 8.2 [L-2] `cfg_parity_check_en` External Top-Level Port vs. APB CSR (`apb_csr_regs.sv`)
+- **Location**: `rtl/top/axi_ddr5_mc_top.sv` (`cfg_parity_check_en` port), `rtl/top/axi_ddr5_mc_secure_top.sv` (`cfg_parity_check_en` port), `rtl/frontend/axi_slave_frontend.sv`, and `rtl/bus/apb_csr_regs.sv` (`reg_ext_config[12]`).
+- **Scope & Integration Model**:
+  - The canonical controller top (`axi_ddr5_mc_top.sv`) and secure wrapper (`axi_ddr5_mc_secure_top.sv`) intentionally expose `cfg_parity_check_en` as an **external top-level input port** directly wired into `u_frontend.cfg_parity_check_en` and contain **no internal APB CSR register block** for this flag (preserving the canonical datapath and 400 MHz timing closure). System integrators using canonical top must drive `cfg_parity_check_en` from SoC-level strap pins or an external APB/CSR subsystem.
+  - For standalone / crypto-demo SoC configurations integrating `rtl/bus/apb_csr_regs.sv`, `cfg_parity_check_en` is mapped to `reg_ext_config[12]` at `AddrExtConfig = 12'h100` (reset `0`, write-protected when `sec_locked` is asserted).
+  - Inside `rtl/frontend/axi_slave_frontend.sv`, when `cfg_parity_check_en = 1'b1`, ASIL-D odd-parity checking runs across all enabled `s_axi_wstrb` bytes on valid W beats **regardless of whether `s_axi_wchk` is zero or non-zero**, asserts `o_parity_err`, and masks the outgoing write strobes (`o_wr_strb = '0`) to block corrupted bytes from updating DRAM while preserving AXI4 beat framing.
+
+### 8.3 [L-3] ABO RFM Priority & `tABO` Deadline Timer (`ddr5_cmd_engine.sv`)
+- **Location**: `rtl/backend/ddr5_cmd_engine.sv` (`ko_glob`, `K_REF`, `abo_rfm_req`, `abo_critical`), vs. `rtl/backend/directed_refresh_manager.sv`.
+- **Scope & Timing-Driven Revert**:
+  - **Implemented**: Victim row `±1..3` boundary clamping in `rtl/backend/directed_refresh_manager.sv` eliminates uint32 underflow/wraparound near row `0` and `ROW_MAX` across both FSM enqueue paths and legacy PROQ matching.
+  - **Open Limitation (Reverted for 400 MHz Timing Closure)**: Candidate fixes in `rtl/backend/ddr5_cmd_engine.sv` to prioritize `abo_rfm_req` over postponed periodic refresh (`K_REF` when `ref_owed >= MAX_POSTPONE`) and enforce a countdown `tABO` deadline timer (`abo_timer`) regressed Vivado post-synthesis WNS from baseline `-0.022 ns` (`t52_before`) to `-0.261 ns` (`t52_after`, `TNS = -6.869 ns` vs. the `-0.072 ns` `0.05 ns` regression budget; critical path `u_cmd_engine/ref_mode_reg/Q -> ko_glob -> pre_rdy -> any_pre -> decoy_c -> pk_oh_reg[*]/D`). Per T52 Item 2 rules, the `ddr5_cmd_engine.sv` ABO/`tABO` modification was reverted to preserve 400 MHz closure; periodic refresh starvation relief still takes precedence over PRAC ABO RFM when `ref_owed >= MAX_POSTPONE`, and no hardware `tABO` deadline timer is enforced inside `ddr5_cmd_engine.sv`.
+
+
 

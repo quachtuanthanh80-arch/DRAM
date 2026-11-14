@@ -15,7 +15,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RTL_SOURCES = [
-    "rtl/backend/secded_72_64_pkg.sv", "rtl/cdc/rst_sync.sv", "rtl/bus/axi4_skid_buffer.sv",
+    "rtl/backend/secded_72_64_pkg.sv", "tb/common/ddr5_jedec_bin_pkg.sv",
+    "rtl/cdc/rst_sync.sv", "rtl/bus/axi4_skid_buffer.sv",
     "rtl/frontend/axi_slave_frontend.sv", "rtl/frontend/wdata_buffer.sv", "rtl/frontend/wr_data_store.sv",
     "rtl/frontend/axi_burst_splitter.sv", "rtl/frontend/rd_issue_queue.sv",
     "rtl/frontend/domain_bank_coloring.sv", "rtl/core/scarf_dram_randomizer.sv", "rtl/frontend/addr_mapper_ddr5.sv",
@@ -24,8 +25,10 @@ RTL_SOURCES = [
     "rtl/backend/directed_refresh_manager.sv", "rtl/core/qos_scheduler_queue.sv", "rtl/backend/slack_aware_arbiter.sv",
     "rtl/backend/ddr5_cmd_engine.sv", "rtl/backend/ecc_scrubber.sv", "rtl/memory/bus_scrambler.sv",
     "rtl/memory/scrambler_ks_pipe.sv", "rtl/top/bank_credit_ctrl.sv",
-    "rtl/bus/perf_monitor_unit.sv", "rtl/top/axi_ddr5_mc_top.sv", "tb/common/dfi_jedec_checker.sv",
-    "tb/common/dram_model.sv", "tb/top/tb_bench_trace.sv",
+    "rtl/bus/perf_monitor_unit.sv", "rtl/top/axi_ddr5_mc_top.sv",
+    "tb/common/dfi_jedec_checker.sv", "tb/common/dfi_jedec_checker_cyc.sv",
+    "tb/common/dram_model.sv", "tb/common/qs_axi_txn_chk.sv", "tb/common/qs_rd_beat_model.sv",
+    "tb/common/qs_engine_port_chk.sv", "tb/common/qs_top_probe_chk.sv", "tb/top/tb_bench_trace.sv",
 ]
 # Configurations: the RowHammer threshold 65535 effectively disables the SDC filter; other always-on defenses
 # (RowPress clamp, McSee RFM, periodic REF) stay active in every configuration because they are not switchable,
@@ -95,7 +98,9 @@ def main():
         lines = [l for l in p.stdout.splitlines() if l.startswith("[BENCH]")]
         if not lines:
             return dict(wl=wl, cfg=cfg, error=(p.stdout + p.stderr)[-400:])
-        row = parse(lines[-1])
+        row = {}
+        for l in lines:
+            row.update(parse(l))
         row.update({k: v for k, v in CONFIGS[cfg].items()})
         print(f"{wl:14s} {cfg:13s} bw={row['bw_gbps']:.3f} GB/s p50={row['rd_lat_p50_ns']:.0f} ns "
               f"row_hit={row['row_hit']:.3f} victim_act={row['act_victim']} complete={row['complete']}", flush=True)
