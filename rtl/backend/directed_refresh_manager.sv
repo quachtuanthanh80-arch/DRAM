@@ -238,25 +238,51 @@ module directed_refresh_manager #(
 
     assign o_proq_row_hit = i_check_cand_valid && ((|cam_match) || af_match);
 
-    localparam int NBG = 1 << BG_WIDTH;
+    localparam int NBG   = 1 << BG_WIDTH;
+    localparam int N_G6  = (QUEUE_DEPTH + AF_DEPTH + 5) / 6;
+    localparam int N_G2  = (N_G6 + 3) / 4;
     wire [QUEUE_DEPTH-1:0] pq_live = pq_v;
     wire  [AF_DEPTH-1:0] af_live = af_v;
-    logic [NBG-1:0] blk_c, blk_r, push_now_bg;
+    logic [NBG-1:0] blk_c, blk_r;
+    (* keep = "true" *) logic [NBG-1:0] push_now_bg;
     (* keep = "true" *) logic [NBG-1:0] blkp_a, blkp_b;
+    (* keep = "true" *) logic [QUEUE_DEPTH-1:0] blk_pq_hit [NBG];
+    (* keep = "true" *) logic [AF_DEPTH-1:0]    blk_af_hit [NBG];
+    logic [(N_G6*6)-1:0]    blk_pad    [NBG];
+    (* keep = "true" *) logic [N_G6-1:0] blk_or6 [NBG];
+    logic [N_G2*4-1:0]      blk_or6_p  [NBG];
+    (* keep = "true" *) logic [N_G2-1:0] blk_or2 [NBG];
     always_comb begin
         for (int b = 0; b < NBG; b++) begin
             logic [BANK_WIDTH-1:0] cb;
             logic [ROW_WIDTH-1:0]  cr;
             cb  = i_cand_bank[b*BANK_WIDTH +: BANK_WIDTH];
             cr  = i_cand_row[b*ROW_WIDTH +: ROW_WIDTH];
-            blk_c[b] = 1'b0;
-            // q_row == cr+1 <=> q_rm1 == cr; q_row == cr-1 <=> q_rp1 == cr (cùng số học modulo 2^ROW_WIDTH)
-            for (int i = 0; i < QUEUE_DEPTH; i++)
-                if (pq_live[i] && q_bg[i] == BG_WIDTH'(b) && q_bank[i] == cb && (q_row[i] == cr || q_rm1[i] == cr || q_rp1[i] == cr))
-                    blk_c[b] = 1'b1;
-            for (int unsigned i = 0; i < AF_DEPTH; i++)
-                if (af_live[i] && af_mem[i] == {BG_WIDTH'(b), cb, cr})
-                    blk_c[b] = 1'b1;
+            // Tách điều kiện BG/bank (nhanh) khỏi so sánh 17-bit hàng để giữ đúng 1 LUT sau CARRY8; keep từng tầng cây OR 3 tầng
+            for (int i = 0; i < QUEUE_DEPTH; i++) begin
+                logic pq_ok, r_eq, rm1_eq, rp1_eq;
+                pq_ok  = pq_live[i] && (q_bg[i] == BG_WIDTH'(b)) && (q_bank[i] == cb);
+                r_eq   = (q_row[i] == cr);
+                rm1_eq = (q_rm1[i] == cr);
+                rp1_eq = (q_rp1[i] == cr);
+                blk_pq_hit[b][i] = pq_ok && (r_eq || rm1_eq || rp1_eq);
+            end
+            for (int unsigned i = 0; i < AF_DEPTH; i++) begin
+                logic af_ok, af_req;
+                af_ok  = af_live[i] && (af_mem[i][AW-1:ROW_WIDTH] == {BG_WIDTH'(b), cb});
+                af_req = (af_mem[i][ROW_WIDTH-1:0] == cr);
+                blk_af_hit[b][i] = af_ok && af_req;
+            end
+
+            blk_pad[b]                           = '0;
+            blk_pad[b][QUEUE_DEPTH+AF_DEPTH-1:0] = {blk_af_hit[b], blk_pq_hit[b]};
+            for (int g = 0; g < N_G6; g++)
+                blk_or6[b][g] = |blk_pad[b][g*6 +: 6];
+            blk_or6_p[b]           = '0;
+            blk_or6_p[b][N_G6-1:0] = blk_or6[b];
+            for (int g = 0; g < N_G2; g++)
+                blk_or2[b][g] = |blk_or6_p[b][g*4 +: 4];
+            blk_c[b] = |blk_or2[b];
 
             push_now_bg[b] = (abo_evt    && (i_abo_bg == BG_WIDTH'(b))) ||
                              (sdc_evt    && (i_sdc_bg == BG_WIDTH'(b))) ||
@@ -272,9 +298,11 @@ module directed_refresh_manager #(
             blkp_a <= '0;
             blkp_b <= '0;
         end else begin
-            blk_r  <= blk_c & i_cand_valid;
-            blkp_a <= (blk_c & i_cand_valid) | push_now_bg;
-            blkp_b <= (blk_c & i_cand_valid) | push_now_bg;
+            for (int b = 0; b < NBG; b++) begin
+                blk_r[b]  <= (|blk_or2[b]) & i_cand_valid[b];
+                blkp_a[b] <= ((|blk_or2[b]) & i_cand_valid[b]) | push_now_bg[b];
+                blkp_b[b] <= ((|blk_or2[b]) & i_cand_valid[b]) | push_now_bg[b];
+            end
         end
     end
     assign o_proq_hit = blk_r;

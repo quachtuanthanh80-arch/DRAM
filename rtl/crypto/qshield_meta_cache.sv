@@ -157,11 +157,34 @@ module qshield_meta_cache #(
     assign lk_tag = i_lookup_addr[6 + SET_BITS +: TAG_WIDTH];
 
     (* keep = "true" *) logic [MC_WAYS-1:0] lk_match [0:MC_SETS-1];
+    logic [MC_WAYS-1:0] lk_oh [0:MC_SETS-1];
+    (* keep = "true" *) logic [MC_SETS-1:0] lk_set_hit, lk_set_dirty, lk_set_verified, lk_set_pinned;
     always_comb begin
         for (int s = 0; s < MC_SETS; s++) begin
+            logic m0, m1, m2, m3;
+            logic d01, d23, v01, v23, p01, p23;
             for (int w = 0; w < MC_WAYS; w++) begin
                 lk_match[s][w] = line_valid[s*MC_WAYS + w] && (line_tag[s*MC_WAYS + w] == lk_tag);
             end
+            m0 = lk_match[s][0];
+            m1 = lk_match[s][1];
+            m2 = lk_match[s][2];
+            m3 = lk_match[s][3];
+            lk_oh[s][0] = m0;
+            lk_oh[s][1] = !m0 && m1;
+            lk_oh[s][2] = !m0 && !m1 && m2;
+            lk_oh[s][3] = !m0 && !m1 && !m2 && m3;
+            // Chọn sẵn hit/dirty/verified/pinned trong từng set để cắt chuỗi nối tiếp 16:1 -> o_lookup_way -> o_lookup_hit/64:1
+            lk_set_hit[s]      = m0 | m1 | m2 | m3;
+            d01 = (m0 && line_dirty[s*MC_WAYS+0])    || (!m0 && m1 && line_dirty[s*MC_WAYS+1]);
+            d23 = m2 ? line_dirty[s*MC_WAYS+2]       :  (m3 && line_dirty[s*MC_WAYS+3]);
+            lk_set_dirty[s]    = d01 || (!m0 && !m1 && d23);
+            v01 = (m0 && line_verified[s*MC_WAYS+0]) || (!m0 && m1 && line_verified[s*MC_WAYS+1]);
+            v23 = m2 ? line_verified[s*MC_WAYS+2]    :  (m3 && line_verified[s*MC_WAYS+3]);
+            lk_set_verified[s] = v01 || (!m0 && !m1 && v23);
+            p01 = (m0 && line_pinned[s*MC_WAYS+0])   || (!m0 && m1 && line_pinned[s*MC_WAYS+1]);
+            p23 = m2 ? line_pinned[s*MC_WAYS+2]      :  (m3 && line_pinned[s*MC_WAYS+3]);
+            lk_set_pinned[s]   = p01 || (!m0 && !m1 && p23);
         end
     end
 
@@ -170,15 +193,15 @@ module qshield_meta_cache #(
     wire lk_hit_2 = lk_match[lk_set][2];
     wire lk_hit_3 = lk_match[lk_set][3];
 
-    assign o_lookup_hit = lk_hit_0 | lk_hit_1 | lk_hit_2 | lk_hit_3;
+    assign o_lookup_hit = lk_set_hit[lk_set];
     assign o_lookup_way = {!lk_hit_0 && !lk_hit_1 && (lk_hit_2 || lk_hit_3),
                            !lk_hit_0 && (lk_hit_1 || (!lk_hit_2 && lk_hit_3))};
-
     wire [5:0] lk_entry = {lk_set, o_lookup_way};
+
     assign o_lookup_data     = rd_data_mux;
-    assign o_lookup_dirty    = line_dirty[lk_entry];
-    assign o_lookup_verified = line_verified[lk_entry];
-    assign o_lookup_pinned   = line_pinned[lk_entry];
+    assign o_lookup_dirty    = lk_set_dirty[lk_set];
+    assign o_lookup_verified = lk_set_verified[lk_set];
+    assign o_lookup_pinned   = lk_set_pinned[lk_set];
 
     // -------------------------------------------------------------------------
     // Logic Fill & Victim Selection tổ hợp
@@ -230,11 +253,16 @@ module qshield_meta_cache #(
     assign up_tag = i_update_addr[6 + SET_BITS +: TAG_WIDTH];
 
     (* keep = "true" *) logic [MC_WAYS-1:0] up_match [0:MC_SETS-1];
+    logic [MC_WAYS-1:0] up_oh [0:MC_SETS-1];
     always_comb begin
         for (int s = 0; s < MC_SETS; s++) begin
             for (int w = 0; w < MC_WAYS; w++) begin
                 up_match[s][w] = line_valid[s*MC_WAYS + w] && (line_tag[s*MC_WAYS + w] == up_tag);
             end
+            up_oh[s][0] = up_match[s][0];
+            up_oh[s][1] = !up_match[s][0] && up_match[s][1];
+            up_oh[s][2] = !up_match[s][0] && !up_match[s][1] && up_match[s][2];
+            up_oh[s][3] = !up_match[s][0] && !up_match[s][1] && !up_match[s][2] && up_match[s][3];
         end
     end
 
@@ -249,21 +277,51 @@ module qshield_meta_cache #(
     wire [5:0] up_entry = {up_set, o_update_way};
 
     // -------------------------------------------------------------------------
-    // Logic Unpin tổ hợp
+    // Logic Unpin tổ hợp: so sánh tag theo từng set trước khi mux hit (bỏ mux 64:1 trước CARRY8)
     // -------------------------------------------------------------------------
     logic [SET_BITS-1:0]  un_set;
     logic [TAG_WIDTH-1:0] un_tag;
     assign un_set = i_unpin_addr[6 +: SET_BITS];
     assign un_tag = i_unpin_addr[6 + SET_BITS +: TAG_WIDTH];
 
-    wire un_hit_0 = line_valid[{un_set, 2'd0}] && (line_tag[{un_set, 2'd0}] == un_tag);
-    wire un_hit_1 = line_valid[{un_set, 2'd1}] && (line_tag[{un_set, 2'd1}] == un_tag);
-    wire un_hit_2 = line_valid[{un_set, 2'd2}] && (line_tag[{un_set, 2'd2}] == un_tag);
-    wire un_hit_3 = line_valid[{un_set, 2'd3}] && (line_tag[{un_set, 2'd3}] == un_tag);
+    (* keep = "true" *) logic [MC_WAYS-1:0] un_match [0:MC_SETS-1];
+    logic [MC_WAYS-1:0] un_oh [0:MC_SETS-1];
+    always_comb begin
+        for (int s = 0; s < MC_SETS; s++) begin
+            for (int w = 0; w < MC_WAYS; w++) begin
+                un_match[s][w] = line_valid[s*MC_WAYS + w] && (line_tag[s*MC_WAYS + w] == un_tag);
+            end
+            un_oh[s][0] = un_match[s][0];
+            un_oh[s][1] = !un_match[s][0] && un_match[s][1];
+            un_oh[s][2] = !un_match[s][0] && !un_match[s][1] && un_match[s][2];
+            un_oh[s][3] = !un_match[s][0] && !un_match[s][1] && !un_match[s][2] && un_match[s][3];
+        end
+    end
+
+    wire un_hit_0 = un_match[un_set][0];
+    wire un_hit_1 = un_match[un_set][1];
+    wire un_hit_2 = un_match[un_set][2];
+    wire un_hit_3 = un_match[un_set][3];
 
     assign o_unpin_hit = un_hit_0 | un_hit_1 | un_hit_2 | un_hit_3;
-    assign o_unpin_way = un_hit_0 ? 2'd0 : (un_hit_1 ? 2'd1 : (un_hit_2 ? 2'd2 : 2'd3));
-    wire [5:0] un_entry = {un_set, o_unpin_way};
+    assign o_unpin_way = {!un_hit_0 && !un_hit_1 && (un_hit_2 || un_hit_3),
+                          !un_hit_0 && (un_hit_1 || (!un_hit_2 && un_hit_3))};
+
+    // Tín hiệu điều khiển và way PLRU riêng từng set để bỏ mux 16:1 và fanout o_update_hit/o_lookup_hit
+    (* keep = "true" *) logic [MC_SETS-1:0] lk_do_plru, fl_do_plru, up_do_plru;
+    logic [1:0] lk_way_s [0:MC_SETS-1];
+    logic [1:0] up_way_s [0:MC_SETS-1];
+    always_comb begin
+        for (int s = 0; s < MC_SETS; s++) begin
+            lk_do_plru[s] = i_lookup_valid && (lk_set == SET_BITS'(s)) && (|lk_match[s]);
+            fl_do_plru[s] = i_fill_valid   && (fl_set == SET_BITS'(s));
+            up_do_plru[s] = i_update_valid && (up_set == SET_BITS'(s)) && (|up_match[s]);
+            lk_way_s[s]   = {!lk_match[s][0] && !lk_match[s][1] && (lk_match[s][2] || lk_match[s][3]),
+                             !lk_match[s][0] && (lk_match[s][1] || (!lk_match[s][2] && lk_match[s][3]))};
+            up_way_s[s]   = {!up_match[s][0] && !up_match[s][1] && (up_match[s][2] || up_match[s][3]),
+                             !up_match[s][0] && (up_match[s][1] || (!up_match[s][2] && up_match[s][3]))};
+        end
+    end
 
     // -------------------------------------------------------------------------
     // Cập nhật trạng thái tuần tự (Sequential Update)
@@ -353,20 +411,22 @@ module qshield_meta_cache #(
                 default: flush_st <= FLUSH_IDLE;
             endcase
 
-            // 2. Tra cứu (Lookup)
+            // 2. Tra cứu (Lookup): tách line_pinned khỏi o_lookup_hit để không đi qua mux 16:1 toàn cục
             if (i_lookup_valid) begin
                 if (o_lookup_hit) begin
-                    reg_hit_cnt         <= reg_hit_cnt + 1'b1;
-                    set_plru[lk_set]    <= next_plru(set_plru[lk_set], o_lookup_way);
-                    if (i_lookup_pin) begin
-                        if (o_set_can_pin[lk_set]) begin
-                            line_pinned[lk_entry] <= 1'b1;
-                        end else begin
-                            reg_pin_violation <= 1'b1;
-                        end
-                    end
+                    reg_hit_cnt <= reg_hit_cnt + 1'b1;
+                    if (i_lookup_pin && !o_set_can_pin[lk_set])
+                        reg_pin_violation <= 1'b1;
                 end else begin
                     reg_miss_cnt <= reg_miss_cnt + 1'b1;
+                end
+            end
+            if (i_lookup_valid && i_lookup_pin) begin
+                for (int s = 0; s < MC_SETS; s++) begin
+                    if ((lk_set == SET_BITS'(s)) && o_set_can_pin[s]) begin
+                        for (int w = 0; w < MC_WAYS; w++)
+                            if (lk_oh[s][w]) line_pinned[s*MC_WAYS + w] <= 1'b1;
+                    end
                 end
             end
 
@@ -383,7 +443,6 @@ module qshield_meta_cache #(
                 line_dirty[fl_victim_entry]    <= 1'b0;
                 line_verified[fl_victim_entry] <= i_fill_verified;
                 line_tag[fl_victim_entry]      <= fl_tag;
-                set_plru[fl_set]               <= next_plru(set_plru[fl_set], o_fill_way);
 
                 if (i_fill_pin) begin
                     if (o_set_can_pin[fl_set]) begin
@@ -397,15 +456,31 @@ module qshield_meta_cache #(
                 end
             end
 
-            // 4. Cập nhật (Update)
-            if (i_update_valid && o_update_hit) begin
-                line_dirty[up_entry] <= i_update_dirty;
-                set_plru[up_set] <= next_plru(set_plru[up_set], o_update_way);
+            // 4. Cập nhật (Update): dùng trực tiếp (up_set, up_oh) để bỏ bộ giải mã 64:1 qua up_entry
+            if (i_update_valid) begin
+                for (int s = 0; s < MC_SETS; s++) begin
+                    if (up_set == SET_BITS'(s)) begin
+                        for (int w = 0; w < MC_WAYS; w++)
+                            if (up_oh[s][w]) line_dirty[s*MC_WAYS + w] <= i_update_dirty;
+                    end
+                end
             end
 
-            // 5. Bỏ ghim (Unpin)
-            if (i_unpin_valid && o_unpin_hit) begin
-                line_pinned[un_entry] <= 1'b0;
+            // 5. Bỏ ghim (Unpin): dùng trực tiếp (un_set, un_oh) để bỏ bộ giải mã 64:1 qua un_entry
+            if (i_unpin_valid) begin
+                for (int s = 0; s < MC_SETS; s++) begin
+                    if (un_set == SET_BITS'(s)) begin
+                        for (int w = 0; w < MC_WAYS; w++)
+                            if (un_oh[s][w]) line_pinned[s*MC_WAYS + w] <= 1'b0;
+                    end
+                end
+            end
+
+            // 6. Cập nhật Tree-PLRU trực tiếp theo từng set (giữ đúng ưu tiên Update > Fill > Lookup)
+            for (int s = 0; s < MC_SETS; s++) begin
+                if (up_do_plru[s])      set_plru[s] <= next_plru(set_plru[s], up_way_s[s]);
+                else if (fl_do_plru[s]) set_plru[s] <= next_plru(set_plru[s], o_fill_way);
+                else if (lk_do_plru[s]) set_plru[s] <= next_plru(set_plru[s], lk_way_s[s]);
             end
         end
     end

@@ -249,22 +249,24 @@ module qos_scheduler_queue #(
         for (int i = 0; i < TOTAL_ENTRIES; i++)
             ent_elig[i] = q_valid[i] && (q_dep[i] == '0);
 
-    // Chọn ứng viên = chọn toàn cục trên các entry có bank rảnh, viết lại để bank_free của engine chỉ vào ở tầng cuối:
-    // X[k][e] = có entry hợp lệ ở bank k thắng e (chỉ từ thanh ghi, tính song song), khi đó
-    // win[e] = ok[e] & free[bank(e)] & AND_k (!free[k] | !X[k][e]).
+    // Chọn ứng viên = chọn toàn cục trên các entry có bank rảnh:
+    // Đặt fe[f] = ent_elig[f] & fr[q_bank[f]], khi đó win[e] = fe[e] & !(|(fe & beats[e])) và (|win) == (|fe)
+    // không cần vòng lọc theo từng bank hay đợi cây beats cho o_cand_valid.
     localparam int NBK = 1 << BANK_WIDTH;
+    (* keep = "true" *) logic [QUEUE_DEPTH-1:0] fe [NUM_BG];
     logic [QUEUE_DEPTH-1:0] win [NUM_BG];
     always_comb begin
-        for (int bg = 0; bg < NUM_BG; bg++)
+        for (int bg = 0; bg < NUM_BG; bg++) begin
+            logic [NBK-1:0] fr;
+            fr = i_bank_free[bg * NBK +: NBK];
+            for (int f = 0; f < QUEUE_DEPTH; f++)
+                fe[bg][f] = ent_elig[bg * QUEUE_DEPTH + f] && fr[q_bank[bg * QUEUE_DEPTH + f]];
             for (int e = 0; e < QUEUE_DEPTH; e++) begin
-                logic [NBK-1:0] x, fr;
-                x = '0;
-                for (int f = 0; f < QUEUE_DEPTH; f++)
-                    if (ent_elig[bg * QUEUE_DEPTH + f] && beats_q[bg * QUEUE_DEPTH + e][f])
-                        x[q_bank[bg * QUEUE_DEPTH + f]] = 1'b1;
-                fr = i_bank_free[bg * NBK +: NBK];
-                win[bg][e] = ent_elig[bg * QUEUE_DEPTH + e] && fr[q_bank[bg * QUEUE_DEPTH + e]] && ((x & fr) == '0);
+                logic [QUEUE_DEPTH-1:0] blk;
+                blk = fe[bg] & beats_q[bg * QUEUE_DEPTH + e];
+                win[bg][e] = fe[bg][e] && (blk == '0);
             end
+        end
     end
 
 `ifndef SYNTHESIS
@@ -299,7 +301,7 @@ module qos_scheduler_queue #(
         end else begin
             for (int bg = 0; bg < NUM_BG; bg++) begin
                 logic v;
-                v = (|win[bg]) && !(i_issue_grant_valid && i_issue_grant_bg == BG_W'(bg));
+                v = (|fe[bg]) && !(i_issue_grant_valid && i_issue_grant_bg == BG_W'(bg));
                 o_cand_valid[bg] <= v;
                 o_cand_fresh[bg] <= v && o_cand_valid[bg] && ((win[bg] & cand_oh[bg]) != '0);
             end

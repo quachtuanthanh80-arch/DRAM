@@ -810,9 +810,9 @@ module axi_ddr5_mc_top #(
         .i_aw_backlog         (fe_aw_backlog)
     );
 
-    // Pre-compute and register write {bg, bank} at wbuf->wds acceptance (at least 1 cycle of S_FILL before wcmd_valid)
-    // to eliminate u_wds/cur_addr -> domain_bank_coloring -> u_bank_credit critical path.
-    wire wcmd_start_fire = wbuf_cmd_valid && wbuf_cmd_ready;
+    // Trễ một chu kỳ sau khi nạp wds: wds luôn ở S_FILL ít nhất 1 chu kỳ trước khi wcmd_valid bật, nên có thể ánh xạ BG/bank từ thanh ghi cur_id/cur_addr đã chốt để cắt hoàn toàn đường u_wbuf -> wbuf_cmd_ready -> u_wcmd_bg.
+    logic wcmd_start_fire_q;
+    wire  wcmd_start_fire = wbuf_cmd_valid && wbuf_cmd_ready;
     domain_bank_coloring #(
         .AXI_ID_WIDTH   (AXI_ID_WIDTH),
         .AXI_ADDR_WIDTH (AXI_ADDR_WIDTH),
@@ -822,18 +822,22 @@ module axi_ddr5_mc_top #(
         .cfg_bank_coloring_en (eff_bank_coloring_en),
         .cfg_mapping_mode     (eff_mapping_mode),
         .cfg_is_ddr5          (eff_is_ddr5),
-        .i_req_id             (wcmd_start_fire ? wbuf_cmd_id   : wcmd_id),
-        .i_req_addr           (wcmd_start_fire ? wbuf_cmd_addr : wcmd_addr),
+        .i_req_id             (wcmd_id),
+        .i_req_addr           (wcmd_addr),
         .o_bg                 (wcmd_bg_raw),
         .o_bank               (wcmd_bank_raw)
     );
     always_ff @(posedge clk_axi or negedge rst_n_axi) begin
         if (!rst_n_axi) begin
-            wcmd_bg   <= '0;
-            wcmd_bank <= '0;
-        end else if (wcmd_start_fire || cfg_rehash_q) begin
-            wcmd_bg   <= wcmd_bg_raw;
-            wcmd_bank <= wcmd_bank_raw;
+            wcmd_start_fire_q <= 1'b0;
+            wcmd_bg           <= '0;
+            wcmd_bank         <= '0;
+        end else begin
+            wcmd_start_fire_q <= wcmd_start_fire;
+            if (wcmd_start_fire_q || cfg_rehash_q) begin
+                wcmd_bg   <= wcmd_bg_raw;
+                wcmd_bank <= wcmd_bank_raw;
+            end
         end
     end
 

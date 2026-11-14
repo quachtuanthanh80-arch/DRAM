@@ -450,12 +450,15 @@ module ddr5_cmd_engine #(
     wire ev_mis   = (last_act ^ act_dec) | (last_wr ^ wr_dec);
     wire act_gate = !last_act && rrd_s_z && faw_ok && rfc_z && rfc_z2;
     wire rd_gate  = !last_wr && wtr_s_z && !rd_flush;
-    // Số hạng theo BG tính trước (tCCD_L, tCCD_L_WR, tWTR_L, cửa sổ DQ): điều kiện CAS theo bank không thêm đầu vào
-    logic [BG_COUNT-1:0] wr_ok_g, rd_ok_g;
+    // Số hạng theo BG tính trước (tCCD_L, tCCD_L_WR, tWTR_L, cửa sổ DQ, wr_pacing): cắt s_wr -> c1_cand/iss_cas_cand xuống 2-3 tầng LUT
+    wire block_wr_cas = rd_starve_q || (wr_pace_cnt != '0);
+    (* keep = "true" *) logic [BG_COUNT-1:0] wr_ok_g, rd_ok_g, cas_rd_ok_g, c1_wr_ok_g;
     always_comb
         for (int g = 0; g < BG_COUNT; g++) begin
-            wr_ok_g[g] = dq_wr_ok && ccd_z[g] && ccdw_z[g];
-            rd_ok_g[g] = dq_rd_ok && rd_gate && wtr_l_z[g] && ccd_z[g];
+            wr_ok_g[g]     = dq_wr_ok && ccd_z[g] && ccdw_z[g];
+            c1_wr_ok_g[g]  = dq_wr_ok && ccd_z[g] && ccdw_z[g] && !block_wr_cas;
+            cas_rd_ok_g[g] = dq_rd_ok && wtr_l_z[g] && ccd_z[g];
+            rd_ok_g[g]     = dq_rd_ok && rd_gate && wtr_l_z[g] && ccd_z[g];
         end
     // Số hạng toàn cục của keep_open: drain khi ABO, hoặc watchdog drain hết hạn
     wire ko_glob = !(ref_mode && !abo_ok) && !ref_wd_exp;
@@ -464,22 +467,28 @@ module ddr5_cmd_engine #(
     // Điều kiện sẵn sàng theo bank: chỉ là AND của các flop (cờ *_z, phân loại k_*, trạng thái slot)
     //=========================================================================
     logic [NB-1:0] cas_rdy_raw, cas_bank_rdy_raw, cas_is_wr, act_rdy_raw, pre_rdy, pre_clamp, mit_done, ras_lt;
+    (* keep = "true" *) logic [NB-1:0] c1_cand;
     logic [NB-1:0] rd_pend_b;
     logic [5:0]    pac [NB];
     always_comb begin
         for (int b = 0; b < NB; b++) begin
-            logic fresh, user_ok, want_cas, want_pre, keep_open;
+            logic fresh, user_ok, cas_base_ok, want_cas, want_pre, keep_open;
             int   g;
-            g        = b / BANK_COUNT;
-            fresh    = !k_chg[b];
+            g           = b / BANK_COUNT;
+            fresh       = !k_chg[b];
             // ABO: factor global abo_ok after rr_pick/iss_cas_cand to cut o_abo_active->pk_oh/rd_wait_cnt
-            user_ok  = !s_mit[b];
-            want_cas = s_v[b] && fresh && user_ok && k_hit[b] && !tras_clamp_pending[b] &&
-                       !(s_rmw[b] && s_ph[b] == 2'd1);
+            user_ok     = !s_mit[b];
+            cas_base_ok = s_v[b] && fresh && user_ok && k_hit[b] && !tras_clamp_pending[b] && rcd_z[b];
+            want_cas    = cas_base_ok && !(s_rmw[b] && s_ph[b] == 2'd1);
             cas_is_wr[b] = s_wr[b] && (!s_rmw[b] || s_ph[b] == 2'd2);
-            cas_bank_rdy_raw[b] = want_cas && rcd_z[b] && ccd_z[g] &&
-                                  (cas_is_wr[b] ? (dq_wr_ok && ccdw_z[g]) : (dq_rd_ok && wtr_l_z[g]));
+            cas_bank_rdy_raw[b] = cas_base_ok &&
+                                  ((s_wr[b] && (!s_rmw[b] || s_ph[b] == 2'd2)) ? wr_ok_g[g]
+                                                                               : (!(s_rmw[b] && s_ph[b] == 2'd1) && cas_rd_ok_g[g]));
             cas_rdy_raw[b] = cas_bank_rdy_raw[b] && ccd_s_z && (cas_is_wr[b] || rd_gate);
+            // Đưa ccd_s_z ra c1_v và tách điều kiện pha RD/WR/RMW thành LUT5 trước khi AND với cas_base_ok & ~pk_oh
+            c1_cand[b]     = !pk_oh[b] && cas_base_ok &&
+                             ((s_wr[b] && (!s_rmw[b] || s_ph[b] == 2'd2)) ? c1_wr_ok_g[g]
+                                                                          : (!(s_rmw[b] && s_ph[b] == 2'd1) && rd_ok_g[g]));
             // Refresh nạn nhân: hàng nạn nhân đang mở nghĩa là đã được làm tươi lúc ACT
             mit_done[b] = s_v[b] && fresh && s_mit[b] && k_hit[b];
             act_rdy_raw[b] = s_v[b] && fresh && !k_open[b] && !ref_mode &&
@@ -530,15 +539,27 @@ module ddr5_cmd_engine #(
     logic [NB-1:0]        pk_oh;
     logic [2:0]           pk_t;
     logic [ROW_WIDTH-1:0] pk_drow;
-    wire [NB-1:0] c1_rd  = cas_rdy_raw & ~cas_is_wr & ~pk_oh;
-    wire block_wr_cas    = rd_starve_q || (wr_pace_cnt != '0);
-    wire [NB-1:0] c1_raw = block_wr_cas ? c1_rd : (cas_rdy_raw & ~pk_oh);
+    // Cây OR 2 tầng LUT6 cho nhánh CAS (cắt 4 tầng nối tiếp trong rr_pick xuống 2 tầng)
+    localparam int N_G6 = (NB + 5) / 6;
+    wire [NB-1:0]        c1_masked = c1_cand & rr_mask;
+    logic [(N_G6*6)-1:0] c1_m_pad, c1_a_pad;
+    (* keep = "true" *) logic [N_G6-1:0] c1_m_grp, c1_a_grp;
+    always_comb begin
+        c1_m_pad         = '0;
+        c1_a_pad         = '0;
+        c1_m_pad[NB-1:0] = c1_masked;
+        c1_a_pad[NB-1:0] = c1_cand;
+        for (int g = 0; g < N_G6; g++) begin
+            c1_m_grp[g] = |c1_m_pad[g*6 +: 6];
+            c1_a_grp[g] = |c1_a_pad[g*6 +: 6];
+        end
+    end
     wire [NB-1:0] a1_all = act_rdy_raw & ~pk_oh;
     wire [NB-1:0] a1_mit = a1_all & s_mit;
     wire [NB-1:0] p1     = pre_rdy & ~pk_oh;
     wire           cas_late = (pk_t == PK_CAS) && (T_CCD_S > 1);
     wire           act_late = (pk_t == PK_ACT);
-    wire [NB-1:0] pk_c   = rr_pick(c1_raw, rr_mask);
+    wire [NB-1:0] pk_c   = (|c1_m_grp) ? ffs(c1_masked) : ffs(c1_cand);
     wire [NB-1:0] pk_a   = rr_pick(a1_all, rr_mask);
     wire [NB-1:0] pk_am  = rr_pick(a1_mit, rr_mask);
     wire [NB-1:0] pk_p   = rr_pick(p1, rr_mask);
@@ -551,7 +572,7 @@ module ddr5_cmd_engine #(
     wire [ROW_WIDTH-1:0]  decoy_row  = i_decoy_addr[ROW_WIDTH-1:0];
     wire [IW-1:0]         decoy_b    = bidx(decoy_bg, decoy_bank);
     wire                  decoy_c    = cfg_decoy_en && i_decoy_avail && !any_cas && !any_act && !any_pre && !ref_mode && abo_ok && (pk_t != PK_DEC);
-    wire                  c1_v       = abo_ok && (|c1_raw) && !cas_late;
+    wire                  c1_v       = abo_ok && ccd_s_z && (|c1_a_grp) && !cas_late;
     wire                  a1_v       = (abo_ok ? (|a1_all) : (|a1_mit)) && !act_late;
     always_comb begin
         if (c1_v)         begin nxt_oh = pk_c;                  nxt_t = PK_CAS; end
@@ -562,15 +583,23 @@ module ddr5_cmd_engine #(
     end
 
     // Tầng 2: sự kiện phát one-hot theo bank; mọi cập nhật trạng thái bank dùng thẳng bit này
-    // Factor global timing & ABO gates after the 32-bit OR tree to shorten abo_ok/rd_gate->is_cas
+    // Cân bằng cây OR 32-bit của iss_cas_cand qua 2 tầng LUT6 để rút đường s_wr -> is_cas
     wire           sel_is_wr    = |(pk_oh & cas_is_wr);
-    wire [NB-1:0]  iss_cas_cand = (pk_t == PK_CAS) ? (pk_oh & cas_bank_rdy_raw) : '0;
+    (* keep = "true" *) wire [NB-1:0] iss_cas_cand = (pk_t == PK_CAS) ? (pk_oh & cas_bank_rdy_raw) : '0;
     wire           cas_g_ok     = abo_ok && ccd_s_z && (sel_is_wr || rd_gate);
+    logic [(N_G6*6)-1:0] iss_cas_pad;
+    (* keep = "true" *) logic [N_G6-1:0] iss_cas_grp;
+    always_comb begin
+        iss_cas_pad         = '0;
+        iss_cas_pad[NB-1:0] = iss_cas_cand;
+        for (int g = 0; g < N_G6; g++)
+            iss_cas_grp[g] = |iss_cas_pad[g*6 +: 6];
+    end
     wire [NB-1:0]  iss_cas      = cas_g_ok ? iss_cas_cand : '0;
     wire [NB-1:0]  iss_act_all  = (pk_t == PK_ACT) ? (pk_oh & act_rdy_raw) : '0;
     wire [NB-1:0]  iss_act      = abo_ok ? iss_act_all : (iss_act_all & s_mit);
     wire [NB-1:0]  iss_pre      = (pk_t == PK_PRE) ? (pk_oh & pre_rdy) : '0;
-    wire           is_cas       = cas_g_ok && (|iss_cas_cand);
+    wire           is_cas       = cas_g_ok && (|iss_cas_grp);
     wire           is_act       = |iss_act;
     wire           is_pre       = |iss_pre;
     wire [NB-1:0]  pick     = iss_cas | iss_act | iss_pre;
@@ -686,6 +715,9 @@ module ddr5_cmd_engine #(
 
     assign o_cnt_fault   = o_fault[1];
     assign o_slack_cycle = (s_v == '0) && (o_dfi_cmd == CMD_NOP);
+
+    // Dịch ngưỡng -1 trước thanh ghi để bỏ bộ cộng +1 trước bộ so sánh rfm_req
+    wire [7:0] eff_raammt_thresh_m1 = (cfg_raammt_thresh != 8'd0) ? (cfg_raammt_thresh - 8'd1) : 8'd31;
 
     //=========================================================================
     // Main Timing and Command Sequencer
@@ -874,12 +906,15 @@ module ddr5_cmd_engine #(
                 rrd_s_z               <= !(T_RRD_S > 2);
                 rrd_l_timer[o_dfi_bg] <= 4'((T_RRD_L > 2) ? T_RRD_L - 2 : 0);
                 rrd_l_z[o_dfi_bg]     <= !(T_RRD_L > 2);
-                // McSee: đếm ACT cuốn chiếu theo BG cho RFM tự trị
+                // McSee: đếm ACT cuốn chiếu theo BG cho RFM tự trị; so sánh song song theo từng BG để bỏ mux 8:1 và bộ cộng +1
                 if (rolling_act_cnt[o_dfi_bg] < 8'hFF) begin
                     rolling_act_cnt[o_dfi_bg] <= rolling_act_cnt[o_dfi_bg] + 1'b1;
                     rolling_act_inv[o_dfi_bg] <= rolling_act_inv[o_dfi_bg] - 1'b1;
-                    if (rolling_act_cnt[o_dfi_bg] + 1'b1 >= (cfg_raammt_thresh != 8'd0 ? cfg_raammt_thresh : 8'd32))
-                        rfm_req[o_dfi_bg] <= 1'b1;
+                end
+                for (int bg = 0; bg < BG_COUNT; bg++) begin
+                    if ((o_dfi_bg == BG_WIDTH'(bg)) && (rolling_act_cnt[bg] < 8'hFF) &&
+                        (rolling_act_cnt[bg] >= eff_raammt_thresh_m1))
+                        rfm_req[bg] <= 1'b1;
                 end
             end
             if (wr_ev) begin
@@ -1078,15 +1113,14 @@ module ddr5_cmd_engine #(
                 end
             end
 
-            // Cap nhat bo dem doi doc M-13
+            // Cap nhat bo dem doi doc M-13 (đẩy reset về ngõ D để tránh cổng CE chậm hơn)
             if (!rd_pend || (is_cas && !sel_is_wr)) begin
-                rd_wait_cnt <= '0;
                 rd_starve_q <= 1'b0;
             end else begin
-                if (rd_wait_cnt != 10'(RD_STARVE_MAX))
-                    rd_wait_cnt <= rd_wait_cnt + 1'b1;
                 rd_starve_q <= (rd_wait_cnt >= 10'(RD_STARVE_MAX - 1)) && rd_pend;
             end
+            rd_wait_cnt <= (!rd_pend || (is_cas && !sel_is_wr)) ? 10'd0 :
+                           ((rd_wait_cnt != 10'(RD_STARVE_MAX)) ? (rd_wait_cnt + 1'b1) : rd_wait_cnt);
 
             // Pacing ghi: sau 24 CAS ghi lien tuc khong co bong bong, tao khoang nghi 4 chu ky (tCCD_S) de tranh DoS doc o frontend
             if (wr_pace_cnt != 3'd0) begin
