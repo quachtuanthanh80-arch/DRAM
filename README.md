@@ -59,7 +59,7 @@ All counts below come from testbenches in this repository; run commands are in [
 | Core and secure-top testbenches | `tb_axi_ddr5_mc_top` 19 checks; `tb_axi_ddr5_mc_secure_top` 15 checks; 0 failures. |
 | Known-defect reproduction suite (`tb/findings`) | 15 checks; open defects are reproduced and fixed ones are guarded. |
 | Python UVM-style environment (`tb/uvm`, pyuvm 5.0.0) | 23/23 checks over the controller and CSR environments with independent Python golden models. Coverage is measured on bins defined in the environment; it is not code coverage. |
-| Corner-case matrix | 26 documented corner cases, each mapped to an executing test (`tools/check_corner_matrix.py`). |
+| Corner-case matrix | 26 documented corner cases, each mapped to a testbench. `tools/check_corner_matrix.py` confirms that the testbench exists and, when a run log is available, that it passed. On a fresh checkout without logs it only confirms existence. |
 | Mutation testing | 18 of 20 injected faults detected (90 %) in four blocks (scheduler, reorder buffer, AXI adapter, CSR). The encryption and integrity blocks are **not** covered by mutation testing yet. |
 | Formal (SymbiYosys) | Bounded model checking to depth 12 to 15 for lock and key-valid rules, scheduler bank timing, AXI4 handshake stability and reorder-buffer beat conservation. The integrity invariants are proven on an **abstract model** (`formal/integrity_formal.sv`) that does not instantiate the RTL. |
 
