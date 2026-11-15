@@ -4,6 +4,16 @@ This document details the formal verification methodology, temporal logic specif
 
 ---
 
+> **Status of this document.** The property table below was written for earlier revisions of the RTL and has not been
+> fully re-run against the current RTL. What has been re-run and passes: bounded model checking (depth 12 to 15) for the
+> lock and key-valid rules, scheduler bank timing, AXI4 handshake stability and reorder-buffer beat conservation
+> (`formal/formal_sec_lock.sby`, `formal_scheduler_bank.sby`, `formal_axi_protocol.sby`, `formal_rob_retire.sby`).
+> The integrity invariants (`formal/formal_integrity.sby`) are proven on an **abstract model**
+> (`formal/integrity_formal.sv`) that does not instantiate the RTL, with reduced parameters. Bounded model checking
+> shows that no violation exists within the stated depth; it is not an unbounded proof. Claims of unbounded proofs
+> (k-induction) in the table remain to be re-verified.
+
+
 ## 1. Formal Verification Architecture & Solver Setup
 
 - **Toolchain**: SymbiYosys (SBY) v0.38+ with Yosys 0.38+

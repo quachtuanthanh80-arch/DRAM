@@ -97,3 +97,6 @@ external_refs/
 # Thư mục build tạm của tools/run_one_tb.py
 build/
 syn/reports/build/
+
+# Local-only internal review material (not part of the public repository)
+PEER_REVIEW_DEFENSE_DOSSIER.md

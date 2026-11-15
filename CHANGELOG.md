@@ -4,6 +4,20 @@ All notable changes, methodological improvements, and architectural updates to t
 
 ---
 
+## Revision: accuracy pass (2026-11)
+
+- **Withdrawn**: the ASIC gate-equivalent/power/energy tables, the 424.1 MHz and +0.142 ns timing claim, the
+  Ramulator2 throughput-overhead tables, and the "0 escaped bit-flips" table. None had a report or log in this repository.
+- **Added measured results**: FPGA place-and-route timing and area for the core controller (does not meet 400 MHz;
+  closes at 3.8 ns), synthesis results for the secure top and the metadata cache, with reports in `syn/reports/evidence/`.
+- **Added** the encryption and integrity layer (AES-256-XTS, MAC, Bonsai Merkle tree, trusted metadata cache) and its
+  verification (273-check end-to-end testbench, 2,048 XTS known-answer vectors, cache and tree model checks).
+- **Added** a static multi-driver check after synthesis revealed registers driven from two processes in the
+  encryption bridge (an integrity-failure flag was forced to zero in the synthesized netlist); the defect is fixed.
+- **Added** a Python UVM-style environment with independent golden models, a corner-case matrix, mutation testing,
+  and bounded formal checks (with their limits documented).
+- **Changed** documentation to separate measured results from planned evaluation.
+
 ## [3.0.0] - 2026-10-09
 
 ### Major Cryptographic & Microarchitectural Upgrades

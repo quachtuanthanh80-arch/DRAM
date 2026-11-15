@@ -38,7 +38,7 @@ The SDC filter employs a 2-way associative Count-Min sketch with $w = 1,024$ phy
 - **Byzantine Collision Attack Vulnerability**:
   If an adversary possesses full knowledge of the hash polynomials ($\text{CRC16-CCITT}$ and $\text{Jenkins-32}$) and can manipulate physical addresses, they can deliberately generate a "hash collision storm"—activating hundreds of non-hammered rows whose addresses hash into the exact same bin indices as a victim thread.
 - **Consequence of Byzantine Collisions**:
-  While no attacks are missed, the accumulated false-positive rate ($FPR$) rises from 0.02% up to ~1.8%. This forces innocent victim rows sharing those hash bins into conservative rate pacing, inducing a localized denial-of-service (QoS degradation) for the targeted bank group.
+  While no attacks are missed, the accumulated false-positive rate ($FPR$) rises. This forces innocent victim rows sharing those hash bins into conservative rate pacing, inducing a localized denial-of-service (QoS degradation) for the targeted bank group.
 
 ### 2.2 Adaptive Threshold Engine (ATE) Dynamic Response Limits
 The ATE modulates the mitigation threshold using an Exponentially Weighted Moving Average (EWMA):
@@ -53,33 +53,38 @@ $$T_{k+1} = \text{clamp}\left(\alpha \cdot T_k + (1-\alpha) \cdot \lambda_{act},
   In DDR5, the standard refresh interval is $t_{REFI} = 3.9\,\mu\text{s}$ ($1.95\,\mu\text{s}$ at elevated temperatures), with a maximum burst allowance of 8 back-to-back refreshes.
 - **Refresh Budget Starvation under Multi-Bank Attacks**:
   When an adversary attacks 16 bank groups simultaneously, each issuing Target Row Refresh (TRR/DRFM) requests, the controller must issue mitigation refreshes across multiple banks. If the rate of required mitigations exceeds the allowable command bus idle slots without violating $t_{RFC}$ (refresh cycle time, $\approx 295\text{ ns}$ in DDR5), the controller must stall incoming normal memory traffic.
-- **Worst-Case Stalling**: Under pathological multi-bank hammering across all 32 banks, total memory bus throughput is reduced by up to **58.4%** due to mandatory refresh command injection.
+- **Worst-Case Stalling**: Under pathological multi-bank hammering across all 32 banks, total memory bus throughput is reduced by mandatory refresh command injection; the size of the reduction has not been measured.
 
 ---
 
-## 3. Configuration vs. Cost-Benefit Trade-Off Matrix
+## 3. Configuration Trade-Offs (not yet quantified)
 
-The table below delineates the architectural trade-offs across different sizing configurations of the Q-Shield security subsystems:
-
-| Configuration Setting | SDC Filter Bins | Area Overhead (GE) | False Positive Rate ($FPR$) | Attack Detection Latency | Worst-Case Throughput Loss Under Attack | Silicon Target Feasibility |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Lightweight (Edge/IoT)** | 256 Bins | $+18,400\text{ GE}$ | ~0.85% | 38 cycles | -42.1% | Ultra-low power / SkyWater 130nm |
-| **Standard (Default)** | **1,024 Bins** | **$+52,034\text{ GE}$** | **0.020%** | **14 cycles** | **-57.9%** | **Mainstream DDR5 Client / Server** |
-| **High-Assurance (Mil/Aero)**| 4,096 Bins | $+142,000\text{ GE}$| < 0.001% | 8 cycles | -68.4% | Advanced Datacenter FinFET nodes |
+The SDC filter size, the mitigation threshold and the rate-pacing parameters trade area against false-positive rate,
+detection latency and throughput loss under attack. An earlier version of this section tabulated numbers for three
+configurations (area in gate equivalents, false-positive rate, detection latency, throughput loss). Those numbers were
+withdrawn because no run in this repository produced them. Quantifying this trade-off is part of the planned
+evaluation in [`EVALUATION.md`](EVALUATION.md).
 
 ---
 
-## 4. Hardware Implementation & Physical Trade-offs
+## 4. Hardware Implementation Limits
 
-### 4.1 FPGA Distributed LUT Pressure vs. ASIC Density
-- **FPGA Utilization**: On a Xilinx Artix-7 (XC7A100T), Q-Shield requires **26,120 LUTs (41.2%)** and **0 Block RAMs (BRAMs)**.
-- **Why Zero BRAMs?**: Standard FPGA BRAM primitives require sequential address cycles ($1-2$ cycles read/write latency) and do not support single-cycle global clear. To achieve an instantaneous single-cycle epoch reset ($O(1)$) across 2,048 counters upon $t_{REFW}$ expiration, the counter tables must be implemented as distributed flip-flops/LUT registers.
-- **ASIC Implementation**: On an ASIC standard cell library (Nangate 45nm), this distributed array synthesizes into dense standard cells occupying only $0.073\,\text{mm}^2$, which represents only **+3.8% area overhead** at the uncore subsystem level.
+### 4.1 FPGA timing and area
 
-### 4.2 Power & Energy Breakdown
-- **Baseline Controller**: Unmitigated FR-FCFS dissipates $17.82\text{ mW}$ ($14.20\text{ mW}$ dynamic, $3.62\text{ mW}$ leakage) at $400\text{ MHz}$.
-- **Q-Shield Active Power**: Dissipates $23.58\text{ mW}$ ($19.96\text{ mW}$ dynamic, $3.62\text{ mW}$ leakage).
-- **Security Energy Cost**: The dynamic energy delta of $+5.76\text{ mW}$ translates to **$+4.83\text{ pJ/op}$** ($58.95\text{ pJ/op}$ vs. $54.12\text{ pJ/op}$ baseline), representing an 8.9% energy overhead for full RowHammer immunity and SEC-DED protection.
+Measured results (Xilinx `xczu7ev`, Vivado 2026.1) are in [`DESIGN.md`](DESIGN.md) section 3:
+
+- The core controller closes timing at 3.8 ns (about 263 MHz) after place and route and **does not close at 2.5 ns
+  (400 MHz)**: WNS is -1.273 ns at the 2.5 ns target.
+- The encryption and integrity layer adds a large amount of logic: the secure top uses 169,365 LUTs (73.5 % of the
+  device) in synthesis and has not completed place and route.
+- Large storage arrays (for example the metadata cache) are mapped to block RAM. Using block RAM adds a cycle of read
+  latency, and the surrounding logic is written for it.
+
+### 4.2 Power and energy
+
+Power was estimated for the core controller at 263.16 MHz by Vivado in vectorless mode (1.618 W total). That is a
+rough estimate and not a measurement. ASIC power and energy per operation were not measured, and earlier figures for
+them were withdrawn.
 
 ---
 
@@ -87,11 +92,11 @@ The table below delineates the architectural trade-offs across different sizing 
 
 To ensure complete experimental transparency regarding the boundaries between simulation models and physical hardware:
 
-### 5.1 Fully Verified Dimensions
-- **RTL Functional Correctness**: Verified via 11 formal mathematical proofs (SymbiYosys/Z3) and 20 hardware regression suites (Icarus/Verilator/Cocotb) with 92.3% code coverage.
-- **Cycle-Accurate Command Protocol**: Fully validated against JEDEC JESD79-5 DDR5 and JESD79-4 DDR4 command timing matrices ($t_{RCD}, t_{RP}, t_{RAS}, t_{CL}, t_{CCD\_L}, t_{CCD\_S}$).
-- **Multi-Foundry Synthesizability**: Mapped across 4 distinct standard cell libraries (Nangate 45nm, SkyWater 130nm, IHP SG13G2 130nm, GlobalFoundries GF180MCU 180nm).
-- **Static Timing Closure (STA)**: Confirmed with positive Worst Negative Slack (WNS = $+0.142\,\text{ns}$ at $424.1\,\text{MHz}$ on Nangate 45nm).
+### 5.1 What Has Been Verified
+
+- **Functional behaviour in simulation**: the testbenches listed in [`README.md`](README.md) pass; the coverage and mutation limits are in section 9.
+- **Command timing**: a JEDEC DDR5 timing checker runs in every top-level testbench and reports no violations in those runs.
+- **FPGA timing after place and route (core controller)**: closes at 3.8 ns (about 263 MHz), **does not close at 2.5 ns (400 MHz)**; see [`DESIGN.md`](DESIGN.md) section 3.
 
 ### 5.2 Unverified Physical Dimensions (Open Research Questions)
 - **Post-P&R Gate-Level Netlist Timing**: Evaluated through pre-layout synthesis; full physical place-and-route clock tree synthesis (CTS) and parasitic RC back-annotation remain future work.
@@ -109,7 +114,7 @@ To ensure complete experimental transparency regarding the boundaries between si
 
 ## 6. Crypto-Integration Demo Top (`sec_ddr5_controller_top.sv`) Scope & Known Open Limitations
 
-Per architectural decision **D1**, **`axi_ddr5_mc_top`** (`rtl/top/axi_ddr5_mc_top.sv`) is the **canonical production top-level module** of Q-Shield used for end-to-end verification, formal proofs, and synthesis evaluation.
+**`axi_ddr5_mc_top`** (`rtl/top/axi_ddr5_mc_top.sv`) is the **canonical production top-level module** of Q-Shield used for end-to-end verification, formal proofs, and synthesis evaluation.
 
 By contrast, **`sec_ddr5_controller_top`** (`rtl/top/sec_ddr5_controller_top.sv`) is retained strictly as a **crypto-integration demonstration top** (illustrating the dual-lane AES-256-XTS write pipeline, dual-clock Gray-code CDC FIFOs, and dual-subchannel scheduler). It is **not part of the canonical controller hierarchy (`axi_ddr5_mc_top`)** and **must not be used for any area, timing ($F_{max}$/WNS), LUT/FF utilization, or throughput claims**.
 
@@ -155,7 +160,7 @@ The following findings on `sec_ddr5_controller_top` are closed by scope (documen
 ### 7.1 [M-7] ZEM Fault-Masking Cache Disconnected on Canonical Read Path (`axi_ddr5_mc_top.sv`)
 - **Location**: `rtl/top/axi_ddr5_mc_top.sv` (`u_ecc_scrubber` instantiation, lines 1752–1758) and `rtl/backend/ecc_scrubber.sv`.
 - **Current RTL State**: `ecc_scrubber.sv` implements ZEM fault masking (`COL_WIDTH = 13`, 16 entries) hardened with a 2-scan confirmation learn policy (`i_cfg_zem_auto_learn`, transient switching guard `o_zem_learn_blocked_cnt`, manual override `i_cfg_zem_manual_load`) and automatic row-level ZEM entry invalidation on ECC check-bit errors or 2-bit uncorrectable errors (`checks=18 fails=0` in `tb_eccfail_zem_scrubber`). However, on the canonical controller read path in `axi_ddr5_mc_top.sv`, ZEM lookup inputs remain tied off (`.i_zem_lookup_valid(1'b0)`, `.o_zem_hit()`, `.o_zem_mask()`, `.o_zem_hit_cnt()`).
-- **Root Cause & Decision (T39 / D4 R-69 Fallback)**: Connecting ZEM CAM lookup and pre-decode masking onto the critical DFI read path in `axi_ddr5_mc_top.sv` initially degraded 400 MHz (`2.500 ns`) Vivado OOC timing to `WNS = -1.432 ns` (`t39_zem`). Across 3 R-69 optimization rounds (`t39_r1` `-0.575 ns` -> `t39_r2` `-0.469 ns` -> `t39_r3` `-0.077 ns`, failing arbiter path `u_qos_queue/o_cand_starved_reg[1]/C -> u_arbiter/last_served_bg_reg[0]/CE`), core WNS remained `0.055 ns` worse than T43 baseline (`-0.022 ns`), exceeding the R-69 `0.050 ns` regression cap. Per R-69 fallback, read-path ZEM wiring was rolled back (`t39_fallback`: `WNS = -0.022 ns`, `TNS = -0.429 ns`), leaving canonical read beats protected solely by Hamming SEC-DED (72,64).
+- **Root Cause & Decision (ZEM read-path decision)**: Connecting ZEM CAM lookup and pre-decode masking onto the critical DFI read path in `axi_ddr5_mc_top.sv` initially degraded 400 MHz (`2.500 ns`) Vivado OOC timing to `WNS = -1.432 ns` (`t39_zem`). Across 3 optimization rounds (`t39_r1` `-0.575 ns` -> `t39_r2` `-0.469 ns` -> `t39_r3` `-0.077 ns`, failing arbiter path `u_qos_queue/o_cand_starved_reg[1]/C -> u_arbiter/last_served_bg_reg[0]/CE`), core WNS remained `0.055 ns` worse than the preceding baseline (`-0.022 ns`), exceeding the `0.050 ns` regression budget we set. As a result, read-path ZEM wiring was rolled back (`t39_fallback`: `WNS = -0.022 ns`, `TNS = -0.429 ns`), leaving canonical read beats protected solely by Hamming SEC-DED (72,64).
 - **Reproduction**:
   ```bash
   # Standalone 2-scan ZEM & anti-poisoning verification (18/18 checks):
@@ -198,30 +203,30 @@ The following findings on `sec_ddr5_controller_top` are closed by scope (documen
 - **Location**: `rtl/backend/ddr5_cmd_engine.sv` (`ko_glob`, `K_REF`, `abo_rfm_req`, `abo_critical`), vs. `rtl/backend/directed_refresh_manager.sv`.
 - **Scope & Timing-Driven Revert**:
   - **Implemented**: Victim row `±1..3` boundary clamping in `rtl/backend/directed_refresh_manager.sv` eliminates uint32 underflow/wraparound near row `0` and `ROW_MAX` across both FSM enqueue paths and legacy PROQ matching.
-  - **Open Limitation (Reverted for 400 MHz Timing Closure)**: Candidate fixes in `rtl/backend/ddr5_cmd_engine.sv` to prioritize `abo_rfm_req` over postponed periodic refresh (`K_REF` when `ref_owed >= MAX_POSTPONE`) and enforce a countdown `tABO` deadline timer (`abo_timer`) regressed Vivado post-synthesis WNS from baseline `-0.022 ns` (`t52_before`) to `-0.261 ns` (`t52_after`, `TNS = -6.869 ns` vs. the `-0.072 ns` `0.05 ns` regression budget; critical path `u_cmd_engine/ref_mode_reg/Q -> ko_glob -> pre_rdy -> any_pre -> decoy_c -> pk_oh_reg[*]/D`). Per T52 Item 2 rules, the `ddr5_cmd_engine.sv` ABO/`tABO` modification was reverted to preserve 400 MHz closure; periodic refresh starvation relief still takes precedence over PRAC ABO RFM when `ref_owed >= MAX_POSTPONE`, and no hardware `tABO` deadline timer is enforced inside `ddr5_cmd_engine.sv`.
+  - **Open Limitation (Reverted for 400 MHz Timing Closure)**: Candidate fixes in `rtl/backend/ddr5_cmd_engine.sv` to prioritize `abo_rfm_req` over postponed periodic refresh (`K_REF` when `ref_owed >= MAX_POSTPONE`) and enforce a countdown `tABO` deadline timer (`abo_timer`) regressed Vivado post-synthesis WNS from baseline `-0.022 ns` (`t52_before`) to `-0.261 ns` (`t52_after`, `TNS = -6.869 ns` vs. the `-0.072 ns` `0.05 ns` regression budget; critical path `u_cmd_engine/ref_mode_reg/Q -> ko_glob -> pre_rdy -> any_pre -> decoy_c -> pk_oh_reg[*]/D`). Following the same timing-regression rule, the `ddr5_cmd_engine.sv` ABO/`tABO` modification was reverted to preserve 400 MHz closure; periodic refresh starvation relief still takes precedence over PRAC ABO RFM when `ref_owed >= MAX_POSTPONE`, and no hardware `tABO` deadline timer is enforced inside `ddr5_cmd_engine.sv`.
 
 ---
 
 ## 9. Tiêu chuẩn và kiểm chứng (Standards & Verification Boundaries)
 
-Nhằm đảm bảo tính trung thực khoa học tuyệt đối theo các quy tắc R3, R14 và các chuẩn mực bình duyệt quốc tế:
+Phần này nêu rõ phạm vi những gì đã được kiểm chứng và những gì chưa:
 
 ### 9.1 Trạng thái chứng nhận tiêu chuẩn bảo mật (FIPS 140-3, CC, ISO/IEC 17825)
 - **FIPS 140-3**: Q-Shield chỉ sử dụng FIPS 140-3 như một **khung tham chiếu kỹ thuật** đối chiếu các yêu cầu quản lý khóa bí mật (write-only sau khi `sec_locked`), cơ chế zeroization trên reset và cảnh báo bảo mật, và kiểm tra TMR cho thanh ghi bảo mật. Thiết kế **chưa được chứng nhận FIPS 140-3** bởi bất kỳ phòng kiểm chuẩn mật mã (CST lab) hay cơ quan quản lý (CMVP) nào; tuyệt đối không tuyên bố "đạt chứng nhận FIPS 140-3".
 - **Common Criteria (ISO/IEC 15408)**: Chỉ được sử dụng làm **khung mô hình đe dọa** (Byzantine hash collision, RowHammer rate pacing, chống SEU và bus snooping); thiết kế **không nhận và không tuyên bố bất kỳ cấp độ bảo đảm EAL nào** (EAL1–EAL7).
 - **ISO/IEC 17825**: Chưa triển khai đo lường TVLA (Test Vector Leakage Assessment) trên chip vật lý; S-Box hiện tại trong active datapath là dạng LUT chưa che mặt nạ (unmasked) để tối ưu timing 400 MHz; trạng thái đối với ISO/IEC 17825 là **CHƯA LÀM** (chỉ có thể tự chạy đánh giá rò rỉ kiểu TVLA trong tương lai, không phải chứng nhận phòng lab).
 
-### 9.2 Giới hạn kiểm chứng hình thức BMC (T61)
+### 9.2 Giới hạn kiểm chứng hình thức BMC
 - Các bằng chứng kiểm chứng hình thức SymbiYosys trong `formal/` được thực thi bằng phương pháp **Bounded Model Checking (BMC) với giới hạn độ sâu hữu hạn (depth 12 đến 15 chu kỳ)** và temporal induction cục bộ, **không phải là chứng minh toán học trên độ sâu vô hạn** ($\infty$).
 - **Mô hình trừu tượng độc lập của toàn vẹn**: File `formal/integrity_formal.sv` là một **mô hình trừu tượng độc lập** (sử dụng tham số thu nhỏ, không gọi hay instantiate các module RTL thực tế như `qshield_bmt_engine`, `qshield_meta_cache` hay `qshield_axi_crypto_bridge`). Do đó, các bất biến toàn vẹn Bonsai Merkle Tree được chứng minh trên mô hình toán học trừu tượng, **chưa được chứng minh hình thức trực tiếp trên toàn bộ netlist RTL thực tế**. Tuyệt đối không viết "RTL được kiểm chứng hình thức cho phần toàn vẹn".
 
-### 9.3 Giới hạn kiểm thử đột biến Mutation Testing (T62)
+### 9.3 Giới hạn kiểm thử đột biến (mutation testing)
 - Engine kiểm thử đột biến RTL (`tools/mutate_rtl.py`) được đánh giá trên tập **20 mutant** phân bổ qua 4 khối: scheduler, ROB, adapter và CSR.
 - **Tỷ lệ diệt đột biến**: Đạt **90.0% (18/20 mutant bị diệt)**, đúng bằng ngưỡng tối thiểu (>= 90%).
-- **Mutant sống sót**: Có 2 mutant trong khối ROB (`MUT-ROB-01` và `MUT-ROB-03` liên quan đến điều kiện phát hiện RAW hazard) sống sót qua testbench ngẫu nhiên; dù được giải thích là có cơ chế formal bảo vệ, 2 mutant này **chưa được chạy kiểm tra lại trực tiếp bằng công cụ formal**.
+- **Mutant sống sót**: Có 2 mutant trong khối ROB (`MUT-ROB-01` và `MUT-ROB-05` liên quan đến điều kiện phát hiện RAW hazard) sống sót qua testbench ngẫu nhiên; dù được giải thích là có cơ chế formal bảo vệ, 2 mutant này **chưa được chạy kiểm tra lại trực tiếp bằng công cụ formal**.
 - **Phạm vi hạn chế**: Mutation testing **chưa bao phủ các khối đóng góp trọng tâm mới** bao gồm: bridge mã hóa (`qshield_axi_crypto_bridge`), Bonsai Merkle Tree engine (`qshield_bmt_engine`), bộ đệm metadata (`qshield_meta_cache`) và đường ống mã hóa XTS (`subchannel_aes_xts_pipe`).
 
-### 9.4 Giới hạn độ phủ UVM pyuvm (T60)
+### 9.4 Giới hạn độ phủ UVM pyuvm
 - Môi trường kiểm thử UVM chuẩn công nghiệp pyuvm 5.0.0 (`tb/uvm/run_uvm.py`) báo cáo độ phủ chức năng 100% (`hit=23/23`).
 - **Bản chất độ phủ**: Con số 100% này **chỉ phản ánh độ phủ của 23 bin chức năng tự định nghĩa** (16 bin trong `mc_env` và 7 bin trong `csr_env`), **không đại diện cho độ phủ mã nguồn (line/branch/toggle code coverage) hay độ phủ chức năng toàn diện chuẩn ngành EDA**.
 - Số lượng seed ngẫu nhiên hiện tại còn hạn chế (mặc định 2 đến 5 seeds).

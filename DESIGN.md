@@ -58,7 +58,7 @@ Q-Shield integrates RowHammer mitigation, Silent Data Corruption (SDC) resilienc
 ### 2.1 AMBA AXI4 Frontend & Skid Buffering
 - **Source Module**: [`rtl/frontend/axi_slave_frontend.sv`](rtl/frontend/axi_slave_frontend.sv), [`rtl/bus/axi4_skid_buffer.sv`](rtl/bus/axi4_skid_buffer.sv)
 - **Mechanism**: Implements full AMBA AXI4 protocol with independent address/data channels (`AW`, `W`, `B`, `AR`, `R`).
-- **Skid Buffering**: Decouples the ready/valid handshake with zero register-induced bubbles ($IPC=1.0$). When downstream pipelines assert backpressure, incoming requests are temporarily buffered in a single-depth latch stage without dropping back-to-back transfer beats.
+- **Skid Buffering**: Decouples the ready/valid handshake intended to avoid register-induced bubbles (sustained throughput has not been measured separately). When downstream pipelines assert backpressure, incoming requests are temporarily buffered in a single-depth latch stage without dropping back-to-back transfer beats.
 - **Boundary Detection**: Decomposes bursts crossing 4KB memory boundaries into compliant transactions per AMBA AXI specification section A3.4.1.
 
 ### 2.2 Dual-Hash SDC-Resilient Filter
@@ -117,67 +117,67 @@ Q-Shield integrates RowHammer mitigation, Silent Data Corruption (SDC) resilienc
 - **Keystream Tag Buffer**: 16-entry CAM matching returning DRAM read tags to decrypt in 0 static cycles via combinational XOR.
 - **Dynamic Security Profiles**: Profile 0 (Bypass), Profile 1 (Legacy inline XTS), Profile 2 (High-throughput decoupled CTR), and Profile 3 (Enterprise TEE with 64-bit MAC and ASIL-D fault poisoning).
 
-### 2.12 Form Factor Positioning & Packaging Architecture
+### 2.12 Intended Deployment Scenarios (not evaluated)
+The scenarios below describe where the controller could be used. They have not been implemented or evaluated in this repository.
+
 - **Form Factor A (CXL 3.0 Type-3 Memory Expansion)**: Standard PCIe Gen5/Gen6 Add-In Card (AIC) or EDSFF E3.S module for cloud memory pooling and disaggregation, bridging CXL.mem subchannels to dual DDR5 RDIMMs with smooth SDC rate-pacing.
 - **Form Factor B (Heterogeneous Chiplet IOD via UCIe 1.1)**: Dedicated I/O Die (IOD) connecting to host compute tiles via Universal Chiplet Interconnect Express (UCIe 1.1), governed by the packaging scaling law $\tau = \alpha \cdot \sqrt{\text{Area}} + \beta \cdot d_{\text{die}}$ to guarantee sub-nanosecond handshakes.
 
 ---
 
-## 3. Hardware Implementation & Baseline PPA Context
+## 3. Hardware Implementation Results
 
-### 3.1 Synthesis Baseline Context
-To contextualize Q-Shield's silicon cost, we compare it against an unmitigated, vanilla FR-FCFS DDR5 memory controller implemented in the same standard cell library. We delineate between the **Base Security Configuration** (148,434 GE) and the **Full Security Configuration** (171,192 GE, integrating SCARF, PXOR, AMD SEV-SNP Multi-VM key table, and Fault-Hardened TMR CSR).
+All figures in this section come from Vivado 2026.1 reports for the Xilinx `xczu7ev-ffvc1156-2-e` device, run out of
+context, and are stored in [`syn/reports/evidence/`](syn/reports/evidence/). ASIC area, power and energy figures that
+appeared in earlier versions of this document were removed: no synthesis run in this repository produced them.
 
-| Parameter | Unmitigated FR-FCFS Baseline | Q-Shield (Base Security) | Q-Shield (Full Security v2.5) | Delta / Overhead (Full vs Base) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Logic Gate Count (GE)** | **96,400 GE** | **148,434 GE** (+53.9%) | **171,192 GE** (+77.6%) | **+22,758 GE (+15.3%)** |
-| Total Silicon Area (Nangate 45nm) | $0.135\text{ mm}^2$ | $0.208\text{ mm}^2$ | $0.239\text{ mm}^2$ ($0.137\text{ mm}^2$ cell) | $+0.031\text{ mm}^2$ |
-| Area as % of Quad-Core Uncore | ~7.0% | ~10.8% | ~12.4% | **+1.6% uncore overhead** |
-| Maximum Frequency ($F_{max}$) | 450.0 MHz | 424.1 MHz | 424.1 MHz | Timing met $\ge 400\text{ MHz}$ ($WNS = +0.142\text{ ns}$) |
-| Dynamic Power @ 400 MHz | 14.20 mW | 19.96 mW | 26.51 mW | +6.55 mW |
-| Static / Leakage Power | 3.62 mW | 3.62 mW | 0.34 mW (lib std) | Controlled leakage |
-| **Total Power Dissipation** | **17.82 mW** | **23.58 mW** | **26.85 mW** | **+3.27 mW (+13.9%)** |
-| **Energy per Operation** | **54.12 pJ/op** | **58.95 pJ/op** | **67.13 pJ/op** | **+8.18 pJ/op (+13.9%)** |
+### 3.1 Core controller (`axi_ddr5_mc_top`) after place and route
 
-### 3.2 Breakdown of Added Logic Gates (+74,844 GE over Baseline)
-1. **Dual-Hash SDC Filter (1,024 Bins) + PXOR-Hash**: ~25,320 GE (SRAM-like register arrays + CRC/Jenkins + Toeplitz PXOR datapath).
-2. **Hazard-Proof Reorder Buffer (16 Entries)**: ~14,100 GE (16-entry CAM tag matchers + payload muxes).
-3. **Multi-VM Key Table (16 ASIDs, AMD SEV)**: ~12,400 GE (16-entry key register file, APB4 supervisor decoder, C-bit bypass muxes).
-4. **Adaptive Threshold Engine & DRM**: ~7,400 GE (Fixed-point EWMA multipliers, counter comparators, leaky-bucket registers).
-5. **SCARF 1-Cycle Address Randomizer**: ~6,450 GE (10-round Feistel permutation logic, 4-bit S-Box array).
-6. **SEC-DED (72, 64) ECC & Scrubber**: ~6,334 GE (Hsiao XOR parity trees + autonomous address counter).
-7. **Fault-Hardened CSR (TMR + Watchdog)**: ~2,840 GE (Triple modular register rails, 2-out-of-3 majority voters, glitch latch).
+| Target period | WNS | TNS (failing / total endpoints) | CLB LUTs | CLB registers | BRAM / DSP |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| 2.500 ns (400 MHz) | -1.273 ns | -27,881 ns (61,510 / 107,309) | 65,170 (28.3 %) | 44,293 | 0 / 0 |
+| 3.800 ns (263.16 MHz) | +0.024 ns | 0 ns (0 / 107,193) | 63,785 (27.7 %) | 44,243 | 0 / 0 |
 
-*(Note: Items 1, 2, 4, 6 form the Base Security Controller at 148,434 GE; adding Items 3, 5, 7 and Universal PXOR yields the Full Security Architecture at 171,192 GE).*
+The core closes timing at 3.8 ns and does not close at 2.5 ns. The worst path at 2.5 ns runs from the SDC filter
+output (`u_sdc_filter/out_bg_reg`) to the QoS queue dependency register (`u_qos_queue/q_dep_reg`); routing accounts for
+about 75 % of that path's delay. Synthesis-only slack for the same design was -0.022 ns at 2.5 ns, so synthesis
+results alone are not a reliable predictor of the routed result.
 
-### 3.3 Multi-Foundry Standard Cell Portability
+### 3.2 Area by block (routed, 3.8 ns run)
 
-| Metric | Nangate 45nm Open PDK | SkyWater 130nm (SKY130) | IHP SG13G2 130nm BiCMOS | GlobalFoundries GF180MCU | Xilinx 7-Series (XC7Z020) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Full Gate Count / LUTs** | **171,192 GE** (Base: 148.4k) | **172,800 GE** (Base: 151.2k) | **171,850 GE** (Base: 149.8k) | **174,500 GE** (Base: 153.6k) | **54,282 LUTs** (Base: 26.1k) |
-| **Target Frequency** | 400.0 MHz ($F_{max}=424.1$) | 133.3 MHz ($F_{max}=142.8$) | 200.0 MHz ($F_{max}=225.0$) | 66.7 MHz ($F_{max}=68.5$) | 100.0 MHz ($F_{max}=125.0$) |
-| **Total Power** | 26.85 mW | 53.40 mW | 39.10 mW | 102.40 mW | 312 mW |
-| **Standard Cell Library** | FreePDK45 | sky130_fd_sc_hd | sg13g2_stdcell | gf180mcu_fd_sc_mcu7t5v0 | Vivado / Yosys |
+Ten largest instances by LUT count ([`core_confirmed_route_util_hier.rpt`](syn/reports/evidence/core_confirmed_route_util_hier.rpt)):
 
-### 3.4 Detailed Power Breakdown: Baseline vs Q-Shield
+| Instance | Module | Total LUTs | FFs |
+| :--- | :--- | ---: | ---: |
+| `u_qos_queue` | `qos_scheduler_queue` | 15,771 | 5,312 |
+| `u_wds` | `wr_data_store` | 13,174 | 9,444 |
+| `u_sdc_filter` | `sdc_resilient_filter` | 12,062 | 9,236 |
+| `u_cmd_engine` | `ddr5_cmd_engine` | 10,146 | 4,395 |
+| `u_rob` | `reorder_buffer_rob` | 4,533 | 9,211 |
+| `u_drm` | `directed_refresh_manager` | 2,425 | 2,354 |
+| `u_rd_iq` | `rd_issue_queue` | 1,317 | 503 |
+| `u_bank_credit` | `bank_credit_ctrl` | 954 | 204 |
+| `u_addr_mapper` | `addr_mapper_ddr5` | 472 | 153 |
+| `u_wr_ks` | `scrambler_ks_pipe` | 446 | 450 |
 
-| Component Module | Baseline (mW) | Q-Shield (mW) | Delta (mW) | % of Controller Total |
-| :--- | :---: | :---: | :---: | :---: |
-| **AXI Frontend & Skid Buffer** | 1.20 | 2.80 | +1.60 | 6.8% |
-| **SDC Filter + ATE Engine** | 0.00 | 7.82 | +7.82 | 33.1% |
-| **QoS Scheduler & CAM Queues** | 0.00 | 1.98 | +1.98 | 8.4% |
-| **Directed Refresh Manager (DRM)** | 0.00 | 0.18 | +0.18 | 0.8% |
-| **SEC-DED ECC & Scrubber** | 0.00 | 0.38 | +0.38 | 1.6% |
-| **Hazard-Proof ROB (16-Entry)** | 0.00 | 6.75 | +6.75 | 28.6% |
-| **Command FSM & Slack Arbiter** | 3.50 | 5.67 | +2.17 | 9.2% |
-| **Clock Tree & Reset Sync** | 2.30 | 2.51 | +0.21 | 0.9% |
-| **PHY / DFI Pads & Interface** | 10.82 | 11.49 | +0.67 | 2.8% |
-| **Total Memory Controller Power**| **17.82 mW** | **23.58 mW** | **+5.76 mW** | **100.0%** |
-| *Estimated SoC Uncore Level (Quad-Core)* | *~570 mW* | *~594 mW* | *+24 mW* | *+4.1% uncore delta* |
+### 3.3 Power
 
-**Power Analysis & Dominant Consumers**:
-1. **Primary Power Dissipators**: The SDC Filter (33.1%) and the Hazard-Proof ROB (28.6%) account for over 61% of total controller power due to high-frequency distributed flip-flop register arrays required for single-cycle epoch clears and CAM lookups.
-2. **Opportunities for Silicon Optimization**: In a dedicated ASIC tape-out, synthesizing the Count-Min sketch counters into custom dual-port low-leakage SRAM macros or multi-banked register slices would reduce dynamic power dissipation by an estimated ~40–50%.
+Vivado's vectorless estimate at 263.16 MHz is 1.618 W total (1.021 W dynamic, 0.597 W static)
+([`core_confirmed_route_power.rpt`](syn/reports/evidence/core_confirmed_route_power.rpt)). No switching-activity file was
+used, so this is a rough estimate and not a measurement.
+
+### 3.4 Secure top (`axi_ddr5_mc_secure_top`)
+
+Synthesis at 2.500 ns: WNS -0.385 ns, TNS -93.4 ns (501 of 246,948 endpoints), 169,365 CLB LUTs (73.5 %), 111,834
+registers, 7.5 BRAM tiles, no multi-driven nets
+([timing](syn/reports/evidence/secure_top_synth_T44_timing.rpt), [utilization](syn/reports/evidence/secure_top_synth_T44_util.rpt)).
+The metadata cache alone reaches +0.037 ns at 2.5 ns in synthesis
+([report](syn/reports/evidence/meta_cache_synth_timing.rpt)). Place and route of the secure top has not completed.
+
+### 3.5 Not yet measured
+
+ASIC (Nangate45 or other PDK) area, power and timing; energy per operation; multi-foundry portability. These will be
+added only with a run and a report.
 
 ---
 

@@ -16,7 +16,7 @@ cd DRAM
 # 1. Install Python prerequisites
 pip install -r requirements.txt
 
-# 2. Run Master Hardware Regression Suite (30 <!-- số cũ, chờ T51 --> testbenches incl. 8 Global Benchmarks & 13 Security Vectors)
+# 2. Run Master Hardware Regression Suite (all testbenches registered in the runner)
 python run_iverilog_regression.py
 
 # 3. Run Attack Emulation & Defense Verification
@@ -72,7 +72,7 @@ Every figure and table in the manuscript maps 1-to-1 to an execution script and 
 ```bash
 python run_iverilog_regression.py
 ```
-- **Expected Outcome**: 30/30 <!-- số cũ, chờ T51 --> testbenches (including 13 hardware attack vectors and 8 global academic/industrial benchmarks) pass with zero fatal assertion errors.
+- **Expected Outcome**: every testbench registered in the runner passes with zero fatal assertion errors; the runner prints the exact count.
 - **Verification Log**: Inspect `regression_summary.json` and `regression_logs/`.
 
 ### Step 2: Full End-to-End Cocotb Verification
@@ -114,4 +114,4 @@ python sim/run_benchmarks.py --config all --repeat 10 --seed 12345
 | **Golden Output Diff** | Numerical & Checksum Tolerance Check | 0.8 s | 1.5 s | 1.0 s |
 | **Total Wall-Clock** | Complete Environment Sanity Gate | **~7.4 s** | **~18.0 s** | **~9.8 s** |
 
-*Note*: Full 20-suite <!-- số cũ, chờ T51 --> regression (`python run_all_tests.py`) runs in ~1.5–2.0 minutes; complete multi-workload benchmark sweep (`python sim/run_benchmarks.py --config all`) runs in ~8–12 minutes.
+*Note*: The full regression (`python run_all_tests.py`) takes on the order of an hour on a laptop; complete multi-workload benchmark sweep (`python sim/run_benchmarks.py --config all`) runs in ~8–12 minutes.
