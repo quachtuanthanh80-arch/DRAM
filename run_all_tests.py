@@ -47,6 +47,16 @@ def main():
                 sys.exit(1)
             print()
 
+    # Gate 2: Corner cases matrix validation (M-10 / T62)
+    if "--skip-corner-matrix" not in sys.argv:
+        matrix_script = os.path.join(root_dir, "tools", "check_corner_matrix.py")
+        if os.path.exists(matrix_script):
+            res_matrix = subprocess.run([sys.executable, matrix_script], cwd=root_dir)
+            if res_matrix.returncode != 0:
+                print("[FAIL] Corner cases matrix verification check failed. Aborting regression.")
+                sys.exit(1)
+            print()
+
     # Multi-Stage Test Plan Categorization
     suites = [
         # Stage 1: Functional Unit Tests
@@ -272,7 +282,7 @@ def main():
         drive, rest = os.path.splitdrive(os.path.abspath(__file__))
         drive_letter = drive.replace(":", "").lower()
         wsl_path = f"/mnt/{drive_letter}" + rest.replace("\\", "/")
-        ret = subprocess.run(["wsl", "--", "python3", wsl_path, "--skip-gate", "--skip-findings"] + [a for a in sys.argv[1:] if a not in ("--skip-gate", "--skip-findings")])
+        ret = subprocess.run(["wsl", "--", "python3", wsl_path, "--skip-gate", "--skip-findings", "--skip-corner-matrix"] + [a for a in sys.argv[1:] if a not in ("--skip-gate", "--skip-findings", "--skip-corner-matrix")])
         sys.exit(ret.returncode)
 
     # Native execution loop

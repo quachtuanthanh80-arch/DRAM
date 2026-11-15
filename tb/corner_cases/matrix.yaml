@@ -1,0 +1,209 @@
+#=============================================================================
+# Q-Shield Master Verification Corner Case Matrix (matrix.yaml)
+# Maps architectural blocks to corner cases, expected behaviors, testbenches, and coverpoints.
+# Complies with Finding M-10 and verification plans (T-RT01..RT12, H-2..H-8, M-2..M-5).
+#=============================================================================
+
+version: "1.0"
+project: "Q-Shield Secure DDR5/DDR4 Controller"
+
+corner_cases:
+  #---------------------------------------------------------------------------
+  # 1. Command Engine & Scheduler Subsystem (cmd_engine / scheduler)
+  #---------------------------------------------------------------------------
+  - id: "CC-SCHED-01"
+    block: "scheduler"
+    description: "Anti-starvation mechanism enforcing periodic refresh (tREFI) under saturated write bursts"
+    expected: "No write burst delays auto-refresh beyond 5*tREFI interval; ref_owed increments and triggers drain"
+    test: "tb_rt01_ref_starvation"
+    coverpoint: "ref_interval_le_5_trefi"
+
+  - id: "CC-SCHED-02"
+    block: "scheduler"
+    description: "Read request latency bound and QoS isolation against high-intensity write denial-of-service"
+    expected: "High-priority read transactions are served within bounded cycles without infinite stalling"
+    test: "tb_rt01_ref_starvation"
+    coverpoint: "read_latency_bounded"
+
+  - id: "CC-SCHED-03"
+    block: "scheduler"
+    description: "Bank Group credit race condition under concurrent read and write requests at saturation (sum >= 7)"
+    expected: "Per-bank-group credit accounting enforces wbank_credit limits; zero credit overflow or queue hang"
+    test: "tb_rt02_credit_race"
+    coverpoint: "bg_credit_le_8"
+
+  - id: "CC-SCHED-04"
+    block: "scheduler"
+    description: "Multi-bank interleaved addressing across all 8 Bank Groups and 4 Banks with bank coloring"
+    expected: "Address mapping routes transactions across all 32 physical banks with bank-group indexing"
+    test: "tb_axi_ddr5_mc_top"
+    coverpoint: "all_bg_bank_hit"
+
+  - id: "CC-SCHED-05"
+    block: "scheduler"
+    description: "JEDEC DDR5 timing constraint compliance at 400 MHz (2.5 ns tCK) across mixed traffic"
+    expected: "Zero JEDEC timing rule violations for tRCD, tRP, tRAS, tRFC, tCCD_L, and tWTR_L"
+    test: "tb_rt04_jedec_400mhz"
+    coverpoint: "zero_jedec_timing_violations"
+
+  - id: "CC-SCHED-06"
+    block: "scheduler"
+    description: "DRAM geometry parameter corner coverage across different density and bank configurations"
+    expected: "Correct timing calculation and zero command violations across parameter variations"
+    test: "tb_rt12_param_corners"
+    coverpoint: "all_geom_configs_clean"
+
+  #---------------------------------------------------------------------------
+  # 2. Reorder Buffer (ROB) & AXI Read Channel
+  #---------------------------------------------------------------------------
+  - id: "CC-ROB-01"
+    block: "rob"
+    description: "AXI R-channel backpressure with arbitrary and randomized RREADY handshake deassertion"
+    expected: "Read data pipeline decouples cleanly via zero-bubble skid buffer; no internal stall or loss"
+    test: "tb_axi_ddr5_mc_top"
+    coverpoint: "rand_rready_stall"
+
+  - id: "CC-ROB-02"
+    block: "rob"
+    description: "RREADY=0 backpressure prevents duplicate read beats across AXI interface (Finding H-3)"
+    expected: "RVALID and RDATA payload remain stable until handshake completes; zero duplicate read beats"
+    test: "check_h3"
+    coverpoint: "h3_no_duplicate_beats"
+
+  - id: "CC-ROB-03"
+    block: "rob"
+    description: "Read-After-Write (RAW) hazard collision on identical cacheline address"
+    expected: "Hazard detector flags raw_hazard, stalls read allocation until write commits, preserving ordering"
+    test: "tb_reorder_buffer_rob"
+    coverpoint: "raw_hazard_stall_and_forward"
+
+  - id: "CC-ROB-04"
+    block: "rob"
+    description: "Synchronous reset assertion in the middle of active multi-beat burst transmission"
+    expected: "All in-flight ROB entries and skid registers clear cleanly; clean state restoration on release"
+    test: "tb_axi_ddr5_mc_top"
+    coverpoint: "reset_mid_burst_clean_drain"
+
+  #---------------------------------------------------------------------------
+  # 3. AXI4 Slave Adapter & Frontend (adapter)
+  #---------------------------------------------------------------------------
+  - id: "CC-ADAPT-01"
+    block: "adapter"
+    description: "AMBA AXI4 4KB address boundary crossing burst detection and decomposition (M-3)"
+    expected: "axi_burst_splitter slices bursts crossing 4KB boundaries into aligned sub-transactions"
+    test: "tb_axi_burst_splitter"
+    coverpoint: "boundary_4kb_split_packets"
+
+  - id: "CC-ADAPT-02"
+    block: "adapter"
+    description: "Partial write strobe handling (non-contiguous WSTRB) with Read-Modify-Write merge (M-2)"
+    expected: "Byte-level write enables update only selected bytes; unmasked bytes preserved via RMW"
+    test: "tb_axi4_slave_adapter"
+    coverpoint: "partial_wstrb_rmw_match"
+
+  - id: "CC-ADAPT-03"
+    block: "adapter"
+    description: "Phase skew between AW (address) and W (data) channel arrivals (AW before W / W before AW)"
+    expected: "Decoupled skid FIFOs buffer out-of-order channel handshakes without deadlock"
+    test: "tb_axi5_compliance"
+    coverpoint: "skewed_aw_w_handshake"
+
+  - id: "CC-ADAPT-04"
+    block: "adapter"
+    description: "AXI5 poison propagation and ASIL-D interface parity generation/checking"
+    expected: "Faulty beats carry rpoison high; parity checking correctly flags bit corruption on bus"
+    test: "tb_axi_ddr5_mc_top"
+    coverpoint: "poison_and_parity_chk"
+
+  #---------------------------------------------------------------------------
+  # 4. APB Control/Status Registers & Security Locks (csr)
+  #---------------------------------------------------------------------------
+  - id: "CC-CSR-01"
+    block: "csr"
+    description: "Sticky sec_locked protection preventing enc_enable bypass and soft_reset tampering (H-4)"
+    expected: "Writing 0 to enc_enable or soft_reset after sec_locked is ignored; configuration remains locked"
+    test: "check_h4"
+    coverpoint: "sec_locked_enc_enable_stable"
+
+  - id: "CC-CSR-02"
+    block: "csr"
+    description: "APB4 non-secure access rejection via pprot[1]=1 returning PSLVERR (H-5)"
+    expected: "Non-secure writes and reads trigger PSLVERR and leave register contents unmodified"
+    test: "check_h5"
+    coverpoint: "pprot_nonsec_slverr"
+
+  - id: "CC-CSR-03"
+    block: "csr"
+    description: "Write-only key registers and scramble seed return zero on readback (H-6)"
+    expected: "Reading AES-XTS keys or scramble seed always returns 32'h00000000"
+    test: "check_h6"
+    coverpoint: "zero_readback_keys_and_seed"
+
+  - id: "CC-CSR-04"
+    block: "csr"
+    description: "Triple Modular Redundancy (TMR) voting with single-rail fault injection on sec_locked rail"
+    expected: "Single-rail bit flip is voted out; sec_fault_status flags mismatch while lock remains intact"
+    test: "tb_rt05_fault_agg"
+    coverpoint: "tmr_fault_masked_and_logged"
+
+  #---------------------------------------------------------------------------
+  # 5. Cryptographic Engine & Integrity Subsystem (crypto)
+  #---------------------------------------------------------------------------
+  - id: "CC-CRYPTO-01"
+    block: "crypto"
+    description: "Split counter minor=127 rollover advances major counter and prevents keystream reuse (H-8)"
+    expected: "minor=127 increments major counter; all 64 lines in counter block re-encrypted"
+    test: "check_h8"
+    coverpoint: "counter_127_major_rollover"
+
+  - id: "CC-CRYPTO-02"
+    block: "crypto"
+    description: "Scrambler keystream version freshness preventing cipher reuse on reallocated lines (H-7)"
+    expected: "auto_version or explicit version advance generates distinct keystream for identical address"
+    test: "check_h7"
+    coverpoint: "scrambler_version_distinct_ks"
+
+  - id: "CC-CRYPTO-03"
+    block: "crypto"
+    description: "Carter-Wegman MAC generation and authentication tag verification (M-5)"
+    expected: "Authentic data passes verification; altered tag or ciphertext triggers MAC verification failure"
+    test: "tb_secure_top_integrity"
+    coverpoint: "mac_valid_tag_match"
+
+  - id: "CC-CRYPTO-04"
+    block: "crypto"
+    description: "Bonsai Merkle Tree root integrity and anti-replay tamper detection (D14)"
+    expected: "Replay or modified counter block causes tree validation failure and SLVERR response"
+    test: "tb_secure_top_integrity"
+    coverpoint: "bmt_tamper_detect_slverr"
+
+  #---------------------------------------------------------------------------
+  # 6. ECC, Scrubber & Fault Mitigation Subsystem (ecc_fault)
+  #---------------------------------------------------------------------------
+  - id: "CC-ECC-01"
+    block: "ecc_fault"
+    description: "Autonomous SEC-DED (72,64) single-bit error detection and background scrubbing"
+    expected: "Single-bit flips in DRAM data are corrected on-the-fly and rewritten cleanly by scrubber"
+    test: "tb_eccfail_zem_scrubber"
+    coverpoint: "secded_single_err_scrubbed"
+
+  - id: "CC-ECC-02"
+    block: "ecc_fault"
+    description: "Uncorrectable multi-bit ECC error handling without silent data corruption"
+    expected: "Double-bit errors trigger uncorrectable error alarm and return SLVERR with zeroed data"
+    test: "tb_eccfail_zem_scrubber"
+    coverpoint: "ue_alarm_raised"
+
+  - id: "CC-ECC-03"
+    block: "ecc_fault"
+    description: "Directed Refresh Manager (DRM) SEU fault injection recovery and RFM trigger"
+    expected: "Injected bit flips in DRM counters trigger o_drm_fault and force immediate RFM cycle"
+    test: "tb_rt05_fault_agg"
+    coverpoint: "drm_fault_rfm_dispatched"
+
+  - id: "CC-ECC-04"
+    block: "ecc_fault"
+    description: "Command engine timing parameter register fault detection and latch isolation"
+    expected: "Bit flips in timing registers (e.g. rcd_z, rp_z) are caught by o_fault_cause flags"
+    test: "tb_rt05_fault_agg"
+    coverpoint: "timing_fault_detected_and_cleared"
