@@ -1598,6 +1598,19 @@ module qshield_axi_crypto_bridge #(
     assign s_axi_arready = ar_bridge_ready && (i_enc_enable ? 1'b1 : m_axi_arready);
     wire ar_fire = s_axi_arvalid && s_axi_arready;
 
+    // Gộp bộ đếm reject AW/AR về một always_ff duy nhất (tránh multi-driver khi từ chối đồng thời)
+    wire aw_reject_inc = aw_fire && i_enc_enable && !aw_qualified;
+    wire ar_reject_inc = ar_fire && i_enc_enable && !ar_qualified;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            reject_cnt_reg <= 16'h0;
+        end else if (aw_reject_inc && ar_reject_inc) begin
+            reject_cnt_reg <= (reject_cnt_reg >= 16'hFFFE) ? 16'hFFFF : (reject_cnt_reg + 16'd2);
+        end else if (aw_reject_inc || ar_reject_inc) begin
+            if (reject_cnt_reg != 16'hFFFF) reject_cnt_reg <= reject_cnt_reg + 16'd1;
+        end
+    end
+
     // Quản lý BMT verify và update cho Ghi & Đọc
     logic [63:0] cur_wr_maj;
     logic [6:0]  cur_wr_min;
@@ -1624,7 +1637,6 @@ module qshield_axi_crypto_bridge #(
             v_c_maj_p1_q           <= 64'd0;
             aw_wr_ptr              <= 2'd0;
             aw_count               <= 3'd0;
-            reject_cnt_reg         <= 16'h0;
             wr_tweak_req_valid     <= 1'b0;
             wr_tweak_req_in        <= 128'h0;
             wr_tweak_req_meta      <= 8'h0;
@@ -1745,31 +1757,15 @@ module qshield_axi_crypto_bridge #(
                                 bmt_state                    <= BMT_IDLE;
                             end
                         end else begin
-                            // Xác minh xong cho luồng Đọc
+                            // Xác minh xong cho luồng Đọc (tweak & FIFO fail được cập nhật đồng bộ tại khối AR FIFO)
                             if (bmt_verify_pass) begin
-                                logic [63:0] c_maj;
-                                logic [6:0]  c_min;
-                                c_maj = bmt_cb_data[511:448];
-                                c_min = bmt_cb_data[bmt_cb_slot * 7 +: 7];
-
-                                rd_fifo_bmt_fail[bmt_req_rd_slot] <= 1'b0;
-
-                                rd_tweak_req_valid    <= 1'b1;
-                                rd_tweak_req_in       <= {c_maj, c_min, rd_fifo_asid[bmt_req_rd_slot], 27'h0, rd_fifo_addr[bmt_req_rd_slot][31:6]};
-                                rd_tweak_req_meta     <= {1'b0, 1'b1, bmt_req_rd_slot[5:2], bmt_req_rd_slot[1:0]};
                                 user_rd_dispatch      <= 1'b1;
                                 user_rd_tweak_ready_q <= !i_enc_enable;
                             end else begin
-                                rd_fifo_bmt_fail[bmt_req_rd_slot]    <= 1'b1;
-                                rd_fifo_tweak_valid[bmt_req_rd_slot] <= 1'b1;
-                                bmt_wr_rejected_alert                <= 1'b1;
+                                bmt_wr_rejected_alert <= 1'b1;
                                 user_rd_pending       <= 1'b0;
                                 user_rd_dispatch      <= 1'b0;
                                 user_rd_tweak_ready_q <= 1'b0;
-                                rd_stream_active  <= 1'b1;
-                                rd_stream_fail    <= 1'b1;
-                                rd_stream_id      <= user_rd_id;
-                                rd_stream_beat    <= 3'd0;
                             end
                             bmt_state <= BMT_IDLE;
                         end
@@ -1859,7 +1855,6 @@ module qshield_axi_crypto_bridge #(
                 end else if (!aw_qualified) begin
                     aw_fifo_is_bypass[aw_wr_ptr] <= 1'b0;
                     aw_fifo_is_reject[aw_wr_ptr] <= 1'b1;
-                    if (reject_cnt_reg != 16'hFFFF) reject_cnt_reg <= reject_cnt_reg + 1'b1;
                 end else if (eff_integ_enable) begin
                     aw_fifo_is_bypass[aw_wr_ptr] <= 1'b0;
                     aw_fifo_is_reject[aw_wr_ptr] <= 1'b0;
@@ -2223,9 +2218,13 @@ module qshield_axi_crypto_bridge #(
 `ifdef QSHIELD_TEST
     wire bmt_rd_fail_set_tw = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
                               !bmt_req_is_force_minor && bmt_req_is_read && !bmt_verify_pass;
+    wire bmt_rd_maj_wr_en   = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
+                              !bmt_req_is_force_minor && bmt_req_is_read && bmt_verify_pass;
 `else
     wire bmt_rd_fail_set_tw = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
                               bmt_req_is_read && !bmt_verify_pass;
+    wire bmt_rd_maj_wr_en   = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
+                              bmt_req_is_read && bmt_verify_pass;
 `endif
     wire tw_rsp_set_tw  = tweak_rsp_valid && !tweak_rsp_meta[7] && (tweak_rsp_meta[6] == 1'b1);
     wire [5:0] tw_rsp_slot = {tweak_rsp_meta[5:2], tweak_rsp_meta[1:0]};
@@ -2255,6 +2254,8 @@ module qshield_axi_crypto_bridge #(
             cur_rd_min         <= 7'h1;
             cur_rd_bmt_fail    <= 1'b0;
         end else begin
+            // Chủ sở hữu duy nhất rd_tweak_req_* và rd_fifo_{tweak_valid,bmt_fail}:
+            // ưu tiên set trước ack, fail-safe BMT > AR !eff_integ_enable
             if (rd_tweak_req_ack) begin
                 rd_tweak_req_valid <= 1'b0;
             end
@@ -2270,7 +2271,6 @@ module qshield_axi_crypto_bridge #(
                     rej_rd_id       <= s_axi_arid;
                     rej_rd_len      <= s_axi_arlen;
                     rej_rd_beat_cnt <= 8'h0;
-                    if (reject_cnt_reg != 16'hFFFF) reject_cnt_reg <= reject_cnt_reg + 1'b1;
                 end else begin
                     rd_fifo_is_bypass[cur_ar_slot]   <= 1'b0;
                     rd_fifo_tweak_valid[cur_ar_slot] <= 1'b0;
@@ -2286,11 +2286,19 @@ module qshield_axi_crypto_bridge #(
                 end
             end
 
-            if (tweak_rsp_valid && !tweak_rsp_meta[7] && (tweak_rsp_meta[6] == 1'b1)) begin
-                logic [5:0] rsp_slot_idx;
-                rsp_slot_idx = {tweak_rsp_meta[5:2], tweak_rsp_meta[1:0]};
+            if (tw_rsp_set_tw) begin
+                rd_fifo_tweak_valid[tw_rsp_slot] <= 1'b1;
+            end
 
-                rd_fifo_tweak_valid[rsp_slot_idx] <= 1'b1;
+            if (bmt_rd_maj_wr_en) begin
+                rd_fifo_bmt_fail[bmt_req_rd_slot] <= 1'b0;
+                rd_tweak_req_valid <= 1'b1;
+                rd_tweak_req_in    <= {bmt_cb_data[511:448], bmt_cb_data[bmt_cb_slot * 7 +: 7],
+                                       rd_fifo_asid[bmt_req_rd_slot], 27'h0, rd_fifo_addr[bmt_req_rd_slot][31:6]};
+                rd_tweak_req_meta  <= {1'b0, 1'b1, bmt_req_rd_slot[5:2], bmt_req_rd_slot[1:0]};
+            end else if (bmt_rd_fail_set_tw) begin
+                rd_fifo_bmt_fail[bmt_req_rd_slot]    <= 1'b1;
+                rd_fifo_tweak_valid[bmt_req_rd_slot] <= 1'b1;
             end
 
             if (rej_rd_active && s_axi_rvalid && s_axi_rready) begin
@@ -2336,13 +2344,6 @@ module qshield_axi_crypto_bridge #(
     end
 
     // No-reset distributed RAM write ports for read FIFO payload & tweaks (~1.4k LUT6 vs ~45k FFs)
-`ifdef QSHIELD_TEST
-    wire bmt_rd_maj_wr_en = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
-                            !bmt_req_is_force_minor && bmt_req_is_read && bmt_verify_pass;
-`else
-    wire bmt_rd_maj_wr_en = (bmt_state == BMT_WAIT_VERIFY) && bmt_verify_done &&
-                            bmt_req_is_read && bmt_verify_pass;
-`endif
     wire       rd_tw_wr_en   = tweak_rsp_valid && !tweak_rsp_meta[7] && (tweak_rsp_meta[6] == 1'b1);
     wire [5:0] rd_tw_wr_addr = {tweak_rsp_meta[5:2], tweak_rsp_meta[1:0]};
     wire       ar_info_wr_en = ar_fire && (!i_enc_enable || ar_qualified);
@@ -2880,6 +2881,14 @@ module qshield_axi_crypto_bridge #(
                         dec_out_phase <= 1'b0;
                     end
                 end
+            end
+
+            // Kích hoạt phát SLVERR khi BMT verify thất bại trên luồng đọc (ưu tiên fail-safe trong khối stream)
+            if (bmt_rd_fail_set_tw) begin
+                rd_stream_active <= 1'b1;
+                rd_stream_fail   <= 1'b1;
+                rd_stream_id     <= user_rd_id;
+                rd_stream_beat   <= 3'd0;
             end
 
             // Cập nhật cảnh báo từ BMT Engine & Re-encryption FSM
