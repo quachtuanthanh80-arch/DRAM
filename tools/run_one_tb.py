@@ -2,7 +2,7 @@
 import os, re, shutil, subprocess, sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_fallback = r"D:\iverilogin"
+_fallback = r"D:\iverilog\bin"
 
 
 def _tool(name):
