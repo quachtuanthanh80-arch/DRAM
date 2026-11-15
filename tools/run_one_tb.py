@@ -1,7 +1,14 @@
 """Compile and run one regression testbench in an isolated build dir: run_one_tb.py <top> [timeout_s]"""
-import os, re, subprocess, sys
+import os, re, shutil, subprocess, sys
 
-root = r"D:\RAM"
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_fallback = r"D:\iverilogin"
+
+
+def _tool(name):
+    return shutil.which(name) or os.path.join(_fallback, name + ".exe")
+
+
 top = sys.argv[1]
 tmo = int(sys.argv[2]) if len(sys.argv) > 2 else 900
 src = open(os.path.join(root, "run_iverilog_regression.py"), encoding="utf-8").read()
