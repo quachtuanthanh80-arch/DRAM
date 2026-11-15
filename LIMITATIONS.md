@@ -200,5 +200,32 @@ The following findings on `sec_ddr5_controller_top` are closed by scope (documen
   - **Implemented**: Victim row `±1..3` boundary clamping in `rtl/backend/directed_refresh_manager.sv` eliminates uint32 underflow/wraparound near row `0` and `ROW_MAX` across both FSM enqueue paths and legacy PROQ matching.
   - **Open Limitation (Reverted for 400 MHz Timing Closure)**: Candidate fixes in `rtl/backend/ddr5_cmd_engine.sv` to prioritize `abo_rfm_req` over postponed periodic refresh (`K_REF` when `ref_owed >= MAX_POSTPONE`) and enforce a countdown `tABO` deadline timer (`abo_timer`) regressed Vivado post-synthesis WNS from baseline `-0.022 ns` (`t52_before`) to `-0.261 ns` (`t52_after`, `TNS = -6.869 ns` vs. the `-0.072 ns` `0.05 ns` regression budget; critical path `u_cmd_engine/ref_mode_reg/Q -> ko_glob -> pre_rdy -> any_pre -> decoy_c -> pk_oh_reg[*]/D`). Per T52 Item 2 rules, the `ddr5_cmd_engine.sv` ABO/`tABO` modification was reverted to preserve 400 MHz closure; periodic refresh starvation relief still takes precedence over PRAC ABO RFM when `ref_owed >= MAX_POSTPONE`, and no hardware `tABO` deadline timer is enforced inside `ddr5_cmd_engine.sv`.
 
+---
+
+## 9. Tiêu chuẩn và kiểm chứng (Standards & Verification Boundaries)
+
+Nhằm đảm bảo tính trung thực khoa học tuyệt đối theo các quy tắc R3, R14 và các chuẩn mực bình duyệt quốc tế:
+
+### 9.1 Trạng thái chứng nhận tiêu chuẩn bảo mật (FIPS 140-3, CC, ISO/IEC 17825)
+- **FIPS 140-3**: Q-Shield chỉ sử dụng FIPS 140-3 như một **khung tham chiếu kỹ thuật** đối chiếu các yêu cầu quản lý khóa bí mật (write-only sau khi `sec_locked`), cơ chế zeroization trên reset và cảnh báo bảo mật, và kiểm tra TMR cho thanh ghi bảo mật. Thiết kế **chưa được chứng nhận FIPS 140-3** bởi bất kỳ phòng kiểm chuẩn mật mã (CST lab) hay cơ quan quản lý (CMVP) nào; tuyệt đối không tuyên bố "đạt chứng nhận FIPS 140-3".
+- **Common Criteria (ISO/IEC 15408)**: Chỉ được sử dụng làm **khung mô hình đe dọa** (Byzantine hash collision, RowHammer rate pacing, chống SEU và bus snooping); thiết kế **không nhận và không tuyên bố bất kỳ cấp độ bảo đảm EAL nào** (EAL1–EAL7).
+- **ISO/IEC 17825**: Chưa triển khai đo lường TVLA (Test Vector Leakage Assessment) trên chip vật lý; S-Box hiện tại trong active datapath là dạng LUT chưa che mặt nạ (unmasked) để tối ưu timing 400 MHz; trạng thái đối với ISO/IEC 17825 là **CHƯA LÀM** (chỉ có thể tự chạy đánh giá rò rỉ kiểu TVLA trong tương lai, không phải chứng nhận phòng lab).
+
+### 9.2 Giới hạn kiểm chứng hình thức BMC (T61)
+- Các bằng chứng kiểm chứng hình thức SymbiYosys trong `formal/` được thực thi bằng phương pháp **Bounded Model Checking (BMC) với giới hạn độ sâu hữu hạn (depth 12 đến 15 chu kỳ)** và temporal induction cục bộ, **không phải là chứng minh toán học trên độ sâu vô hạn** ($\infty$).
+- **Mô hình trừu tượng độc lập của toàn vẹn**: File `formal/integrity_formal.sv` là một **mô hình trừu tượng độc lập** (sử dụng tham số thu nhỏ, không gọi hay instantiate các module RTL thực tế như `qshield_bmt_engine`, `qshield_meta_cache` hay `qshield_axi_crypto_bridge`). Do đó, các bất biến toàn vẹn Bonsai Merkle Tree được chứng minh trên mô hình toán học trừu tượng, **chưa được chứng minh hình thức trực tiếp trên toàn bộ netlist RTL thực tế**. Tuyệt đối không viết "RTL được kiểm chứng hình thức cho phần toàn vẹn".
+
+### 9.3 Giới hạn kiểm thử đột biến Mutation Testing (T62)
+- Engine kiểm thử đột biến RTL (`tools/mutate_rtl.py`) được đánh giá trên tập **20 mutant** phân bổ qua 4 khối: scheduler, ROB, adapter và CSR.
+- **Tỷ lệ diệt đột biến**: Đạt **90.0% (18/20 mutant bị diệt)**, đúng bằng ngưỡng tối thiểu (>= 90%).
+- **Mutant sống sót**: Có 2 mutant trong khối ROB (`MUT-ROB-01` và `MUT-ROB-03` liên quan đến điều kiện phát hiện RAW hazard) sống sót qua testbench ngẫu nhiên; dù được giải thích là có cơ chế formal bảo vệ, 2 mutant này **chưa được chạy kiểm tra lại trực tiếp bằng công cụ formal**.
+- **Phạm vi hạn chế**: Mutation testing **chưa bao phủ các khối đóng góp trọng tâm mới** bao gồm: bridge mã hóa (`qshield_axi_crypto_bridge`), Bonsai Merkle Tree engine (`qshield_bmt_engine`), bộ đệm metadata (`qshield_meta_cache`) và đường ống mã hóa XTS (`subchannel_aes_xts_pipe`).
+
+### 9.4 Giới hạn độ phủ UVM pyuvm (T60)
+- Môi trường kiểm thử UVM chuẩn công nghiệp pyuvm 5.0.0 (`tb/uvm/run_uvm.py`) báo cáo độ phủ chức năng 100% (`hit=23/23`).
+- **Bản chất độ phủ**: Con số 100% này **chỉ phản ánh độ phủ của 23 bin chức năng tự định nghĩa** (16 bin trong `mc_env` và 7 bin trong `csr_env`), **không đại diện cho độ phủ mã nguồn (line/branch/toggle code coverage) hay độ phủ chức năng toàn diện chuẩn ngành EDA**.
+- Số lượng seed ngẫu nhiên hiện tại còn hạn chế (mặc định 2 đến 5 seeds).
+
+
 
 
