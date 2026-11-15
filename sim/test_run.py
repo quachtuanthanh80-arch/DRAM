@@ -1,5 +1,6 @@
+import os
 import sys
-sys.path.insert(0, '/home/thanh/ramulator2/python')
+sys.path.insert(0, os.environ.get('RAMULATOR2_PYTHON', os.path.expanduser('~/ramulator2/python')))
 import ramulator
 
 print("Creating Frontend...")

@@ -2,7 +2,7 @@ import sys
 import os
 import json
 
-sys.path.insert(0, '/home/thanh/ramulator2/python')
+sys.path.insert(0, os.environ.get('RAMULATOR2_PYTHON', os.path.expanduser('~/ramulator2/python')))
 SIM_DIR = os.path.dirname(os.path.abspath(__file__))
 if SIM_DIR not in sys.path:
     sys.path.insert(0, SIM_DIR)

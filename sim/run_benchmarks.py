@@ -201,7 +201,7 @@ def run_single_simulation(dram_name, dram_info, workload_name, workload_info, tr
         # Không có Ramulator 2 thì không có số liệu. Nhánh "calibrated model" cũ trả về bảng băng thông viết cứng
         # cộng nhiễu random.uniform(-0.8%, +0.8%) và đã sinh bench_*.json trên Windows (270 lần chạy trong 0.19 s).
         raise RuntimeError("Ramulator 2 Python binding not available: run inside the WSL environment with "
-                           "PYTHONPATH=/home/thanh/ramulator2/python (see sim/results/PROVENANCE.md)")
+                           "PYTHONPATH=<ramulator2 checkout>/python (or set RAMULATOR2_PYTHON)")
 
     # slowdown / overhead được tính so với lần chạy Baseline cùng (DRAM, workload, seed) sau khi chạy xong
     slowdown = float("nan")
