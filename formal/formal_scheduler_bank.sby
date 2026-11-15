@@ -1,0 +1,29 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+bmc: depth 15
+cover: mode cover
+cover: depth 15
+
+[engines]
+bmc: smtbmc z3
+cover: smtbmc z3
+
+[script]
+read -formal -sv ddr5_subchannel_scheduler.sv
+chparam -set NumBanks 4 ddr5_subchannel_scheduler
+chparam -set NumBankGrps 2 ddr5_subchannel_scheduler
+chparam -set RowWidth 8 ddr5_subchannel_scheduler
+chparam -set ColWidth 6 ddr5_subchannel_scheduler
+chparam -set QueueDepth 4 ddr5_subchannel_scheduler
+chparam -set TRCD_CYC 2 ddr5_subchannel_scheduler
+chparam -set TRP_CYC 2 ddr5_subchannel_scheduler
+chparam -set TCCDL_CYC 1 ddr5_subchannel_scheduler
+chparam -set TWTRL_CYC 1 ddr5_subchannel_scheduler
+prep -top ddr5_subchannel_scheduler
+
+[files]
+/mnt/d/RAM/formal/ddr5_subchannel_scheduler.sv

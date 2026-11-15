@@ -1,0 +1,10 @@
+# Danh sach cac thuoc tinh formal con mo / biet truoc khong pass tren mo hinh cu (known open)
+# Theo brief T61 muc 1: cac thuoc tinh nay duoc tach biet de khong lam do toan bo regression formal.
+
+1. formal_rob.sby: reorder_buffer_rob.sv:407
+   - Thuoc tinh: assert (o_alloc_ready == !o_rob_full)
+   - Ly do mo: o_alloc_ready trong RTL duoc tinh la (!o_rob_full && !o_raw_hazard). Khi co nguy co RAW hazard, o_alloc_ready ha ve 0 du ROB chua day (o_rob_full=0).
+
+2. formal_axi_frontend.sby: axi_slave_frontend.sv:360
+   - Thuoc tinh: assert (s_axi_rpoison != '0) khi co i_rdata_poison hoac SLVERR
+   - Ly do mo: Tin hieu di qua tang dem u_r_skid (axi4_skid_buffer) co do tre thanh ghi, assert cu danh gia tuc thi $past ma chua dong bo voi chu ky xuat khoi skid buffer khi co backpressure.

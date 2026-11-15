@@ -1,0 +1,715 @@
+// File: apb_csr_regs.sv
+// Chức năng: Khối thanh ghi APB4 CSR điều khiển cấu hình an toàn, khóa bảo mật và thu thập số liệu đo xa.
+`timescale 1ns / 1ps
+
+module apb_csr_regs #(
+    parameter int AddrWidth = 12,
+    parameter int DataWidth = 32
+)(
+    input  logic                 pclk,
+    input  logic                 presetn,
+
+    // APB4 Slave Interface
+    input  logic [AddrWidth-1:0] paddr,
+    input  logic                 psel,
+    input  logic                 penable,
+    input  logic                 pwrite,
+    input  logic [DataWidth-1:0] pwdata,
+    input  logic [3:0]           pstrb,
+    input  logic [2:0]           pprot,
+    output logic                 pready,
+    output logic [DataWidth-1:0] prdata,
+    output logic                 pslverr,
+
+    // Core Control & Security Outputs
+    output logic                 enc_enable,
+    output logic                 soft_reset,
+    output logic                 perf_cnt_en,
+    output logic                 auto_tweak_en,
+    output logic                 sec_locked,
+    output logic [255:0]         key1_data,    // K1: 256-bit AES Cipher Key
+    output logic [255:0]         key2_data,    // K2: 256-bit AES Tweak Key
+    output logic                 keys_valid,
+
+    // Core Status Inputs
+    input  logic                 pipe_busy,
+    input  logic [7:0]           core_status_flags,
+    input  logic                 block_encrypted_pulse, // Pulse when 1 block passes pipe
+    input  logic                 pipeline_stall_active, // High when pipe is stalled
+
+    // SDC & Security Configuration Outputs
+    output logic [15:0]          cfg_sdc_thresh,
+    output logic [15:0]          cfg_window_size,
+    output logic [15:0]          cfg_scrub_interval,
+    output logic [15:0]          cfg_rowpress_thresh,
+    output logic [1:0]           cfg_rowpress_curve,
+    output logic                 cfg_drm_en,
+    output logic                 cfg_drm_victim2_en,
+    output logic                 cfg_ate_en,
+    output logic [3:0]           cfg_ate_alpha_shift,
+
+    // Extended Architecture & Security Controls (Upgrade V3)
+    output logic                 cfg_scramble_en,
+    output logic                 cfg_scramble_reseed,
+    output logic [63:0]          cfg_scramble_seed,
+    output logic                 cfg_bank_coloring_en,
+    output logic [1:0]           cfg_mapping_mode,
+    output logic [1:0]           cfg_crypto_mode,
+    output logic [1:0]           cfg_ecc_mode,
+    output logic                 cfg_parity_check_en,
+    output logic                 cfg_pmu_en,
+    output logic                 cfg_pmu_reset,
+
+    // Two-Tier Crypto & Fault Hardening Interface (Q-Shield V4.0)
+    output logic [1:0]           cfg_crypto_profile, // 00: Bypass, 01: XTS Legacy, 10: AI CTR (Default), 11: Enterprise TEE
+    output logic [7:0]           cfg_default_key_id,
+    output logic [18:0]          cfg_epoch_nonce,
+    output logic [4:0]           sec_fault_status,
+    output logic                 sec_fault_irq,
+    input  logic [4:0]           i_sec_fault_set,    // [0]: ECC CE, [1]: ECC UE, [2]: SDC, [3]: MAC, [4]: TMR Bit-Flip
+    input  logic [31:0]          i_fault_addr_log,
+    output logic                 o_tmr_alert,
+    output logic                 o_glitch_alert,
+
+    // Hardware Telemetry Inputs
+    input  logic [31:0]          telem_accesses,
+    input  logic [31:0]          telem_throttles,
+    input  logic [15:0]          ecc_single_err_cnt,
+    input  logic [15:0]          ecc_double_err_cnt,
+    input  logic [15:0]          rowpress_alert_cnt,
+    input  logic [15:0]          ate_dynamic_thresh,
+    input  logic [7:0][31:0]     pmu_counters,
+    input  logic [15:0]          abo_alert_cnt = 16'd0,
+    input  logic [15:0]          ecc_miscorrect_cnt = 16'd0
+);
+
+    // Register Address Offsets
+    localparam logic [AddrWidth-1:0] AddrCtrl           = 12'h000;
+    localparam logic [AddrWidth-1:0] AddrStatus         = 12'h004;
+    localparam logic [AddrWidth-1:0] AddrSecLock       = 12'h008;
+    localparam logic [AddrWidth-1:0] AddrKey1Base      = 12'h010; // 0x010 .. 0x02C (8 regs = 256 bits)
+    localparam logic [AddrWidth-1:0] AddrKey2Base      = 12'h030; // 0x030 .. 0x03C (4 regs = 128-bit Tweak Key)
+    localparam logic [AddrWidth-1:0] AddrCryptoProfile  = 12'h040; // REG_CRYPTO_PROFILE (TMR)
+    localparam logic [AddrWidth-1:0] AddrDefaultKeyId   = 12'h044; // REG_DEFAULT_KEY_ID (TMR)
+    localparam logic [AddrWidth-1:0] AddrEpochNonce     = 12'h048; // REG_EPOCH_NONCE (TMR)
+    localparam logic [AddrWidth-1:0] AddrSecFaultStatus = 12'h04C; // REG_SEC_FAULT_STATUS (RO/W1C)
+    localparam logic [AddrWidth-1:0] AddrFaultAddrLog   = 12'h050; // REG_FAULT_ADDR_LOG (RO)
+    localparam logic [AddrWidth-1:0] AddrPerfCycles    = 12'h060;
+    localparam logic [AddrWidth-1:0] AddrPerfBlocks    = 12'h064;
+    localparam logic [AddrWidth-1:0] AddrPerfStalls    = 12'h068;
+    localparam logic [AddrWidth-1:0] AddrSdcThresh     = 12'h070;
+    localparam logic [AddrWidth-1:0] AddrWindowSize    = 12'h074;
+    localparam logic [AddrWidth-1:0] AddrScrubInterval = 12'h078;
+    localparam logic [AddrWidth-1:0] AddrRowPressThresh= 12'h07C;
+    localparam logic [AddrWidth-1:0] AddrDrmConfig     = 12'h080;
+    localparam logic [AddrWidth-1:0] AddrAteConfig     = 12'h084;
+    localparam logic [AddrWidth-1:0] AddrRowPressCurve = 12'h088;
+    localparam logic [AddrWidth-1:0] AddrTelemAccess   = 12'h090;
+    localparam logic [AddrWidth-1:0] AddrTelemThrtl    = 12'h094;
+    localparam logic [AddrWidth-1:0] AddrEccSingle     = 12'h098;
+    localparam logic [AddrWidth-1:0] AddrEccDouble     = 12'h09C;
+    localparam logic [AddrWidth-1:0] AddrRowPressAlert = 12'h0A0;
+    localparam logic [AddrWidth-1:0] AddrAteDynThresh  = 12'h0A4;
+    localparam logic [AddrWidth-1:0] AddrAboAlert       = 12'h0A8;
+    localparam logic [AddrWidth-1:0] AddrEccMiscorrect  = 12'h0AC;
+    localparam logic [AddrWidth-1:0] AddrVersionId     = 12'h0FC;
+    localparam logic [AddrWidth-1:0] AddrExtConfig     = 12'h100;
+    localparam logic [AddrWidth-1:0] AddrScrambleSeedL = 12'h104;
+    localparam logic [AddrWidth-1:0] AddrScrambleSeedH = 12'h108;
+    localparam logic [AddrWidth-1:0] AddrPmuCtrl       = 12'h110;
+    localparam logic [AddrWidth-1:0] AddrPmuBase       = 12'h120; // 0x120 - 0x13C (8 PMU counters)
+
+    // Security Lock Magic Value
+    localparam logic [31:0] SecLockMagic = 32'hA55A_0001;
+
+    // Internal Registers
+    logic [31:0] reg_ctrl;
+    logic [31:0] reg_key1 [8];
+    logic [31:0] reg_key2 [8];
+    logic [7:0]  key1_loaded_mask;
+    logic [7:0]  key2_loaded_mask;
+
+    // TMR Signals from Fault-Hardened CSR (RowHammer / RowPress / Scramble threshold registers)
+    logic [15:0] tmr_rh_thresh;
+    logic [1:0]  tmr_rowpress_curve;
+    logic        tmr_dual_hash_en;
+    logic [1:0]  tmr_scramble_mode;
+    logic        tmr_glitch_alert;
+    logic        tmr_sec_locked;
+
+    // TMR Rails for Security Lockdown (Finding M-6: 2-out-of-3 voting with Fail-Closed Glitch Defense)
+    logic        rail0_sec_locked, rail1_sec_locked, rail2_sec_locked;
+    logic        sticky_sec_locked;
+    wire         sec_locked_mismatch = (rail0_sec_locked != rail1_sec_locked) || (rail1_sec_locked != rail2_sec_locked);
+    wire         sec_locked_voted    = (rail0_sec_locked & rail1_sec_locked) | 
+                                       (rail1_sec_locked & rail2_sec_locked) | 
+                                       (rail0_sec_locked & rail2_sec_locked);
+    wire         reg_sec_locked      = sec_locked_voted | sec_locked_mismatch | tmr_sec_locked | sticky_sec_locked;
+
+    // TMR Rails for Critical Security Registers (2-out-of-3 voting with continuous auto-healing)
+    logic [31:0] rail0_crypto_profile, rail1_crypto_profile, rail2_crypto_profile;
+    logic [31:0] rail0_default_key_id,  rail1_default_key_id,  rail2_default_key_id;
+    logic [31:0] rail0_epoch_nonce,     rail1_epoch_nonce,     rail2_epoch_nonce;
+    logic [31:0] voted_crypto_profile, voted_default_key_id, voted_epoch_nonce;
+    logic        tmr_profile_err, tmr_key_err, tmr_nonce_err;
+    logic        tmr_any_err;
+
+    // Security Fault Status & Address Log
+    logic [4:0]  reg_sec_fault_status;
+    logic [31:0] reg_fault_addr_log;
+
+    // SDC, DRM, ATE & Security Control Registers
+    logic [31:0] reg_sdc_thresh;
+    logic [31:0] reg_window_size;
+    logic [31:0] reg_scrub_interval;
+    logic [31:0] reg_rowpress_thresh;
+    logic [31:0] reg_rowpress_curve;
+    logic [31:0] reg_drm_config;
+    logic [31:0] reg_ate_config;
+
+    // Extended Architecture & PMU Registers (Upgrade V3)
+    logic [31:0] reg_ext_config;
+    logic [31:0] reg_scramble_seed_l;
+    logic [31:0] reg_scramble_seed_h;
+    logic [31:0] reg_pmu_ctrl;
+
+    // Performance Counters
+    logic [31:0] perf_cycles;
+    logic [31:0] perf_blocks;
+    logic [31:0] perf_stalls;
+
+    // APB Protocol Decoding
+    logic apb_write_req;
+    logic apb_read_req;
+
+    // Finding H-5: Kiểm tra bit secure của PPROT (AMBA APB4: PPROT[1] = 0 cho Secure, 1 cho Non-secure).
+    // Giao dịch Non-secure bị từ chối và phản hồi PSLVERR = 1.
+    wire is_non_secure   = pprot[1];
+    assign apb_write_req = psel && penable && pwrite && !is_non_secure;
+    assign apb_read_req  = psel && !pwrite; // Can evaluate during setup or access phase
+    assign pready        = 1'b1;            // Zero-wait-state APB slave
+    assign pslverr       = psel && penable && is_non_secure;
+
+    // Drive Core Control Signals
+    assign enc_enable    = reg_ctrl[0];
+    assign soft_reset    = reg_ctrl[1];
+    assign perf_cnt_en   = reg_ctrl[2];
+    assign auto_tweak_en = reg_ctrl[3];
+    assign sec_locked    = reg_sec_locked;
+
+    // Drive SDC & Security Configuration Outputs
+    assign cfg_sdc_thresh      = reg_sdc_thresh[15:0];
+    assign cfg_window_size     = reg_window_size[15:0];
+    assign cfg_scrub_interval  = reg_scrub_interval[15:0];
+    assign cfg_rowpress_thresh = tmr_rh_thresh;
+    assign cfg_rowpress_curve  = tmr_rowpress_curve;
+    assign cfg_drm_en          = reg_drm_config[0];
+    assign cfg_drm_victim2_en  = reg_drm_config[1];
+    assign cfg_ate_en          = reg_ate_config[0];
+    assign cfg_ate_alpha_shift = reg_ate_config[7:4];
+
+    // Extended Architecture & PMU Outputs
+    assign cfg_scramble_en      = reg_ext_config[0];
+    assign cfg_scramble_reseed  = reg_ext_config[1];
+    assign cfg_bank_coloring_en = reg_ext_config[4];
+    assign cfg_mapping_mode     = tmr_scramble_mode;
+    assign cfg_crypto_mode      = reg_ext_config[9:8];
+    assign cfg_ecc_mode         = reg_ext_config[11:10];
+    assign cfg_parity_check_en  = reg_ext_config[12];
+    assign cfg_scramble_seed    = {reg_scramble_seed_h, reg_scramble_seed_l};
+    assign cfg_pmu_en           = reg_pmu_ctrl[0];
+    assign cfg_pmu_reset        = reg_pmu_ctrl[1];
+
+    // Triple Modular Redundancy (TMR) Majority Voting & Self-Healing
+    assign voted_crypto_profile = (rail0_crypto_profile & rail1_crypto_profile) | 
+                                  (rail1_crypto_profile & rail2_crypto_profile) | 
+                                  (rail0_crypto_profile & rail2_crypto_profile);
+    assign voted_default_key_id  = (rail0_default_key_id & rail1_default_key_id) | 
+                                  (rail1_default_key_id & rail2_default_key_id) | 
+                                  (rail0_default_key_id & rail2_default_key_id);
+    assign voted_epoch_nonce     = (rail0_epoch_nonce & rail1_epoch_nonce) | 
+                                  (rail1_epoch_nonce & rail2_epoch_nonce) | 
+                                  (rail0_epoch_nonce & rail2_epoch_nonce);
+
+    assign tmr_profile_err = (rail0_crypto_profile != voted_crypto_profile) ||
+                             (rail1_crypto_profile != voted_crypto_profile) ||
+                             (rail2_crypto_profile != voted_crypto_profile);
+    assign tmr_key_err     = (rail0_default_key_id != voted_default_key_id) ||
+                             (rail1_default_key_id != voted_default_key_id) ||
+                             (rail2_default_key_id != voted_default_key_id);
+    assign tmr_nonce_err   = (rail0_epoch_nonce != voted_epoch_nonce) ||
+                             (rail1_epoch_nonce != voted_epoch_nonce) ||
+                             (rail2_epoch_nonce != voted_epoch_nonce);
+
+    assign tmr_any_err = tmr_profile_err || tmr_key_err || tmr_nonce_err || sec_locked_mismatch;
+
+    // Connect Fault-Hardened CSR for RowHammer / RowPress / Scramble threshold registers (Finding M-6)
+    fault_hardened_csr u_fault_hardened_csr (
+        .clk                  (pclk),
+        .rst_n                (presetn),
+        .i_cfg_we             (apb_write_req && !reg_sec_locked && (paddr == AddrRowPressThresh || paddr == AddrRowPressCurve || paddr == AddrExtConfig)),
+        .i_cfg_rh_threshold   ((paddr == AddrRowPressThresh) ? pwdata[15:0] : tmr_rh_thresh),
+        .i_cfg_rowpress_curve ((paddr == AddrRowPressCurve)  ? pwdata[1:0]  : tmr_rowpress_curve),
+        .i_cfg_dual_hash_en   ((paddr == AddrExtConfig)      ? pwdata[2]    : tmr_dual_hash_en),
+        .i_cfg_scramble_mode  ((paddr == AddrExtConfig)      ? pwdata[6:5]  : tmr_scramble_mode),
+        .i_cfg_decoy_en       ((paddr == AddrExtConfig)      ? pwdata[7]    : 1'b0),
+        .o_cfg_rh_threshold   (tmr_rh_thresh),
+        .o_cfg_rowpress_curve (tmr_rowpress_curve),
+        .o_cfg_dual_hash_en   (tmr_dual_hash_en),
+        .o_cfg_scramble_mode  (tmr_scramble_mode),
+        .o_cfg_decoy_en       (),
+        .o_glitch_alert       (tmr_glitch_alert),
+        .o_security_locked    (tmr_sec_locked)
+    );
+
+    assign o_glitch_alert     = tmr_glitch_alert || sec_locked_mismatch;
+    assign o_tmr_alert        = tmr_any_err;
+
+    // Two-Tier Crypto and Fault Interface Outputs
+    assign cfg_crypto_profile = voted_crypto_profile[1:0];
+    assign cfg_default_key_id  = voted_default_key_id[7:0];
+    assign cfg_epoch_nonce     = voted_epoch_nonce[18:0];
+    assign sec_fault_status    = reg_sec_fault_status;
+    assign sec_fault_irq       = |reg_sec_fault_status[3:1]; // Alert Host on Uncorrectable Faults
+
+    assign keys_valid    = (&key1_loaded_mask) && (&key2_loaded_mask);
+
+    // Concatenate 32-bit registers into 256-bit keys (Big-Endian word layout)
+    // Finding M-12: Nửa cao K2 lấy reg_key2[4..7], nửa thấp lấy reg_key2[0..3] (đủ 256 bit entropy, không lặp)
+    always_comb begin
+        for (int i = 0; i < 8; i++) begin
+            key1_data[(7-i)*32 +: 32] = reg_key1[i];
+            key2_data[(7-i)*32 +: 32] = (i < 4) ? reg_key2[i+4] : reg_key2[i-4];
+        end
+    end
+
+    // Byte strobe helper function
+    function automatic logic [31:0] apply_strb(
+        input logic [31:0] orig_val,
+        input logic [31:0] new_val,
+        input logic [3:0]  strobe
+    );
+        logic [31:0] res;
+        res[ 7: 0] = strobe[0] ? new_val[ 7: 0] : orig_val[ 7: 0];
+        res[15: 8] = strobe[1] ? new_val[15: 8] : orig_val[15: 8];
+        res[23:16] = strobe[2] ? new_val[23:16] : orig_val[23:16];
+        res[31:24] = strobe[3] ? new_val[31:24] : orig_val[31:24];
+        apply_strb = res;
+    endfunction
+
+    // Key index wires derived from paddr
+    logic [2:0] key1_idx;
+    logic [2:0] key2_idx;
+    assign key1_idx = 3'((paddr - AddrKey1Base) >> 2);
+    assign key2_idx = 3'((paddr - AddrKey2Base) >> 2);
+
+    // APB Write Register Process
+    always_ff @(posedge pclk or negedge presetn) begin
+        if (!presetn) begin
+            reg_ctrl             <= 32'h0000_0009; // Default: enc_enable=1, auto_tweak_en=1
+            rail0_sec_locked     <= 1'b0;
+            rail1_sec_locked     <= 1'b0;
+            rail2_sec_locked     <= 1'b0;
+            sticky_sec_locked    <= 1'b0;
+            key1_loaded_mask     <= 8'h00;
+            key2_loaded_mask     <= 8'h00;
+            reg_sdc_thresh       <= 32'd2048;
+            reg_window_size      <= 32'd3900;
+            reg_scrub_interval   <= 32'd1000;
+            reg_rowpress_thresh  <= 32'd1024;
+            reg_rowpress_curve   <= 32'd0;
+            reg_drm_config       <= 32'h0000_0003; // Default: drm_en=1, victim2_en=1
+            reg_ate_config       <= 32'h0000_0041; // Default: ate_en=1, alpha_shift=4
+            reg_ext_config       <= 32'h0000_0000; // Default: bypass all extended security
+            reg_scramble_seed_l  <= 32'hBABE_0001;
+            reg_scramble_seed_h  <= 32'hACE1_CAFE;
+            reg_pmu_ctrl         <= 32'h0000_0001; // Default: PMU enabled
+            rail0_crypto_profile <= 32'h0000_0002; // Default: Profile 2 (High-Throughput AI CTR mode)
+            rail1_crypto_profile <= 32'h0000_0002;
+            rail2_crypto_profile <= 32'h0000_0002;
+            rail0_default_key_id  <= 32'h0000_0000;
+            rail1_default_key_id  <= 32'h0000_0000;
+            rail2_default_key_id  <= 32'h0000_0000;
+            rail0_epoch_nonce     <= 32'h0005_A5A5;
+            rail1_epoch_nonce     <= 32'h0005_A5A5;
+            rail2_epoch_nonce     <= 32'h0005_A5A5;
+            reg_sec_fault_status  <= 5'b00000;
+            reg_fault_addr_log    <= 32'h0;
+            for (int i = 0; i < 8; i++) begin
+                reg_key1[i] <= 32'h0;
+                reg_key2[i] <= 32'h0;
+            end
+        end else begin
+            // Soft reset auto-clearing
+            if (reg_ctrl[1]) begin
+                reg_ctrl[1] <= 1'b0;
+            end
+            // Auto-clearing pulses for extended features
+            if (reg_ext_config[1]) begin
+                reg_ext_config[1] <= 1'b0; // cfg_scramble_reseed pulse
+            end
+            if (reg_pmu_ctrl[1]) begin
+                reg_pmu_ctrl[1] <= 1'b0;   // cfg_pmu_reset pulse
+            end
+
+            // Continuous TMR Auto-Healing against Laser/Voltage Glitch bit-flips
+            if (!(apb_write_req && paddr == AddrCryptoProfile && !reg_sec_locked)) begin
+                rail0_crypto_profile <= voted_crypto_profile;
+                rail1_crypto_profile <= voted_crypto_profile;
+                rail2_crypto_profile <= voted_crypto_profile;
+            end
+            if (!(apb_write_req && paddr == AddrDefaultKeyId && !reg_sec_locked)) begin
+                rail0_default_key_id <= voted_default_key_id;
+                rail1_default_key_id <= voted_default_key_id;
+                rail2_default_key_id <= voted_default_key_id;
+            end
+            if (!(apb_write_req && paddr == AddrEpochNonce && !reg_sec_locked)) begin
+                rail0_epoch_nonce <= voted_epoch_nonce;
+                rail1_epoch_nonce <= voted_epoch_nonce;
+                rail2_epoch_nonce <= voted_epoch_nonce;
+            end
+
+            // TMR Auto-Healing và Fail-Closed cho Security Lock (Finding M-6)
+            if (sticky_sec_locked || sec_locked_mismatch || tmr_sec_locked) begin
+                rail0_sec_locked  <= 1'b1;
+                rail1_sec_locked  <= 1'b1;
+                rail2_sec_locked  <= 1'b1;
+                sticky_sec_locked <= 1'b1;
+            end else begin
+                rail0_sec_locked  <= sec_locked_voted;
+                rail1_sec_locked  <= sec_locked_voted;
+                rail2_sec_locked  <= sec_locked_voted;
+            end
+
+            // Fault capture
+            if (!(apb_write_req && paddr == AddrSecFaultStatus)) begin
+                reg_sec_fault_status <= reg_sec_fault_status | i_sec_fault_set | {tmr_any_err, 4'b0000};
+            end
+            if (|i_sec_fault_set[3:1]) begin
+                reg_fault_addr_log <= i_fault_addr_log;
+            end
+
+            if (apb_write_req) begin
+                case (paddr)
+                    AddrCtrl: begin
+                        if (!reg_sec_locked) begin
+                            reg_ctrl <= apply_strb(reg_ctrl, pwdata, pstrb);
+                        end else begin
+                            // Sau sec_locked: enc_enable (bit 0) và soft_reset (bit 1) bị khoá cứng (Finding H-4).
+                            // Các bit điều khiển khác như perf_cnt_en (bit 2), auto_tweak_en (bit 3) vẫn có thể cấu hình.
+                            logic [DataWidth-1:0] next_ctrl;
+                            next_ctrl = apply_strb(reg_ctrl, pwdata, pstrb);
+                            reg_ctrl[31:2] <= next_ctrl[31:2];
+                            // Giữ nguyên reg_ctrl[1:0]
+                        end
+                    end
+
+                    AddrSecLock: begin
+                        if (!reg_sec_locked && pwdata == SecLockMagic) begin
+                            rail0_sec_locked  <= 1'b1;
+                            rail1_sec_locked  <= 1'b1;
+                            rail2_sec_locked  <= 1'b1;
+                            sticky_sec_locked <= 1'b1;
+                        end
+                    end
+
+                    AddrCryptoProfile: begin
+                        if (!reg_sec_locked) begin
+                            rail0_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                            rail1_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                            rail2_crypto_profile <= apply_strb(voted_crypto_profile, pwdata, pstrb);
+                        end
+                    end
+
+                    AddrDefaultKeyId: begin
+                        if (!reg_sec_locked) begin
+                            rail0_default_key_id <= apply_strb(voted_default_key_id, pwdata, pstrb);
+                            rail1_default_key_id <= apply_strb(voted_default_key_id, pwdata, pstrb);
+                            rail2_default_key_id <= apply_strb(voted_default_key_id, pwdata, pstrb);
+                        end
+                    end
+
+                    AddrEpochNonce: begin
+                        if (!reg_sec_locked) begin
+                            rail0_epoch_nonce <= apply_strb(voted_epoch_nonce, pwdata, pstrb);
+                            rail1_epoch_nonce <= apply_strb(voted_epoch_nonce, pwdata, pstrb);
+                            rail2_epoch_nonce <= apply_strb(voted_epoch_nonce, pwdata, pstrb);
+                        end
+                    end
+
+                    AddrSecFaultStatus: begin
+                        // W1C: clear bits written with 1, latch any concurrent fault
+                        reg_sec_fault_status <= (reg_sec_fault_status & ~pwdata[4:0]) | i_sec_fault_set | {tmr_any_err, 4'b0000};
+                    end
+
+                    AddrSdcThresh: begin
+                        reg_sdc_thresh <= apply_strb(reg_sdc_thresh, pwdata, pstrb);
+                    end
+
+                    AddrWindowSize: begin
+                        reg_window_size <= apply_strb(reg_window_size, pwdata, pstrb);
+                    end
+
+                    AddrScrubInterval: begin
+                        reg_scrub_interval <= apply_strb(reg_scrub_interval, pwdata, pstrb);
+                    end
+
+                    AddrRowPressThresh: begin
+                        if (!reg_sec_locked) reg_rowpress_thresh <= apply_strb(reg_rowpress_thresh, pwdata, pstrb);
+                    end
+
+                    AddrDrmConfig: begin
+                        reg_drm_config <= apply_strb(reg_drm_config, pwdata, pstrb);
+                    end
+
+                    AddrAteConfig: begin
+                        reg_ate_config <= apply_strb(reg_ate_config, pwdata, pstrb);
+                    end
+
+                    AddrRowPressCurve: begin
+                        if (!reg_sec_locked) reg_rowpress_curve <= apply_strb(reg_rowpress_curve, pwdata, pstrb);
+                    end
+
+                    AddrExtConfig: begin
+                        if (!reg_sec_locked) reg_ext_config <= apply_strb(reg_ext_config, pwdata, pstrb);
+                    end
+
+                    AddrScrambleSeedL: begin
+                        if (!reg_sec_locked) reg_scramble_seed_l <= apply_strb(reg_scramble_seed_l, pwdata, pstrb);
+                    end
+
+                    AddrScrambleSeedH: begin
+                        if (!reg_sec_locked) reg_scramble_seed_h <= apply_strb(reg_scramble_seed_h, pwdata, pstrb);
+                    end
+
+                    AddrPmuCtrl: begin
+                        reg_pmu_ctrl <= apply_strb(reg_pmu_ctrl, pwdata, pstrb);
+                    end
+
+                    default: begin
+                        // Key 1 registers (0x010 - 0x02C)
+                        if (paddr >= AddrKey1Base && paddr <= 12'h02C) begin
+                            if (!reg_sec_locked) begin
+                                reg_key1[key1_idx] <= apply_strb(reg_key1[key1_idx], pwdata, pstrb);
+                                key1_loaded_mask[key1_idx] <= 1'b1;
+                            end
+                        end
+                        // Key 2 registers (0x030 - 0x03C): 128-bit Tweak Key
+                        else if (paddr >= AddrKey2Base && paddr <= 12'h03C) begin
+                            if (!reg_sec_locked) begin
+                                reg_key2[key2_idx] <= apply_strb(reg_key2[key2_idx], pwdata, pstrb);
+                                key2_loaded_mask[key2_idx] <= 1'b1;
+                            end
+                        end
+                    end
+                endcase
+            end
+        end
+    end
+
+    // APB Read Multiplexer
+    always_comb begin
+        prdata = 32'h0;
+        case (paddr)
+            AddrCtrl: begin
+                prdata = reg_ctrl;
+            end
+
+            AddrStatus: begin
+                prdata = {
+                    24'h0,
+                    core_status_flags[3:0],
+                    keys_valid,
+                    reg_sec_locked,
+                    perf_cnt_en,
+                    pipe_busy
+                };
+            end
+
+            AddrSecLock: begin
+                prdata = {31'h0, reg_sec_locked};
+            end
+
+            AddrCryptoProfile: begin
+                prdata = voted_crypto_profile;
+            end
+
+            AddrDefaultKeyId: begin
+                prdata = voted_default_key_id;
+            end
+
+            AddrEpochNonce: begin
+                prdata = voted_epoch_nonce;
+            end
+
+            AddrSecFaultStatus: begin
+                prdata = {27'h0, reg_sec_fault_status};
+            end
+
+            AddrFaultAddrLog: begin
+                prdata = reg_fault_addr_log;
+            end
+
+            AddrPerfCycles: begin
+                prdata = perf_cycles;
+            end
+
+            AddrPerfBlocks: begin
+                prdata = perf_blocks;
+            end
+
+            AddrPerfStalls: begin
+                prdata = perf_stalls;
+            end
+
+            AddrSdcThresh: begin
+                prdata = reg_sdc_thresh;
+            end
+
+            AddrWindowSize: begin
+                prdata = reg_window_size;
+            end
+
+            AddrScrubInterval: begin
+                prdata = reg_scrub_interval;
+            end
+
+            AddrRowPressThresh: begin
+                prdata = reg_rowpress_thresh;
+            end
+
+            AddrDrmConfig: begin
+                prdata = reg_drm_config;
+            end
+
+            AddrAteConfig: begin
+                prdata = reg_ate_config;
+            end
+
+            AddrRowPressCurve: begin
+                prdata = reg_rowpress_curve;
+            end
+
+            AddrTelemAccess: begin
+                prdata = telem_accesses;
+            end
+
+            AddrTelemThrtl: begin
+                prdata = telem_throttles;
+            end
+
+            AddrEccSingle: begin
+                prdata = {16'h0, ecc_single_err_cnt};
+            end
+
+            AddrEccDouble: begin
+                prdata = {16'h0, ecc_double_err_cnt};
+            end
+
+            AddrRowPressAlert: begin
+                prdata = {16'h0, rowpress_alert_cnt};
+            end
+
+            AddrAteDynThresh: begin
+                prdata = {16'h0, ate_dynamic_thresh};
+            end
+
+            AddrAboAlert: begin
+                prdata = {16'h0, abo_alert_cnt};
+            end
+
+            AddrEccMiscorrect: begin
+                prdata = {16'h0, ecc_miscorrect_cnt};
+            end
+
+            AddrVersionId: begin
+                prdata = 32'h5153_4844; // ASCII "QSHD"
+            end
+
+            AddrExtConfig: begin
+                // Finding H-6: Cấu hình xáo trộn / mapping mode trả về 0x0 sau khi sec_locked
+                prdata = reg_sec_locked ? 32'h0 : reg_ext_config;
+            end
+
+            AddrScrambleSeedL: begin
+                // Finding H-6: Seed 64-bit là bí mật chỉ-ghi, luôn trả về 0x0
+                prdata = 32'h0;
+            end
+
+            AddrScrambleSeedH: begin
+                // Finding H-6: Seed 64-bit là bí mật chỉ-ghi, luôn trả về 0x0
+                prdata = 32'h0;
+            end
+
+            AddrPmuCtrl: begin
+                prdata = reg_pmu_ctrl;
+            end
+
+            default: begin
+                // Read Key 1: Write-only register (Finding H-6: luôn trả về 32'h0 cả trước và sau khi lock)
+                if (paddr >= AddrKey1Base && paddr <= 12'h02C) begin
+                    prdata = 32'h0;
+                end
+                // Read Key 2: Write-only register (Finding H-6: luôn trả về 32'h0 cả trước và sau khi lock)
+                else if (paddr >= AddrKey2Base && paddr <= 12'h03C) begin
+                    prdata = 32'h0;
+                end
+                // Read 8 PMU counters (0x120 - 0x13C)
+                else if (paddr >= AddrPmuBase && paddr <= 12'h13C) begin
+                    prdata = pmu_counters[(paddr - AddrPmuBase) >> 2];
+                end else begin
+                    prdata = 32'hDEAD_BEEF; // Unmapped address
+                end
+            end
+        endcase
+    end
+
+    // Hardware Telemetry Performance Counters
+    always_ff @(posedge pclk or negedge presetn) begin
+        if (!presetn) begin
+            perf_cycles <= 32'h0;
+            perf_blocks <= 32'h0;
+            perf_stalls <= 32'h0;
+        end else begin
+            if (reg_ctrl[1]) begin // Soft reset clears counters
+                perf_cycles <= 32'h0;
+                perf_blocks <= 32'h0;
+                perf_stalls <= 32'h0;
+            end else if (perf_cnt_en) begin
+                perf_cycles <= perf_cycles + 32'd1;
+
+                if (block_encrypted_pulse) begin
+                    perf_blocks <= perf_blocks + 32'd1;
+                end
+
+                if (pipeline_stall_active) begin
+                    perf_stalls <= perf_stalls + 32'd1;
+                end
+            end
+        end
+    end
+
+    // Lint unused signal sink
+    logic _unused_apb;
+    assign _unused_apb = &{pprot[2], pprot[0], apb_read_req, core_status_flags[7:4], 1'b0};
+
+`ifdef FORMAL
+    // SVA for formal verification in Yosys (Finding H-4, H-5, H-6, M-6)
+    always_ff @(posedge pclk) begin
+        if (presetn && $past(presetn)) begin
+            if ($past(sec_locked)) begin
+                assert (enc_enable == $past(enc_enable));
+                assert (soft_reset == 1'b0);
+                assert (sec_locked);
+            end
+            if (psel && penable && pprot[1]) begin
+                assert (pslverr);
+            end
+            if (psel && !pwrite && ((paddr >= AddrKey1Base && paddr <= 12'h02C) || (paddr >= AddrKey2Base && paddr <= 12'h03C))) begin
+                assert (prdata == 32'h0);
+            end
+        end
+    end
+`endif
+
+endmodule: apb_csr_regs
