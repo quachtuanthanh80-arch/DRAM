@@ -12,7 +12,7 @@ RowHammer-security result until the planned evaluation below has been run and it
 | :--- | :--- | :--- |
 | Core timing, FPGA, after place and route | 2.5 ns: WNS -1.273 ns (fails). 3.8 ns: WNS +0.024 ns (met). | [`README.md`](README.md), [`DESIGN.md`](DESIGN.md) section 3, [`syn/reports/evidence/`](syn/reports/evidence/) |
 | Core area, FPGA | 63,785 LUTs and 44,243 registers at 3.8 ns | [`DESIGN.md`](DESIGN.md) section 3 |
-| Secure top, FPGA synthesis | 169,365 LUTs (73.5 %), WNS -0.385 ns at 2.5 ns | [`DESIGN.md`](DESIGN.md) section 3.4 |
+| Secure top, FPGA, after place and route | 2.5 ns: WNS -1.595 ns (fails). 4.1 ns: WNS -0.005 ns (fails). 4.15 ns: WNS +0.021 ns (met), 164,062 LUTs (71.2 %) | [`DESIGN.md`](DESIGN.md) section 3.4 |
 | Functional verification | See the verification table | [`README.md`](README.md) |
 
 ## 2. What has not been measured

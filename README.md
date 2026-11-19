@@ -36,10 +36,20 @@ The highest clock that closed timing in our runs is therefore about **263 MHz**,
 estimated at 1.618 W (1.021 W dynamic, 0.597 W static) by Vivado in vectorless mode, which is a rough estimate and not
 a measurement.
 
-Secure top `axi_ddr5_mc_secure_top` (core + encryption and integrity layer), synthesis only, 2.500 ns target:
-**WNS -0.385 ns**, 169,365 CLB LUTs (73.5 %), 111,834 registers, 7.5 BRAM tiles, no multi-driven nets
-([`secure_top_synth_T44_timing.rpt`](syn/reports/evidence/secure_top_synth_T44_timing.rpt)). Place and route of the
-secure top is not complete yet.
+Secure top `axi_ddr5_mc_secure_top` (core + encryption and integrity layer), place and route on `xczu7ev`:
+
+| Target period | WNS | TNS (failing / total endpoints) | CLB LUTs | CLB registers | BRAM |
+|---|---|---|---|---|---|
+| 2.500 ns (400 MHz) | -1.595 ns | -61,801.969 ns (124,925 / 243,888) | 165,587 | 110,298 | 7.5 |
+| 4.100 ns (243.90 MHz) | -0.005 ns | -0.010 ns (3 / 243,659) | 164,064 | 110,185 | 7.5 |
+| 4.150 ns (240.96 MHz) | **+0.021 ns** | 0 ns (0 / 243,670) | 164,062 (71.2 %) | 110,190 | 7.5 |
+
+The highest clock that closed timing for the secure top is about **241 MHz**. The 4.1 ns run missed by 0.005 ns and is
+kept in the table. Vivado's vectorless power estimate at 4.15 ns is 4.437 W (rough estimate, not a measurement). Reports:
+[2.5 ns timing](syn/reports/evidence/sec_2500ps_route_timing.rpt), [4.1 ns timing](syn/reports/evidence/sec_confirmed_route_timing.rpt),
+[4.15 ns timing](syn/reports/evidence/sec_confirmed_r2_route_timing.rpt), [4.15 ns utilization](syn/reports/evidence/sec_confirmed_r2_route_util.rpt),
+[4.15 ns power](syn/reports/evidence/sec_confirmed_r2_route_power.rpt). Synthesis-only result at 2.5 ns after the multi-driver fix: WNS -0.385 ns,
+169,365 LUTs ([report](syn/reports/evidence/secure_top_synth_T44_timing.rpt)).
 
 Metadata cache `qshield_meta_cache` alone: synthesis WNS is positive at 2.5 ns
 ([`meta_cache_synth_timing.rpt`](syn/reports/evidence/meta_cache_synth_timing.rpt)).
@@ -103,7 +113,7 @@ Secure top (optional): AXI4 -> [AES-256-XTS + MAC + Bonsai Merkle tree + metadat
 
 The full list is in [`LIMITATIONS.md`](LIMITATIONS.md). The most important ones:
 
-- The controller core misses 400 MHz after place and route on the target FPGA (about 263 MHz achieved).
+- Neither the core nor the secure top reaches 400 MHz after place and route on the target FPGA (about 263 MHz for the core, about 241 MHz for the secure top).
 - Side-channel resistance is not claimed. The AES S-box is a lookup table.
 - Chipkill is a standalone module and ZEM is not on the core read path.
 - Formal results are bounded, and the integrity invariants are proven on an abstract model, not on the RTL.

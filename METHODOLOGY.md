@@ -92,4 +92,4 @@ To reflect realistic compute demands, benchmarks employ 87 cycle-accurate memory
 
 To ensure objective comparison with existing state-of-the-art defenses:
 - **Apples-to-Apples Comparisons**: Direct comparisons (Baseline FR-FCFS, BlockHammer HPCA'21, Q-Shield) are performed on the **identical simulator binary** (Ramulator 2.0) with identical trace files, timing constants, and channel structures.
-- **Literature-Reported Comparisons**: Numerical values from prior works (Graphene MICRO'20, AQUA MICRO'22, Rubix ASPLOS'24, PRAC ISCA'24, DREAM ISCA'25) are cited with explicit disclaimers regarding architectural and platform disparities.
+- **Literature-Reported Comparisons**: Numerical values from prior works (Graphene MICRO'20, AQUA MICRO'22, Rubix ASPLOS'24, PRAC (JEDEC DDR5), DREAM ISCA'25) are cited with explicit disclaimers regarding architectural and platform disparities.

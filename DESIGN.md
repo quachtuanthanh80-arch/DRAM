@@ -98,14 +98,14 @@ Q-Shield integrates RowHammer mitigation, Silent Data Corruption (SDC) resilienc
 ### 2.8 Universal PXOR-Hash Engine
 - **Source Module**: [`rtl/core/pxor_hash_engine.sv`](rtl/core/pxor_hash_engine.sv)
 - **Algorithm**: Parallel XOR universal reduction tree over dynamic Toeplitz binary matrix parameterized by a 64-bit seed.
-- **Collision Bound**: Provable collision probability bound $\le 2^{-8}$ (Crystalor CCS '24), preventing algorithmic evasion attacks designed to induce multi-tenant bin collisions in Count-Min sketches.
+- **Purpose**: A seeded Toeplitz-style XOR reduction used to spread row addresses over Count-Min sketch bins so that an attacker cannot easily choose addresses that collide. No collision probability bound has been proven or measured for this implementation.
 
 ### 2.9 AMD SEV-SNP Style Multi-ASID Confidential Key Table
 - **Source Module**: [`rtl/crypto/multi_vm_key_table.sv`](rtl/crypto/multi_vm_key_table.sv)
 - **Architecture**: 16-VM hardware key storage table indexing 256-bit AES data keys and 128-bit XTS tweak keys by 4-bit Address Space ID (ASID).
 - **Access Control**: APB4 supervisor-only write protection (`pprot[1] == 1'b1`) preventing unprivileged guest VMs or corrupted OS threads from modifying neighbor encryption keys. Hardware C-bit detection provides transparent zero-latency unencrypted DMA bypass.
 
-### 2.10 HOST '20 Fault-Hardened CSR with TMR Glitch Watchdog
+### 2.10 Fault-Hardened CSR with TMR Glitch Watchdog
 - **Source Module**: [`rtl/core/fault_hardened_csr.sv`](rtl/core/fault_hardened_csr.sv)
 - **Redundancy Model**: Triple Modular Redundancy (TMR) across 3 physically isolated register rails with 2-out-of-3 bitwise majority voting.
 - **Watchdog Protection**: Continuous rail comparison network triggering a real-time `o_glitch_alert` pulse and latching a permanent `o_security_locked` signal upon detecting clock or voltage glitch fault injection (HOST 2020 standard).
@@ -168,11 +168,24 @@ used, so this is a rough estimate and not a measurement.
 
 ### 3.4 Secure top (`axi_ddr5_mc_secure_top`)
 
-Synthesis at 2.500 ns: WNS -0.385 ns, TNS -93.4 ns (501 of 246,948 endpoints), 169,365 CLB LUTs (73.5 %), 111,834
-registers, 7.5 BRAM tiles, no multi-driven nets
-([timing](syn/reports/evidence/secure_top_synth_T44_timing.rpt), [utilization](syn/reports/evidence/secure_top_synth_T44_util.rpt)).
+Place and route on `xczu7ev`:
+
+| Target period | WNS | TNS (failing / total endpoints) | CLB LUTs | CLB registers | BRAM |
+|---|---|---|---|---|---|
+| 2.500 ns (400 MHz) | -1.595 ns | -61,801.969 ns (124,925 / 243,888) | 165,587 | 110,298 | 7.5 |
+| 4.100 ns (243.90 MHz) | -0.005 ns | -0.010 ns (3 / 243,659) | 164,064 | 110,185 | 7.5 |
+| 4.150 ns (240.96 MHz) | **+0.021 ns** | 0 ns (0 / 243,670) | 164,062 (71.2 %) | 110,190 | 7.5 |
+
+The highest clock that closed timing for the secure top is about **241 MHz**. The 4.1 ns run missed by 0.005 ns and is
+kept in the table. Vivado's vectorless power estimate at 4.15 ns is 4.437 W (rough estimate, not a measurement). Reports:
+[2.5 ns timing](syn/reports/evidence/sec_2500ps_route_timing.rpt), [4.1 ns timing](syn/reports/evidence/sec_confirmed_route_timing.rpt),
+[4.15 ns timing](syn/reports/evidence/sec_confirmed_r2_route_timing.rpt), [4.15 ns utilization](syn/reports/evidence/sec_confirmed_r2_route_util.rpt),
+[4.15 ns power](syn/reports/evidence/sec_confirmed_r2_route_power.rpt). Synthesis-only result at 2.5 ns after the multi-driver fix: WNS -0.385 ns,
+169,365 LUTs ([report](syn/reports/evidence/secure_top_synth_T44_timing.rpt)).
+
 The metadata cache alone reaches +0.037 ns at 2.5 ns in synthesis
-([report](syn/reports/evidence/meta_cache_synth_timing.rpt)). Place and route of the secure top has not completed.
+([report](syn/reports/evidence/meta_cache_synth_timing.rpt)). The secure top is therefore about 22 MHz slower than the
+core; this is the frequency cost of the encryption and integrity layer.
 
 ### 3.5 Not yet measured
 

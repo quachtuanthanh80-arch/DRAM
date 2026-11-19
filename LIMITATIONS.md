@@ -75,8 +75,8 @@ Measured results (Xilinx `xczu7ev`, Vivado 2026.1) are in [`DESIGN.md`](DESIGN.m
 
 - The core controller closes timing at 3.8 ns (about 263 MHz) after place and route and **does not close at 2.5 ns
   (400 MHz)**: WNS is -1.273 ns at the 2.5 ns target.
-- The encryption and integrity layer adds a large amount of logic: the secure top uses 169,365 LUTs (73.5 % of the
-  device) in synthesis and has not completed place and route.
+- The encryption and integrity layer adds a large amount of logic: the secure top uses 164,062 LUTs (71.2 % of the
+  device) after place and route, and closes timing at 4.15 ns (about 241 MHz), not at 2.5 ns (WNS -1.595 ns).
 - Large storage arrays (for example the metadata cache) are mapped to block RAM. Using block RAM adds a cycle of read
   latency, and the surrounding logic is written for it.
 
