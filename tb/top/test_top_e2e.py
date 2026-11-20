@@ -15,6 +15,85 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
 
+SECDED_MASKS = (
+    0xAB55555556AAAD5B,
+    0xCD9999999B33366D,
+    0xF1E1E1E1E3C3C78E,
+    0x01FE01FE03FC07F0,
+    0x01FFFE0003FFF800,
+    0x01FFFFFFFC000000,
+    0xFE00000000000000,
+)
+
+
+def secded72_enc(d: int) -> int:
+    d &= (1 << 64) - 1
+    e = 0
+    for i, mask in enumerate(SECDED_MASKS):
+        if (d & mask).bit_count() & 1:
+            e |= 1 << i
+    p7 = (d.bit_count() ^ e.bit_count()) & 1
+    return (e | (p7 << 7)) ^ 0xAA
+
+
+async def dfi_dram_responder(dut, rdlat: int = 8):
+    """Phan hoi du lieu doc DFI dung do tre DFI_RDLAT va kem ECC SEC-DED hop le."""
+    cyc = 0
+    rd_sched = {}
+    wr_queue = []
+    mem = {}
+    while True:
+        await RisingEdge(dut.clk_axi)
+        await Timer(1, unit="ps")
+        if int(dut.aresetn_axi.value) == 0:
+            cyc = 0
+            rd_sched.clear()
+            wr_queue.clear()
+            dut.dfi_rddata_valid.value = 0
+            dut.dfi_rddata.value = 0
+            dut.dfi_rddata_ecc.value = 0
+            continue
+
+        cmd = int(dut.dfi_cmd.value)
+        bg = int(dut.dfi_bg.value)
+        bank = int(dut.dfi_bank.value)
+        row = int(dut.dfi_row.value)
+        col = int(dut.dfi_col.value)
+        blen = int(dut.dfi_len.value)
+
+        if cmd == 3:  # CMD_RD
+            for b in range(blen + 1):
+                rd_sched[cyc + rdlat + b] = (bg, bank, row, col + b)
+        elif cmd == 4:  # CMD_WR
+            wr_queue.append([bg, bank, row, col, blen, 0])
+
+        if int(dut.dfi_wrdata_en.value) == 1 and wr_queue:
+            w = wr_queue[0]
+            key = (w[0], w[1], w[2], w[3] + w[5])
+            wdata = int(dut.dfi_wrdata.value)
+            wmask = int(dut.dfi_wrdata_mask.value)
+            cur = mem.get(key, 0)
+            for by in range(8):
+                if (wmask >> by) & 1:
+                    cur = (cur & ~(0xFF << (8 * by))) | (((wdata >> (8 * by)) & 0xFF) << (8 * by))
+            mem[key] = cur
+            if w[5] == w[4]:
+                wr_queue.pop(0)
+            else:
+                w[5] += 1
+
+        if cyc in rd_sched:
+            key = rd_sched.pop(cyc)
+            val = mem.get(key, (0xDEAD << 48) | ((key[2] & 0xFFFF) << 16) | (key[3] & 0xFFFF))
+            dut.dfi_rddata_valid.value = 1
+            dut.dfi_rddata.value = val
+            dut.dfi_rddata_ecc.value = secded72_enc(val)
+        else:
+            dut.dfi_rddata_valid.value = 0
+            dut.dfi_rddata.value = 0
+            dut.dfi_rddata_ecc.value = 0
+        cyc += 1
+
 async def reset_dut(dut):
     """Async assert, sync deassert reset for both clock domains"""
     dut.aresetn_axi.value = 0
@@ -45,6 +124,9 @@ async def reset_dut(dut):
     dut.s_axi_arvalid.value = 0
     
     dut.s_axi_rready.value  = 1
+    dut.dfi_rddata_valid.value = 0
+    dut.dfi_rddata.value       = 0
+    dut.dfi_rddata_ecc.value   = 0
     
     # Configuration
     dut.cfg_bank_coloring_en.value = 0
@@ -82,6 +164,7 @@ async def test_axi_write_burst_e2e(dut):
     cocotb.start_soon(clock_ddr.start())
 
     await reset_dut(dut)
+    cocotb.start_soon(dfi_dram_responder(dut))
     dut._log.info("Reset complete. Starting AXI Write Burst E2E Test.")
 
     # Issue AXI Write Address & Data
@@ -152,6 +235,7 @@ async def test_axi_read_e2e_reorder_and_return(dut):
     cocotb.start_soon(clock_ddr.start())
 
     await reset_dut(dut)
+    cocotb.start_soon(dfi_dram_responder(dut))
     dut._log.info("Reset complete. Starting AXI Read E2E Test.")
 
     # Issue AXI Read Address
@@ -199,6 +283,7 @@ async def test_rowhammer_sdc_defense_e2e(dut):
     cocotb.start_soon(clock_ddr.start())
 
     await reset_dut(dut)
+    cocotb.start_soon(dfi_dram_responder(dut))
     dut.cfg_rh_threshold.value = 4  # Low threshold to trigger quickly
     dut.cfg_window_size.value  = 50
     dut._log.info("Configured RH threshold = 4, window = 50 cycles")

@@ -15,7 +15,7 @@ VERILOG_SOURCES ?= \
 TOPLEVEL ?= tb_rs_chipkill
 MODULE ?= test_rs_chipkill
 
-EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL -Wno-WIDTHEXPAND
+EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL -Wno-WIDTHEXPAND -Wno-UNOPTFLAT
 
 COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)
 include $(COCOTB_SHARE_DIR)/Makefile.sim

@@ -32,12 +32,13 @@ VERILOG_SOURCES = \
     $(ROOT_DIR)/rtl/memory/bus_scrambler.sv \
     $(ROOT_DIR)/rtl/memory/scrambler_ks_pipe.sv \
     $(ROOT_DIR)/rtl/bus/perf_monitor_unit.sv \
+    $(ROOT_DIR)/rtl/top/bank_credit_ctrl.sv \
     $(ROOT_DIR)/rtl/top/axi_ddr5_mc_top.sv
 
 TOPLEVEL ?= axi_ddr5_mc_top
 MODULE ?= test_top_e2e
 
-EXTRA_ARGS += --trace -Wno-DECLFILENAME -Wno-MULTITOP -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT \
+EXTRA_ARGS += --trace -Wno-DECLFILENAME -Wno-MULTITOP -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-PINMISSING -Wno-WIDTHTRUNC \
               -I$(ROOT_DIR)/rtl/frontend -I$(ROOT_DIR)/rtl/cdc -I$(ROOT_DIR)/rtl/core -I$(ROOT_DIR)/rtl/crypto -I$(ROOT_DIR)/rtl/backend -I$(ROOT_DIR)/rtl/memory -I$(ROOT_DIR)/rtl/bus -I$(ROOT_DIR)/rtl/top
 
 COCOTB_SHARE_DIR ?= $(shell cocotb-config --makefiles 2>/dev/null || python3 -m cocotb_tools.config --makefiles 2>/dev/null || python -m cocotb_tools.config --makefiles 2>/dev/null)

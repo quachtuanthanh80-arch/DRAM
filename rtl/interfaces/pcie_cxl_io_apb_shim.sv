@@ -399,6 +399,7 @@ module pcie_cxl_io_csr_top #(
         .cfg_ecc_mode          (),
         .cfg_pmu_en            (),
         .cfg_pmu_reset         (),
+        .cfg_parity_check_en   (),
         .cfg_crypto_profile    (o_cfg_crypto_profile),
         .cfg_default_key_id    (o_cfg_default_key_id),
         .cfg_epoch_nonce       (o_cfg_epoch_nonce),

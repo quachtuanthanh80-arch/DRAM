@@ -414,7 +414,7 @@ module ddr5_cmd_engine #(
     logic [EV_W-1:0]          exp_v;
     logic [EV_W-1:0]          exp_ins;
     always_comb
-        exp_ins = (o_dfi_cmd == CMD_RD) ? (EV_W'((9'd2 << o_dfi_len[2:0]) - 9'd1) << (T_RDV - 1)) : '0;
+        exp_ins = (o_dfi_cmd == CMD_RD) ? (((EV_W'(2) << o_dfi_len[2:0]) - EV_W'(1)) << (T_RDV - 1)) : '0;
     wire rd_syn     = (rd_st == RS_SYNC);
     wire rd_flush   = !rd_syn;
     wire rd_st_bad  = !rd_syn && (rd_st != RS_FLUSH);

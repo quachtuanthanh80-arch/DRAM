@@ -66,7 +66,7 @@ class AxilDriver:
 @cocotb.test()
 async def test_pcie_cxl_io_enumeration_and_tmr_csr(dut):
     """Kiểm chứng quá trình Enumeration đọc CXL 3.0 DVSEC và cấu hình thanh ghi TMR bảo mật."""
-    clock = Clock(dut.clk, 4.0, units="ns") # 250 MHz
+    clock = Clock(dut.clk, 4.0, unit="ns") # 250 MHz
     cocotb.start_soon(clock.start())
 
     # Khởi tạo tín hiệu và reset

@@ -17,6 +17,7 @@ CMD_PRE = 2
 CMD_RD  = 3
 CMD_WR  = 4
 CMD_REF = 5
+CMD_RFM = 6
 
 async def reset_dut(dut):
     dut.rst_n.value = 0
@@ -131,7 +132,19 @@ async def test_prac_abo_resume_cleanly(dut):
     await RisingEdge(dut.clk)
     dut.i_cmd_valid.value = 0
 
-    # Engine must issue CMD_ACT cleanly
-    await Timer(100, unit="ps")
-    assert int(dut.o_dfi_cmd.value) == CMD_ACT, "Engine failed to issue ACT after ABO release"
+    # Theo chuẩn JEDEC PRAC, sau khi ALERT kết thúc, engine phải phát CMD_RFM (T_RFM=118) rồi mới phát CMD_ACT
+    rfm_seen = False
+    act_seen = False
+    for _ in range(135):
+        await Timer(100, unit="ps")
+        cmd = int(dut.o_dfi_cmd.value)
+        if cmd == CMD_RFM:
+            rfm_seen = True
+        elif cmd == CMD_ACT:
+            act_seen = True
+            break
+        await RisingEdge(dut.clk)
+
+    assert rfm_seen, "Engine failed to issue PRAC RFM after ABO alert"
+    assert act_seen, "Engine failed to issue ACT after ABO release"
     dut._log.info("[PASS] Clean command resumption after ABO deassertion verified")

@@ -211,7 +211,7 @@ module reorder_buffer_rob #(
                     idx_k[k]   = idx_k[k] | ROB_PTR_WIDTH'(e);
                     len_k[k]   = len_k[k] | entry_len[e];
                     wbcnt_k[k] = wbcnt_k[k] | (entry_wb_count[e] +
-                                 ((i_wb_valid && i_wb_tag == ROB_PTR_WIDTH'(e)) ? 1'b1 : 1'b0));
+                                 ((i_wb_valid && i_wb_tag == ROB_PTR_WIDTH'(e)) ? (BURST_IDX_WIDTH+1)'(1) : (BURST_IDX_WIDTH+1)'(0)));
                 end
         end
         pick_n       = retire_entry_done ? pick_k[1]  : pick_k[0];
@@ -255,8 +255,8 @@ module reorder_buffer_rob #(
                 entry_wb_done[alloc_ptr]    <= 1'b0;
                 // Cột alloc_ptr: mọi entry đang valid đều cũ hơn entry mới; hàng alloc_ptr xóa về 0.
                 for (int j = 0; j < ROB_DEPTH; j++) begin
-                    older[j*ROB_DEPTH + alloc_ptr] <= entry_valid[j];
-                    older[alloc_ptr*ROB_DEPTH + j] <= 1'b0;
+                    older[j*ROB_DEPTH + int'(alloc_ptr)] <= entry_valid[j];
+                    older[int'(alloc_ptr)*ROB_DEPTH + j] <= 1'b0;
                 end
             end
 
@@ -266,7 +266,7 @@ module reorder_buffer_rob #(
                     if (retiring[j]) id_blk[e*ROB_DEPTH + j] <= 1'b0;
             if (alloc_fire) begin
                 for (int j = 0; j < ROB_DEPTH; j++)
-                    id_blk[alloc_ptr*ROB_DEPTH + j] <= entry_valid[j] && !retiring[j] && (entry_id[j] == i_alloc_id);
+                    id_blk[int'(alloc_ptr)*ROB_DEPTH + j] <= entry_valid[j] && !retiring[j] && (entry_id[j] == i_alloc_id);
             end
 
             // 2. Writeback Reception from DRAM

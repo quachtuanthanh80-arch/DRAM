@@ -34,25 +34,29 @@ module rs_chipkill_decoder
     // Lỗi đơn ở vị trí j với độ lớn e: S0 = e, S1 = e·α^j. Định vị bằng N phép so sánh song song S1 == S0·α^j
     // (nhân hằng = ma trận XOR), không cần bảng log/nghịch đảo và luôn ra one-hot vì các α^j phân biệt.
     gf256_t       prod [N];
-    gf256_t       acc0 [N+1];
-    gf256_t       acc1 [N+1];
+    gf256_t       s0, s1;
     logic [N-1:0] loc_oh;
-    logic [4:0]   loc_part [N+1];
-    assign acc0[0]     = '0;
-    assign acc1[0]     = '0;
-    assign loc_part[0] = '0;
+    logic [4:0]   loc_idx;
     for (genvar i = 0; i < N; i++) begin : g_syn
-        assign prod[i]     = gf256_mul(i_codeword[i*8 +: 8], RS_ALPHA[i*8 +: 8]);
-        assign acc0[i + 1] = acc0[i] ^ i_codeword[i*8 +: 8];
-        assign acc1[i + 1] = acc1[i] ^ prod[i];
+        assign prod[i] = gf256_mul(i_codeword[i*8 +: 8], RS_ALPHA[i*8 +: 8]);
     end
-    wire gf256_t s0 = acc0[N];
-    wire gf256_t s1 = acc1[N];
+    always_comb begin
+        s0 = '0;
+        s1 = '0;
+        for (int i = 0; i < N; i++) begin
+            s0 = s0 ^ i_codeword[i*8 +: 8];
+            s1 = s1 ^ prod[i];
+        end
+    end
     for (genvar j = 0; j < N; j++) begin : g_loc
-        assign loc_oh[j]       = (s0 != 8'h00) && (s1 == gf256_mul(s0, RS_ALPHA[j*8 +: 8]));
-        assign loc_part[j + 1] = loc_part[j] | (loc_oh[j] ? 5'(j) : 5'd0);
+        assign loc_oh[j] = (s0 != 8'h00) && (s1 == gf256_mul(s0, RS_ALPHA[j*8 +: 8]));
     end
-    wire [4:0] loc_idx = loc_part[N];
+    always_comb begin
+        loc_idx = '0;
+        for (int j = 0; j < N; j++) begin
+            if (loc_oh[j]) loc_idx = loc_idx | 5'(j);
+        end
+    end
 
     wire clean     = (s0 == 8'h00) && (s1 == 8'h00);
     wire located   = |loc_oh;

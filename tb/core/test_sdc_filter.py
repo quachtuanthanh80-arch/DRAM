@@ -52,33 +52,40 @@ async def test_rowhammer_threshold_detection(dut):
     aggressor_bank = 1
 
     throttled_observed = False
+    out_idx = 0
 
-    for access in range(6):
-        dut.i_cmd_valid.value = 1
-        dut.i_cmd_id.value = access
-        dut.i_cmd_bg.value = aggressor_bg
-        dut.i_cmd_bank.value = aggressor_bank
-        dut.i_cmd_row.value = aggressor_row
+    for access in range(8):
+        if access < 6:
+            dut.i_cmd_valid.value = 1
+            dut.i_cmd_id.value = access
+            dut.i_cmd_bg.value = aggressor_bg
+            dut.i_cmd_bank.value = aggressor_bank
+            dut.i_cmd_row.value = aggressor_row
+        else:
+            dut.i_cmd_valid.value = 0
 
         await RisingEdge(dut.clk)
         await Timer(1, unit="ns")
 
-        is_throttled = int(dut.o_cmd_throttled.value)
-        mit_req = int(dut.o_mitigation_req.value)
-        alert = int(dut.o_sdc_alert.value)
+        if int(dut.o_cmd_valid.value) == 1:
+            is_throttled = int(dut.o_cmd_throttled.value)
+            mit_req = int(dut.o_mitigation_req.value)
+            alert = int(dut.o_sdc_alert.value)
 
-        dut._log.info(f"Access {access+1}: Throttled={is_throttled}, MitigationReq={mit_req}, Alert={alert}")
+            dut._log.info(f"Access {out_idx+1}: Throttled={is_throttled}, MitigationReq={mit_req}, Alert={alert}")
 
-        # Access thứ T+1 bị throttle và phát giảm thiểu; sau khi nạn nhân được làm tươi, hàng đếm lại từ 0
-        if access == 4:
-            assert is_throttled == 1 and mit_req == 1, f"Expected access {access+1} to be throttled with mitigation!"
-            throttled_observed = True
-        else:
-            assert is_throttled == 0, f"Access {access+1} must not be throttled (count restarts after mitigation)"
+            # Pipeline 3 tầng (p1 -> p2 -> out): access thứ T+1 bị throttle và phát giảm thiểu; sau đó đếm lại từ 0
+            if out_idx == 4:
+                assert is_throttled == 1 and mit_req == 1, f"Expected access {out_idx+1} to be throttled with mitigation!"
+                throttled_observed = True
+            else:
+                assert is_throttled == 0, f"Access {out_idx+1} must not be throttled (count restarts after mitigation)"
+            out_idx += 1
 
     dut.i_cmd_valid.value = 0
     await RisingEdge(dut.clk)
 
+    assert out_idx == 6, f"Expected 6 valid pipelined outputs, got {out_idx}"
     assert throttled_observed, "Attacker row was never throttled!"
     assert int(dut.o_telemetry_throttles.value) > 0, "Telemetry throttle count must be > 0"
     dut._log.info("RowHammer threshold detection and throttle flag verified successfully!")
@@ -100,7 +107,10 @@ async def test_epoch_reset_tied_to_trefw(dut):
         dut.i_cmd_row.value = row
         await RisingEdge(dut.clk)
         dut.i_cmd_valid.value = 0
+        await RisingEdge(dut.clk)
+        await RisingEdge(dut.clk)
         await Timer(1, unit="ns")
+        assert int(dut.o_cmd_valid.value) == 1, "Expected o_cmd_valid after 3-stage pipeline"
         return int(dut.o_cmd_throttled.value)
 
     async def ref_ticks(n):
@@ -234,29 +244,35 @@ async def test_sdc_filter_comet_golden_model_cross_verification(dut):
 
     dut._log.info(f"Starting Golden Model Cross-Verification with {len(traffic_pattern)} transactions...")
 
-    for step, (bg, bank, row, valid) in enumerate(traffic_pattern):
-        # Calculate expected output from Golden Model
-        exp_count, exp_throttle = golden.evaluate_and_update(bg, bank, row, valid)
+    pipe_q = []
+    for step, (bg, bank, row, valid) in enumerate(traffic_pattern + [(0, 0, 0, False), (0, 0, 0, False)]):
+        if valid:
+            exp_count, exp_throttle = golden.evaluate_and_update(bg, bank, row, valid)
+            pipe_q.append((step, bg, bank, row, exp_count, exp_throttle))
 
-        # Drive DUT inputs
-        dut.i_cmd_valid.value = 1 if valid else 0
-        dut.i_cmd_id.value = step & 0xF
-        dut.i_cmd_bg.value = bg
-        dut.i_cmd_bank.value = bank
-        dut.i_cmd_row.value = row
-        dut.i_cmd_col.value = 0x10
-        dut.i_cmd_len.value = 0
+            dut.i_cmd_valid.value = 1
+            dut.i_cmd_id.value = step & 0xF
+            dut.i_cmd_bg.value = bg
+            dut.i_cmd_bank.value = bank
+            dut.i_cmd_row.value = row
+            dut.i_cmd_col.value = 0x10
+            dut.i_cmd_len.value = 0
+        else:
+            dut.i_cmd_valid.value = 0
 
         await RisingEdge(dut.clk)
         await Timer(1, unit="ns")
 
-        # Check pipelined output matches golden throttle prediction
-        dut_throttled = int(dut.o_cmd_throttled.value)
-        assert dut_throttled == int(exp_throttle), (
-            f"Step {step} Mismatch: bg={bg}, bank={bank}, row={hex(row)}: "
-            f"DUT throttled={dut_throttled}, Expected={int(exp_throttle)} (Golden count={exp_count})"
-        )
+        # Kiểm tra đầu ra sau pipeline 3 tầng khớp dự đoán của mô hình vàng
+        if int(dut.o_cmd_valid.value) == 1:
+            s_step, s_bg, s_bank, s_row, exp_count, exp_throttle = pipe_q.pop(0)
+            dut_throttled = int(dut.o_cmd_throttled.value)
+            assert dut_throttled == int(exp_throttle), (
+                f"Step {s_step} Mismatch: bg={s_bg}, bank={s_bank}, row={hex(s_row)}: "
+                f"DUT throttled={dut_throttled}, Expected={int(exp_throttle)} (Golden count={exp_count})"
+            )
 
+    assert len(pipe_q) == 0, f"Unflushed pipeline items: {len(pipe_q)}"
     dut.i_cmd_valid.value = 0
     await RisingEdge(dut.clk)
     dut._log.info("CoMeT Golden Model Cross-Verification PASSED with 100% equivalence!")

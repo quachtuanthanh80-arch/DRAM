@@ -2,15 +2,17 @@
 TOPLEVEL_LANG ?= verilog
 SIM ?= verilator
 WAVES ?= 0
-SIM_BUILD ?= sim_build_tweak_gen
+SIM_BUILD ?= sim_build_xts_tweak
 
 ROOT_DIR ?= $(abspath $(CURDIR)/../..)
 
 VERILOG_SOURCES ?= \
     $(ROOT_DIR)/rtl/crypto/aes_pkg.sv \
-    $(ROOT_DIR)/rtl/crypto/aes_tweak_gen.sv
+    $(ROOT_DIR)/rtl/crypto/aes_sbox.sv \
+    $(ROOT_DIR)/rtl/crypto/aes_round_pipe.sv \
+    $(ROOT_DIR)/rtl/crypto/qshield_xts_tweak_unit.sv
 
-TOPLEVEL ?= aes_tweak_gen
+TOPLEVEL ?= qshield_xts_tweak_unit
 MODULE ?= test_aes_tweak_gen
 
 EXTRA_ARGS += -Wno-DECLFILENAME -Wno-MULTITOP -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM

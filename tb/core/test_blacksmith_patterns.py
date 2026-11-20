@@ -84,7 +84,8 @@ async def test_many_sided_hammering_distribution(dut):
     aggressor_throttles = {row: 0 for row in aggressors}
 
     # Interleave accesses across all 8 aggressors in a round-robin attack
-    for round_num in range(6):
+    # Bảo đảm hiệu dụng của Dual-Hash khi đặt lại bin về 0 sau chạm ngưỡng là 2*T = 8 vòng (khi va chạm 1 bảng băm)
+    for round_num in range(8):
         for row in aggressors:
             dut.i_cmd_valid.value = 1
             dut.i_cmd_bg.value = (row >> 2) & 0x7
@@ -94,11 +95,20 @@ async def test_many_sided_hammering_distribution(dut):
             await RisingEdge(dut.clk)
             await Timer(100, unit="ps")
 
-            if int(dut.o_cmd_throttled.value) == 1:
-                aggressor_throttles[row] += 1
+            if int(dut.o_cmd_valid.value) == 1 and int(dut.o_cmd_throttled.value) == 1:
+                out_row = int(dut.o_cmd_row.value)
+                if out_row in aggressor_throttles:
+                    aggressor_throttles[out_row] += 1
 
     dut.i_cmd_valid.value = 0
-    await RisingEdge(dut.clk)
+    # Xả 2 tầng pipeline cuối (p1 -> p2 -> out)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
+        await Timer(100, unit="ps")
+        if int(dut.o_cmd_valid.value) == 1 and int(dut.o_cmd_throttled.value) == 1:
+            out_row = int(dut.o_cmd_row.value)
+            if out_row in aggressor_throttles:
+                aggressor_throttles[out_row] += 1
 
     # Every aggressor was accessed 6 times with thresh=4, so all should have been throttled
     total_throttled_rows = sum(1 for row, count in aggressor_throttles.items() if count > 0)

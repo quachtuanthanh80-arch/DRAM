@@ -5,6 +5,63 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
 
+SECDED_MASKS = (
+    0xAB55555556AAAD5B,
+    0xCD9999999B33366D,
+    0xF1E1E1E1E3C3C78E,
+    0x01FE01FE03FC07F0,
+    0x01FFFE0003FFF800,
+    0x01FFFFFFFC000000,
+    0xFE00000000000000,
+)
+
+
+def secded72_enc(d: int) -> int:
+    d &= (1 << 64) - 1
+    e = 0
+    for i, mask in enumerate(SECDED_MASKS):
+        if (d & mask).bit_count() & 1:
+            e |= 1 << i
+    p7 = (d.bit_count() ^ e.bit_count()) & 1
+    return (e | (p7 << 7)) ^ 0xAA
+
+
+async def dfi_dram_responder(dut, rdlat: int = 8):
+    """Phan hoi du lieu doc DFI dung do tre DFI_RDLAT va kem ECC SEC-DED hop le."""
+    cyc = 0
+    rd_sched = {}
+    while True:
+        await RisingEdge(dut.clk_axi)
+        await Timer(1, unit="ps")
+        if int(dut.aresetn_axi.value) == 0:
+            cyc = 0
+            rd_sched.clear()
+            dut.dfi_rddata_valid.value = 0
+            dut.dfi_rddata.value = 0
+            dut.dfi_rddata_ecc.value = 0
+            continue
+
+        if int(dut.dfi_cmd.value) == 3:
+            bg = int(dut.dfi_bg.value)
+            bank = int(dut.dfi_bank.value)
+            row = int(dut.dfi_row.value)
+            col = int(dut.dfi_col.value)
+            blen = int(dut.dfi_len.value)
+            for b in range(blen + 1):
+                rd_sched[cyc + rdlat + b] = (bg, bank, row, col + b)
+
+        if cyc in rd_sched:
+            key = rd_sched.pop(cyc)
+            val = (0xBEEF << 48) | ((key[2] & 0xFFFF) << 16) | (key[3] & 0xFFFF)
+            dut.dfi_rddata_valid.value = 1
+            dut.dfi_rddata.value = val
+            dut.dfi_rddata_ecc.value = secded72_enc(val)
+        else:
+            dut.dfi_rddata_valid.value = 0
+            dut.dfi_rddata.value = 0
+            dut.dfi_rddata_ecc.value = 0
+        cyc += 1
+
 async def reset_dut(dut):
     dut.aresetn_axi.value = 0
     dut.aresetn_ddr.value = 0
@@ -33,6 +90,9 @@ async def reset_dut(dut):
     dut.s_axi_arvalid.value = 0
     
     dut.s_axi_rready.value  = 1
+    dut.dfi_rddata_valid.value = 0
+    dut.dfi_rddata.value       = 0
+    dut.dfi_rddata_ecc.value   = 0
     
     dut.cfg_bank_coloring_en.value = 0
     dut.cfg_mapping_mode.value     = 0
@@ -59,6 +119,8 @@ async def reset_dut(dut):
     
     for _ in range(5):
         await RisingEdge(dut.clk_axi)
+
+    cocotb.start_soon(dfi_dram_responder(dut))
 
 async def send_ar_transaction(dut, arid, addr, qos):
     dut.s_axi_arid.value    = arid
