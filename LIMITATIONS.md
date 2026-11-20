@@ -231,14 +231,21 @@ Phần này nêu rõ phạm vi những gì đã được kiểm chứng và nh�
 - **Bản chất độ phủ**: Con số 100% này **chỉ phản ánh độ phủ của 23 bin chức năng tự định nghĩa** (16 bin trong `mc_env` và 7 bin trong `csr_env`), **không đại diện cho độ phủ mã nguồn (line/branch/toggle code coverage) hay độ phủ chức năng toàn diện chuẩn ngành EDA**.
 - Số lượng seed ngẫu nhiên hiện tại còn hạn chế (mặc định 2 đến 5 seeds).
 
-### 9.5 Known-failing cocotb + Verilator suites
+### 9.5 Cocotb + Verilator suites
 - The repository also contains cocotb suites that run on Verilator (`python run_all_tests.py --skip-gate --skip-findings --skip-corner-matrix`).
-  They were not kept in step with the RTL changes. In a recent run with Verilator 5.032, 14 of 24 stages failed:
-  (a) Verilator treats several width, missing-pin and combinational-loop warnings as errors (for example in
-  `reorder_buffer_rob.sv`, `ddr5_cmd_engine.sv`, `pcie_cxl_io_apb_shim.sv` and `rs_chipkill_decoder.sv`), and
-  (b) some expected values in the cocotb tests are out of date or may expose a real regression (the SDC-filter
-  throttle expectations and the many-sided attack test in particular). Until each failure is classified, do not rely on
-  these suites. The continuous-integration workflow runs them as a non-blocking job.
+  They had fallen behind the RTL: with Verilator 5.032, 14 of 24 stages failed. Each failure was classified and
+  the suites were repaired: 23 of 24 stages now pass locally with Verilator 5.032. Thirteen failures were out-of-date tests
+  (RTL changed on purpose earlier, tests kept the old expectations) and none was a regression; four Verilator lint
+  warnings in the RTL (width, missing pin, combinational loop) were fixed without changing behaviour. `tools/check_cocotb_triage.py`
+  prints the per-stage result and fails on any unexplained failure.
+- The remaining stage is the PyUVM random/corner stage, which needs the `pyuvm` package that was not installed in the local
+  Linux environment (it passes where the package is installed: 23 of 23 checks).
+- The SDC-filter counters are reset to zero when a row reaches the threshold, so rows that share a counter bin can
+  under-count each other. The many-sided test needed 8 rounds instead of 6 to throttle all 8 aggressors at threshold 4. How much of that
+  is the old test's counting and how much is real under-counting from bin collisions has not been separated yet; it is part of the planned
+  RowHammer evaluation, so do not quote an effective threshold of 2T as proven.
+- The continuous-integration workflow still runs these suites as a non-blocking job, because the workflow has not yet been
+  run with the newer Verilator it installs.
 - The regression that is maintained with the RTL uses Icarus Verilog: `python run_iverilog_regression.py` and
   `python tb/findings/run_findings.py`.
 
