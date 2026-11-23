@@ -1,0 +1,15 @@
+split,wl,slowdown_RTL,slowdown_Ram_calibrated,err_cal_pct,slowdown_Ram_uncalibrated,err_uncal_pct,lat_ratio_RTL,lat_ratio_Ram_calibrated,lat_ratio_err_cal_pct,lat_ratio_Ram_uncalibrated,lat_ratio_err_uncal_pct
+in_sample,bank_conflict,1.0816,1.0603,-1.97,1.0,-7.54,1.1029,1.0607,-3.83,1.0,-9.33
+in_sample,gups_read,0.9965,0.9945,-0.2,0.9986,0.21,1.0004,0.9945,-0.59,0.9996,-0.08
+in_sample,hammer_double,1.0161,1.0149,-0.12,0.985,-3.06,1.0152,1.0132,-0.2,0.9823,-3.25
+in_sample,hammer_many,0.9961,0.9988,0.27,0.9374,-5.9,0.9959,1.0006,0.47,0.9193,-7.7
+in_sample,random_rw,1.0053,0.9956,-0.96,0.9995,-0.57,0.9964,0.9991,0.27,1.0062,0.99
+in_sample,row_local,1.0014,1.0005,-0.09,0.9936,-0.78,1.0,1.0005,0.05,0.9435,-5.65
+in_sample,stream_copy,1.0911,1.0557,-3.24,1.0678,-2.13,1.079,1.056,-2.14,1.112,3.05
+in_sample,stream_triad,0.9621,1.0378,7.88,1.1633,20.91,0.9961,1.0381,4.21,1.2331,23.79
+holdout,burst_idle_rw,1.011,0.9996,-1.12,1.0143,0.32,0.9953,1.0,0.47,1.0018,0.66
+holdout,dual_interleaved,1.019,1.0202,0.12,1.0197,0.07,1.0164,1.02,0.35,1.0416,2.48
+holdout,hammer_3row,1.0287,1.0112,-1.7,1.0337,0.48,1.0355,1.0113,-2.34,1.0349,-0.06
+holdout,hammer_multibank,1.0679,1.051,-1.59,1.075,0.66,1.0714,1.0512,-1.88,1.0817,0.96
+holdout,large_stride,0.9975,1.0284,3.09,1.018,2.06,0.9882,1.0286,4.09,1.0361,4.85
+holdout,random_70_30,1.0009,1.0036,0.27,0.9878,-1.31,1.0009,1.0033,0.24,0.9978,-0.31

@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # File:        filelist_dc.tcl
 # Description: Synopsys Design Compiler SystemVerilog RTL Filelist
 #              Organized hierarchically to guarantee clean elaboration.

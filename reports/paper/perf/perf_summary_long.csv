@@ -1,0 +1,49 @@
+category,scheme,dram_support,dram_support_evidence,n_rh,runs_total,runs_ok,workloads_total,sim_time_ms_min,sim_time_ms_max,mean_ipc_avg,weighted_speedup_mean,norm_weighted_speedup_mean,seed_ci95_ws,harmonic_speedup_mean,max_slowdown_mean,preventive_refreshes_mean,max_disturb_r1_worst,max_disturb_r2_worst,r1_exceed_runs,r1_exceed_workloads,rows_exceeding_nrh_r1_sum,rows_exceeding_nrh_r2_sum
+attack,Baseline,none,generic_ddr_controller.cpp:8-80 (no mitigation),128,4,4,4,33.6,33.6,1.0132,1.7053,1.0,0.0,0.5395,9704.4957,0,65594,65594,4,4,3043,14889
+attack,BlockHammer,none,"blockhammer_controller.cpp:1-476 (controller-only throttling, no VRR/RFM)",128,4,4,4,33.6,33.6,1.0785,1.4444,7.3635,0.0,0.1374,18.8671,0,11225,18058,4,4,591,2949
+attack,PARA_ACT,none,"para_act.cpp:74-121 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",128,12,12,4,33.6,33.6,0.5013,0.7609,0.5819,0.00264,0.1915,9708.3594,379449.2,3926,7852,12,4,66,611
+attack,Graphene_ACT,none,"graphene_act.cpp:100-178 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",128,4,4,4,33.6,33.6,0.9449,1.576,0.9428,0.0,0.4938,9704.6572,52034,483,966,4,4,53,1741
+attack,Hydra_ACT,none,"hydra_act.cpp:200-355 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",128,4,4,4,33.6,33.6,0.7125,1.1524,0.7553,0.0,0.3423,9705.5344,58450,481,962,4,4,37,262
+attack,QShield,none,qshield_controller.cpp:1255-1311 (standard ACT->tRAS->PREpb victim refresh),128,4,4,4,33.6,33.6,0.8973,1.4377,0.8815,0.0,0.425,9705.1237,240929,1386,2772,4,4,22,45
+attack,QShield_Integ,none,"qshield_controller.cpp:1255-1311,1406-1425 (standard ACT->tRAS->PREpb + BMT/MAC)",128,4,4,4,33.6,33.6,0.46,0.6805,0.5462,0.0,0.1531,9710.2476,432024,5452,10906,4,4,219,499
+attack,PARA,vrr_non_jedec,para.cpp:45-62 (requires non-JEDEC VRR command),128,12,12,4,33.6,33.6,0.7771,1.1901,0.7719,0.0063,0.3103,9706.2874,138577.2,62,62,0,0,0,0
+attack,Graphene,vrr_non_jedec,"graphene.cpp:51-59,157-158 (requires non-JEDEC VRR command)",128,4,4,4,33.6,33.6,0.9775,1.6333,0.9682,0.0,0.513,9704.5935,13406.2,150,253,2,2,2,1155
+attack,Hydra,vrr_non_jedec,"hydra.cpp:142-148,303-304,446-447 (requires non-JEDEC VRR command)",128,4,4,4,33.6,33.6,0.7487,1.2132,0.7822,0.0,0.3618,9705.3957,16792.2,127,253,0,0,0,151
+attack,PRAC,in_dram,"prac_controller.cpp:36-40,160-177,225-260 (requires in-DRAM per-row counters + ABO + RFMab)",128,4,4,4,33.6,33.6,0.9605,1.6069,0.9565,0.0,0.5044,9704.6156,8042,59104,60320,4,4,2927,13762
+attack,RFM,in_dram,"rfm_manager.cpp:69-75,131-132 (requires in-DRAM RFM target selection)",128,4,4,4,33.6,33.6,0.8978,1.4575,0.8903,0.0,0.4407,9704.9774,25153.2,47936,50324,4,4,3315,12443
+attack,Baseline,none,generic_ddr_controller.cpp:8-80 (no mitigation),1024,4,4,4,33.6,33.6,1.0132,1.7053,1.0,0.0,0.5395,9704.4957,0,65594,65594,4,4,138,219
+attack,BlockHammer,none,"blockhammer_controller.cpp:1-476 (controller-only throttling, no VRR/RFM)",1024,4,4,4,33.6,33.6,1.0151,1.7088,1.0385,0.0,0.5418,58.887,0,65562,65562,4,4,138,223
+attack,PARA_ACT,none,"para_act.cpp:74-121 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",1024,12,12,4,33.6,33.6,0.8719,1.4247,0.8758,0.00591,0.4332,9704.9769,124292.5,1022,2044,0,0,0,40
+attack,Graphene_ACT,none,"graphene_act.cpp:100-178 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",1024,4,4,4,33.6,33.6,1.0115,1.7013,0.9983,0.0,0.5378,9704.5023,3758,1026,2046,1,1,19,80
+attack,Hydra_ACT,none,"hydra_act.cpp:200-355 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",1024,4,4,4,33.6,33.6,0.8413,1.385,0.8583,0.0,0.4228,9704.9842,11066,1026,2048,1,1,19,70
+attack,QShield,none,qshield_controller.cpp:1255-1311 (standard ACT->tRAS->PREpb victim refresh),1024,4,4,4,33.6,33.6,0.9277,1.5224,0.9191,0.0,0.4678,9704.8181,47389.8,628,686,0,0,0,0
+attack,QShield_Integ,none,"qshield_controller.cpp:1255-1311,1406-1425 (standard ACT->tRAS->PREpb + BMT/MAC)",1024,4,4,4,33.6,33.6,0.4748,0.7044,0.5568,0.0,0.1639,9709.6654,76999,797,1594,0,0,0,6
+attack,PARA,vrr_non_jedec,para.cpp:45-62 (requires non-JEDEC VRR command),1024,12,12,4,33.6,33.6,0.9552,1.5663,0.9385,0.00212,0.4816,9704.7723,34401.0,352,352,0,0,0,0
+attack,Graphene,vrr_non_jedec,"graphene.cpp:51-59,157-158 (requires non-JEDEC VRR command)",1024,4,4,4,33.6,33.6,1.0113,1.7013,0.9983,0.0,0.5379,9704.5015,939.2,1023,2045,0,0,0,59
+attack,Hydra,vrr_non_jedec,"hydra.cpp:142-148,303-304,446-447 (requires non-JEDEC VRR command)",1024,4,4,4,33.6,33.6,0.8491,1.3979,0.864,0.0,0.427,9704.9662,2886.2,1023,2045,0,0,0,15
+attack,PRAC,in_dram,"prac_controller.cpp:36-40,160-177,225-260 (requires in-DRAM per-row counters + ABO + RFMab)",1024,4,4,4,33.6,33.6,1.0069,1.6936,0.9949,0.0,0.5354,9704.5084,1036,64714,64724,4,4,138,217
+attack,RFM,in_dram,"rfm_manager.cpp:69-75,131-132 (requires in-DRAM RFM target selection)",1024,4,4,4,33.6,33.6,0.9796,1.6366,0.9697,0.0,0.5144,9704.5892,6210,61090,61704,4,4,138,219
+single,Baseline,none,generic_ddr_controller.cpp:8-80 (no mitigation),128,6,6,6,33.6,33.6,2.2117,1.0,1.0,0.0,1.0,1.0,0,1606,3311,5,5,3418,5815
+single,BlockHammer,none,"blockhammer_controller.cpp:1-476 (controller-only throttling, no VRR/RFM)",128,6,6,6,33.6,33.6,1.5011,0.5272,0.5272,0.0,0.5272,3.2265,0,645,1002,5,5,1203,2851
+single,PARA_ACT,none,"para_act.cpp:74-121 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",128,18,18,6,33.6,33.6,1.8428,0.7099,0.7099,0.00156,0.7099,2.1531,190858.2,164,379,6,2,16,873
+single,Graphene_ACT,none,"graphene_act.cpp:100-178 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",128,6,6,6,33.6,33.6,2.1901,0.9533,0.9533,0.0,0.9533,1.062,27670.7,151,237,2,2,9,322
+single,Hydra_ACT,none,"hydra_act.cpp:200-355 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",128,6,6,6,33.6,33.6,2.0696,0.8357,0.8357,0.0,0.8357,1.5289,26939,243,489,1,1,32,195
+single,QShield,none,qshield_controller.cpp:1255-1311 (standard ACT->tRAS->PREpb victim refresh),128,6,6,6,33.6,33.6,2.102,0.8909,0.8909,0.0,0.8909,1.1459,130303.7,98,224,0,0,0,68
+single,QShield_Integ,none,"qshield_controller.cpp:1255-1311,1406-1425 (standard ACT->tRAS->PREpb + BMT/MAC)",128,6,6,6,33.6,33.6,1.6704,0.6421,0.6421,0.0,0.6421,2.0478,178034.8,4497,8994,5,5,202,597
+single,PARA,vrr_non_jedec,para.cpp:45-62 (requires non-JEDEC VRR command),128,18,18,6,33.6,33.6,1.9312,0.7707,0.7707,0.00127,0.7707,1.4455,78713.4,51,59,0,0,0,0
+single,Graphene,vrr_non_jedec,"graphene.cpp:51-59,157-158 (requires non-JEDEC VRR command)",128,6,6,6,33.6,33.6,2.1992,0.9758,0.9758,0.0,0.9758,1.0273,7918,155,233,2,2,8,364
+single,Hydra,vrr_non_jedec,"hydra.cpp:142-148,303-304,446-447 (requires non-JEDEC VRR command)",128,6,6,6,33.6,33.6,2.0802,0.8429,0.8429,0.0,0.8429,1.4654,7503.8,125,162,0,0,0,52
+single,PRAC,in_dram,"prac_controller.cpp:36-40,160-177,225-260 (requires in-DRAM per-row counters + ABO + RFMab)",128,6,6,6,33.6,33.6,2.2019,0.9868,0.9868,0.0,0.9868,1.0139,925.3,1540,3196,5,5,3408,5800
+single,RFM,in_dram,"rfm_manager.cpp:69-75,131-132 (requires in-DRAM RFM target selection)",128,6,6,6,33.6,33.6,2.1488,0.9462,0.9462,0.0,0.9462,1.0599,5402.7,1411,2929,5,5,3411,5817
+single,Baseline,none,generic_ddr_controller.cpp:8-80 (no mitigation),1024,6,6,6,33.6,33.6,2.2117,1.0,1.0,0.0,1.0,1.0,0,1606,3311,1,1,65,148
+single,BlockHammer,none,"blockhammer_controller.cpp:1-476 (controller-only throttling, no VRR/RFM)",1024,6,6,6,33.6,33.6,2.2003,0.9673,0.9673,0.0,0.9673,1.0406,0,1424,2993,1,1,58,139
+single,PARA_ACT,none,"para_act.cpp:74-121 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",1024,18,18,6,33.6,33.6,2.1402,0.9049,0.9049,0.00134,0.9049,1.1485,58936.3,253,426,0,0,0,0
+single,Graphene_ACT,none,"graphene_act.cpp:100-178 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",1024,6,6,6,33.6,33.6,2.2095,0.9938,0.9938,0.0,0.9938,1.0064,2983.3,769,1158,0,0,0,8
+single,Hydra_ACT,none,"hydra_act.cpp:200-355 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",1024,6,6,6,33.6,33.6,2.1321,0.8685,0.8685,0.0,0.8685,1.4261,3665.8,549,930,0,0,0,0
+single,QShield,none,qshield_controller.cpp:1255-1311 (standard ACT->tRAS->PREpb victim refresh),1024,6,6,6,33.6,33.6,2.1718,0.9526,0.9526,0.0,0.9526,1.0549,21927.7,510,1051,0,0,0,1
+single,QShield_Integ,none,"qshield_controller.cpp:1255-1311,1406-1425 (standard ACT->tRAS->PREpb + BMT/MAC)",1024,6,6,6,33.6,33.6,1.7082,0.6602,0.6602,0.0,0.6602,1.9623,27479.2,1005,1380,0,0,0,10
+single,PARA,vrr_non_jedec,para.cpp:45-62 (requires non-JEDEC VRR command),1024,18,18,6,33.6,33.6,2.1649,0.9383,0.9383,0.00122,0.9383,1.077,18037.8,333,333,0,0,0,0
+single,Graphene,vrr_non_jedec,"graphene.cpp:51-59,157-158 (requires non-JEDEC VRR command)",1024,6,6,6,33.6,33.6,2.2103,0.996,0.996,0.0,0.996,1.0041,764.8,771,1158,0,0,0,11
+single,Hydra,vrr_non_jedec,"hydra.cpp:142-148,303-304,446-447 (requires non-JEDEC VRR command)",1024,6,6,6,33.6,33.6,2.1322,0.8689,0.8689,0.0,0.8689,1.4214,931.2,555,904,0,0,0,0
+single,PRAC,in_dram,"prac_controller.cpp:36-40,160-177,225-260 (requires in-DRAM per-row counters + ABO + RFMab)",1024,6,6,6,33.6,33.6,2.2114,0.9995,0.9995,0.0,0.9995,1.0005,35.3,1598,3303,1,1,65,148
+single,RFM,in_dram,"rfm_manager.cpp:69-75,131-132 (requires in-DRAM RFM target selection)",1024,6,6,6,33.6,33.6,2.2075,0.9942,0.9942,0.0,0.9942,1.0059,698.2,1595,3289,1,1,63,143

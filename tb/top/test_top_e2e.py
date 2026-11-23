@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # File:        test_top_e2e.py
 # Description: Full System End-to-End Cocotb Testbench for axi_ddr5_mc_top.
 #              Tests:

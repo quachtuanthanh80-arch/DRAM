@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # File:        run_innovus_pnr.tcl
 # Description: Production Cadence Innovus Place & Route (P&R) Flow Script
 #              Floorplan -> Power Grid -> Placement -> CTS -> Routing -> Signoff

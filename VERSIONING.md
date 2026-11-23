@@ -48,7 +48,6 @@ This document provides exact version numbers for all electronic design automatio
 | **AMBA APB4** | ARM Ltd. | ARM IHI 0024C (Issue C) |
 | **SystemVerilog RTL**| IEEE-SA | IEEE 1800-2017 Language Reference Manual |
 | **JEDEC DDR5 SDRAM** | JEDEC Solid State Technology | JESD79-5C (DDR5 Specification) |
-| **JEDEC DDR4 SDRAM** | JEDEC Solid State Technology | JESD79-4D (DDR4 Specification) |
 | **DFI Interface** | DDR PHY Interface WG | DFI 5.0 Protocol Specification |
 
 ---

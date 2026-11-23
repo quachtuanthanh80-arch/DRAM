@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_fault_hardened_csr.py
 # Description: Cocotb testbench for Fault-Hardened CSR (Homma Lab HOST '20)
 #              Verifies:

@@ -1,0 +1,74 @@
+{
+  "scheme": "PRAC",
+  "dram_support": "in_dram",
+  "dram_support_evidence": "prac_controller.cpp:36-40,160-177,225-260 (requires in-DRAM per-row counters + ABO + RFMab)",
+  "common": {
+    "frontend": {
+      "impl": "BHO3",
+      "clock_ratio": 5,
+      "ipc": 4,
+      "inst_window_depth": 128,
+      "llc_capacity_per_core": "2MB",
+      "llc_num_mshr_per_core": 16,
+      "translation": {
+        "impl": "NoTranslation",
+        "max_addr": 17179869184
+      }
+    },
+    "memory_system": {
+      "impl": "GenericDRAM",
+      "clock_ratio": 2,
+      "channel_mapper": {
+        "impl": "CacheLineInterleave"
+      }
+    },
+    "dram": {
+      "impl": "DDR5_VRR",
+      "org_preset": "DDR5_16Gb_x4",
+      "timing_preset": "DDR5_3200C",
+      "rank": 1
+    },
+    "scheduler": {
+      "impl": "FRFCFS"
+    },
+    "refresh_manager": {
+      "impl": "AllBank"
+    },
+    "row_policy": {
+      "impl": "Open"
+    },
+    "addr_mapper": {
+      "impl": "RoBaRaCoCh"
+    }
+  },
+  "per_nrh": {
+    "1024": {
+      "controller": "PRAC",
+      "abo_threshold": 512,
+      "abo_act_ns": 180,
+      "abo_recovery_refs": 4,
+      "abo_delay_acts": 4
+    },
+    "512": {
+      "controller": "PRAC",
+      "abo_threshold": 256,
+      "abo_act_ns": 180,
+      "abo_recovery_refs": 4,
+      "abo_delay_acts": 4
+    },
+    "256": {
+      "controller": "PRAC",
+      "abo_threshold": 128,
+      "abo_act_ns": 180,
+      "abo_recovery_refs": 4,
+      "abo_delay_acts": 4
+    },
+    "128": {
+      "controller": "PRAC",
+      "abo_threshold": 64,
+      "abo_act_ns": 180,
+      "abo_recovery_refs": 4,
+      "abo_delay_acts": 4
+    }
+  }
+}

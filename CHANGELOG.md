@@ -4,38 +4,36 @@ All notable changes, methodological improvements, and architectural updates to t
 
 ---
 
-## Revision: accuracy pass (2026-11)
+## Revision: accuracy pass & DDR5-only scope (2026-11)
 
-- **Withdrawn**: the ASIC gate-equivalent/power/energy tables, the 424.1 MHz and +0.142 ns timing claim, the
-  Ramulator2 throughput-overhead tables, and the "0 escaped bit-flips" table. None had a report or log in this repository.
-- **Added measured results**: FPGA place-and-route timing and area for the core controller (does not meet 400 MHz;
-  closes at 3.8 ns), synthesis results for the secure top and the metadata cache, with reports in `syn/reports/evidence/`.
-- **Added** the encryption and integrity layer (AES-256-XTS, MAC, Bonsai Merkle tree, trusted metadata cache) and its
-  verification (273-check end-to-end testbench, 2,048 XTS known-answer vectors, cache and tree model checks).
-- **Added** a static multi-driver check after synthesis revealed registers driven from two processes in the
-  encryption bridge (an integrity-failure flag was forced to zero in the synthesized netlist); the defect is fixed.
-- **Added** a Python UVM-style environment with independent golden models, a corner-case matrix, mutation testing,
-  and bounded formal checks (with their limits documented).
-- **Changed** documentation to separate measured results from planned evaluation.
+- **Withdrawn**: the unbacked ASIC gate-equivalent/power/energy tables (`synth/asic/reports/multi_pdk_ppa_comparison.md`), the 424.1 MHz and +0.142 ns timing claim, legacy unbacked Ramulator2 throughput-overhead and zero-disturbance tables, and unverified literature GE/overhead rows.
+- **Added measured FPGA post-route results** (`reports/paper/fpga/t89/`, `reports/paper/fpga/t92/`): on `xczu7ev` with post-T86/T88 RTL, neither top closes at 400 MHz (`2.500 ns`); core `axi_ddr5_mc_top` closes at `3.900 ns` (`256.41 MHz`, confirmed upper bound not yet swept below `3.900 ns`, `WNS +0.014 ns`, `62,699` LUTs, `1.645 W` vectorless) and `4.200 ns` (`238.10 MHz`, `WNS +0.076 ns`); secure top `axi_ddr5_mc_secure_top` closes at `4.150 ns` (`240.96 MHz`, `WNS +0.018 ns`, `165,776` LUTs, `7.5` BRAM, `4.301 W` vectorless).
+- **Added** the encryption and integrity layer (AES-256-XTS, MAC, Bonsai Merkle tree, 4 KB trusted metadata cache) and its verification (`tb_secure_top_integrity`: `279` FAST / `405` full checks, `0` failures, 1:1 AXI metadata accounting `meta_rd_cnt=83`, `meta_wr_cnt=131`; `2,048` XTS known-answer vectors; cache and tree model checks).
+- **Added** a static multi-driver check (`tools/check_multidriver.py`) after synthesis revealed registers driven from two processes in the encryption bridge; the defect is fixed.
+- **Added** measured DDR5 Ramulator2 evaluations separating commercial-DRAM (`dram_support=none`) from non-JEDEC VRR and in-DRAM schemes (`2,883` short-window runs in `reports/paper/perf/perf_report_v2.md`; `321` long-window runs at `33.6 ms >= 1 tREFW` in `reports/paper/perf/perf_report_long.md`), RTL RowHammer/RowPress matrix (`56/56` cases in `reports/paper/security/security_eval_report.md`), and RTL-to-Ramulator2 cross-validation (`14` synthetic traces in `reports/paper/crossval/crossval_report_v2.md`).
+- **Added** a Python UVM-style environment (`pyuvm 5.0.0`, `23/23` checks with independent Python golden models), a 26-case corner-case matrix, mutation testing (`18/20` = `90 %` on four core/CSR blocks), and five bounded SymbiYosys BMC/Cover checks (`depth 15`, integrity on an abstract model).
+- **Scoped documentation and benchmark scripts to DDR5-only**: removed legacy unbacked non-DDR5 benchmark rows and hard-coded throughput tables, and verified external paper citations directly against source PDFs.
+
+> **Historical release notes below (2026-09 to 2026-10).** Entries from `[3.0.0]` through `[1.0.0]` are retained for repository history. Claims in those historical entries regarding unproven collision bounds, unbacked overhead figures, older test counts, or unbounded formal proofs are superseded by the 2026-11 accuracy pass above.
 
 ## [3.0.0] - 2026-10-09
 
 ### Major Cryptographic & Microarchitectural Upgrades
 - **SCARF 1-Cycle Low-Latency DRAM Address Randomizer (`rtl/core/scarf_dram_randomizer.sv`)**:
-  - Implemented a 10-round Tweaked-Feistel cipher with non-linear 4-bit S-Boxes and per-bank row permutation.
-  - Sub-cycle combinational mapping ($IPC = 1.0$) prevents spatial physical adjacency exploitation (ZenHammer, Phoenix, and half-double RowHammer patterns).
+  - Implemented a 10-round Tweaked-Feistel cipher with non-linear 4-bit S-Boxes and per-bank row permutation (adapted from Canale et al., USENIX Security '23).
+  - Single-cycle combinational mapping intended to disrupt spatial physical adjacency patterns (such as ZenHammer, USENIX Security '24; Phoenix, IEEE S&P '26; and Half-Double, USENIX Security '22).
 - **Universal PXOR-Hash Engine (`rtl/core/pxor_hash_engine.sv`)**:
-  - Designed a parallel XOR reduction tree over a dynamic Toeplitz binary matrix parameterized by randomized seed.
-  - Provable collision probability bound $\le 2^{-8}$, sub-nanosecond evaluation delay, eliminating algorithmic adversarial collisions against Count-Min sketches (Crystalor CCS '24).
-- **AMD SEV-SNP Style Multi-ASID Confidential Key Table (`rtl/crypto/multi_vm_key_table.sv`)**:
+  - Designed a parallel XOR reduction tree over a dynamic Toeplitz binary matrix parameterized by a 64-bit seed.
+  - *(Withdrawn in 2026-11: an earlier note claimed a $\le 2^{-8}$ collision bound attributed to Crystalor CCS '24; Crystalor proposes PXOR-Hash for recoverable memory encryption metadata, not Count-Min sketch RowHammer bounds, and no collision probability bound is proven for this RTL implementation.)*
+- **Multi-ASID Confidential Key Table (`rtl/crypto/multi_vm_key_table.sv`)**:
   - Integrated 16-VM hardware key table indexing 256-bit AES data keys and 128-bit XTS tweak keys by 4-bit ASID.
   - Enforced APB4 supervisor-only write protection (`pprot[1] == 1'b1`) preventing unprivileged guest tampering, with hardware C-bit unencrypted DMA bypass.
-- **HOST '20 Fault-Hardened CSR with TMR Glitch Watchdog (`rtl/core/fault_hardened_csr.sv`)**:
-  - Implemented Triple Modular Redundancy (TMR) across 3 independent register rails with 2-out-of-3 bitwise majority voting for all threshold/configuration registers.
-  - Real-time rail mismatch detector triggering continuous `o_glitch_alert` and security lockdown latch (`o_security_locked`) against EM/voltage fault injection.
-- **Top-Level Integration & Full 18-Test Regression Suite**:
+- **Fault-Hardened CSR with TMR Glitch Watchdog (`rtl/core/fault_hardened_csr.sv`)**:
+  - Implemented Triple Modular Redundancy (TMR) across 3 independent register rails with 2-out-of-3 bitwise majority voting for threshold/configuration registers.
+  - Real-time rail mismatch detector triggering continuous `o_glitch_alert` and security lockdown latch (`o_security_locked`) against single-rail fault upsets.
+- **Top-Level Integration & Historical Regression Suite**:
   - Integrated into `addr_mapper_ddr5.sv`, `sdc_resilient_filter.sv`, and `axi_ddr5_mc_top.sv`.
-  - Achieved 100% pass rate (18/18 tests passed) across master Icarus Verilog regression suite (`run_iverilog_regression.py`).
+  - Historical 18-test Icarus Verilog suite (`run_iverilog_regression.py`); superseded by the expanded canonical regression suite in 2026-11.
 
 ---
 
@@ -43,17 +41,17 @@ All notable changes, methodological improvements, and architectural updates to t
 
 ### Major Methodological & Peer-Review Upgrades
 - **Transition from Promotional to Objective Academic Style**:
-  - Eliminated unqualified marketing terminology (e.g., "0% overhead", "100% pass", "flawless SOTA", "zero weaknesses") across `README.md`, `sim/`, and `formal/`.
-  - Added operational contexts and conditional bounds to all performance claims (e.g., *"< 0.05% overhead under non-congested SPEC CPU2017 workloads due to physical t_RCD / t_RP pipeline latency shadowing"*).
+  - Removed unqualified marketing terminology across `README.md`, `sim/`, and `formal/`.
+  - *(Historical performance context notes from this revision were later withdrawn in 2026-11 in favor of measured Ramulator2 reports in `reports/paper/perf/`.)*
   - Replaced promotional badges with objective, informative status indicators.
 - **Three-Tier Comparative Architecture Matrix**:
-  - Partitioned evaluations into (1) Apples-to-Apples cycle-accurate comparisons on Ramulator 2.0, (2) Literature-reported values with platform discrepancy caveats, and (3) Qualitative architectural taxonomy.
+  - Separated simulation comparisons from literature context and qualitative taxonomy.
 - **Structured Artifact Mapping**:
-  - Established a 1-to-1 mapping table linking all 10 manuscript figures and 4 tables directly to generating scripts and raw data outputs.
+  - Mapped manuscript figures and tables to generating scripts and raw data outputs.
 - **Extended Limitations & Trade-offs Disclosure**:
-  - Detailed the Count-Min sketch probabilistic upper bound, false positive trade-offs (0.08% → 1.38%), FPGA distributed LUT utilization (86.8%), deliberate attacker throughput throttling (-57.9%), and pure-controller boundaries.
-- **Formal Verification Expansion**:
-  - Documented individual SVA properties, mathematical targets, solver configurations, and unconstrained input rationale across BMC and $k$-induction modes in `formal/README.md`.
+  - Documented Count-Min sketch trade-offs and pure-controller threat-model boundaries *(earlier unbacked numerical percentages from this draft were withdrawn in 2026-11)*.
+- **Formal Verification Documentation**:
+  - Documented SVA assertions and solver configurations in `formal/README.md` *(superseded by the five verified BMC/Cover suites in 2026-11)*.
 - **Reproducibility & Environment Support**:
   - Created `requirements.txt`, `Dockerfile`, `INSTALL.md`, `REPRODUCIBILITY.md`, `METHODOLOGY.md`, `LIMITATIONS.md`, `VERSIONING.md`, and YAML configurations.
 
@@ -64,13 +62,13 @@ All notable changes, methodological improvements, and architectural updates to t
 ### Architecture & Protocol Upgrades
 - **JEDEC DDR5 Subchannel Scheduling**:
   - Implemented dual 32-bit independent subchannel scheduling with DFI 5.0 physical adapter.
-  - Added Modulo-3 non-power-of-two channel interleaving to eliminate bank group hot-spotting.
-- **AMBA AXI5 Protocol Compliance**:
-  - Integrated AXI poison signal propagation (`AWPOISON`, `ARPOISON`, `RPOISON`) and ASIL-D byte parity checks (`AWCHK`, `ARCHK`, `WCHK`, `RCHK`).
+  - Added Modulo-3 non-power-of-two channel interleaving.
+- **AMBA AXI5 Poisoning & Parity Support**:
+  - Integrated AXI poison signal propagation (`AWPOISON`, `ARPOISON`, `RPOISON`) and byte parity checks (`AWCHK`, `ARCHK`, `WCHK`, `RCHK`).
 - **Autonomous SEC-DED (72, 64) Hamming Scrubbing**:
-  - Added background autonomous memory scrubbing engine with zero-cycle latency correction.
+  - Added background autonomous memory scrubbing engine.
 - **RowPress Mitigation**:
-  - Integrated continuous open-row duration tracking and JEDEC $t_{\mathrm{RAS\_max}} \le 70\,\mu\text{s}$ auto-precharge clamping.
+  - Integrated open-row duration tracking and JEDEC $t_{\mathrm{RAS\_max}} \le 70\,\mu\text{s}$ auto-precharge clamping.
 
 ---
 

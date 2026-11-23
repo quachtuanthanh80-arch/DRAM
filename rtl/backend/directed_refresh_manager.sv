@@ -161,16 +161,27 @@ module directed_refresh_manager #(
 
     wire [PTR_W:0] max_victims = cfg_victim3_en ? (PTR_W+1)'(6) : (cfg_victim2_en ? (PTR_W+1)'(4) : (PTR_W+1)'(2));
 
+    // Thanh ghi đường ống 2 tầng tách tính địa chỉ nạn nhân (p1) và kiểm tra trùng CAM PROQ (p2) khỏi ghi wr_ptr/pq_v.
+    logic                  p1_v, p1_is_recov;
+    logic [BG_WIDTH-1:0]   p1_bg;
+    logic [BANK_WIDTH-1:0] p1_bank;
+    logic [ROW_WIDTH-1:0]  p1_row;
+
+    logic                  p2_v, p2_dup;
+    logic [BG_WIDTH-1:0]   p2_bg;
+    logic [BANK_WIDTH-1:0] p2_bank;
+    logic [ROW_WIDTH-1:0]  p2_row, p2_rp1, p2_rm1;
+
     // Backpressure lên luồng lệnh: đăng ký để con trỏ FIFO không nằm trên chuỗi READY của toàn pipeline lệnh
-    // (queue -> SDC -> bộ ánh xạ). An toàn với độ trễ một chu kỳ: hàng đợi nạn nhân chỉ nhận qua seq_accept (đã tự
-    // kiểm chỗ trống), còn FIFO cảnh báo giữ AF_RESERVE chỗ cho các sự kiện tới trong lúc stall chưa có hiệu lực.
-    wire stall_c = queue_full || ((count + max_victims) > QUEUE_DEPTH[PTR_W:0]) || af_near_full;
+    // (queue -> SDC -> bộ ánh xạ). Cộng thêm pipe_cnt (tối đa 2 mục đang trên đường ống p1/p2) để bảo toàn sức chứa PROQ.
+    wire [PTR_W:0] pipe_cnt   = {{PTR_W{1'b0}}, p1_v} + {{PTR_W{1'b0}}, p2_v};
+    wire           stall_c    = queue_full || ((count + max_victims + pipe_cnt) > QUEUE_DEPTH[PTR_W:0]) || af_near_full;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) o_drm_stall <= 1'b0;
         else        o_drm_stall <= stall_c;
     end
 
-    wire seq_accept = (inj_oh == S_IDLE) && !af_empty && ((count + max_victims) <= QUEUE_DEPTH[PTR_W:0]);
+    wire seq_accept = (inj_oh == S_IDLE) && !af_empty && ((count + max_victims + pipe_cnt) <= QUEUE_DEPTH[PTR_W:0]);
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -289,11 +300,14 @@ module directed_refresh_manager #(
                 blk_or2[b][g] = |blk_or6_p[b][g*4 +: 4];
             blk_c[b] = |blk_or2[b];
 
+            // Dùng điều kiện bao !af_empty && (inj_oh == S_IDLE) thay seq_accept để tách phép trừ/cộng con trỏ khỏi đường blkp_a/b (R12).
             push_now_bg[b] = (abo_evt    && (i_abo_bg == BG_WIDTH'(b))) ||
                              (sdc_evt    && (i_sdc_bg == BG_WIDTH'(b))) ||
                              (rp_evt     && (i_rp_bg  == BG_WIDTH'(b))) ||
-                             (seq_accept && (head_bg  == BG_WIDTH'(b))) ||
-                             ((inj_oh != S_IDLE) && (inj_bg == BG_WIDTH'(b)));
+                             (!af_empty && (inj_oh == S_IDLE) && (head_bg == BG_WIDTH'(b))) ||
+                             ((inj_oh != S_IDLE) && (inj_bg == BG_WIDTH'(b))) ||
+                             (p1_v       && (p1_bg    == BG_WIDTH'(b))) ||
+                             (p2_v       && (p2_bg    == BG_WIDTH'(b)));
         end
     end
     // Kết quả trễ một chu kỳ: nhân đôi thanh ghi chặn (blkp_a/blkp_b) và kiểm tra theo từng BG để chống lỗi bit-flip đơn lẻ
@@ -322,6 +336,37 @@ module directed_refresh_manager #(
         else        o_drm_fault <= inj_oh_err || blkp_err || pq_v_err;
     end
 
+    // Đề nghị (offer) và trang thái pop: khai báo trước để tầng CAM trùng lặp nhận biết phạm vi mục đang chờ.
+    logic                  offer_v, offer_src;   // offer_src: 0 = PROQ, 1 = scrubber
+    logic [BG_WIDTH-1:0]   offer_bg;
+    logic [BANK_WIDTH-1:0] offer_bank;
+    logic [ROW_WIDTH-1:0]  offer_row;
+    logic                  pend_pop, pend_src;
+
+    // Tầng 2: tra CAM trùng lặp PROQ (kể cả p2 đang chờ ghi) hoàn toàn từ thanh ghi p1_*/pq_v để tách đường CAM khỏi wr_ptr/pq_v.
+    localparam int DUP_W  = QUEUE_DEPTH + 1;
+    localparam int DUP_G6 = (DUP_W + 5) / 6;
+    logic [QUEUE_DEPTH-1:0]  dup_pq_hit;
+    logic                    dup_p2_hit;
+    logic [(DUP_G6*6)-1:0]   dup_pad;
+    (* keep = "true" *) logic [DUP_G6-1:0] dup_or6;
+    logic                    dup_hit_c;
+    always_comb begin
+        for (int k = 0; k < QUEUE_DEPTH; k++) begin
+            logic slot_ok, row_eq;
+            slot_ok       = pq_v[k] && (PTR_W'(k) != rd_idx) && (q_bg[k] == p1_bg) && (q_bank[k] == p1_bank);
+            row_eq        = (q_row[k] == p1_row);
+            dup_pq_hit[k] = slot_ok && row_eq;
+        end
+        dup_p2_hit         = p2_v && !p2_dup && (p2_bg == p1_bg) && (p2_bank == p1_bank) && (p2_row == p1_row);
+        dup_pad            = '0;
+        dup_pad[DUP_W-1:0] = {dup_p2_hit, dup_pq_hit};
+        for (int g = 0; g < DUP_G6; g++)
+            dup_or6[g] = |dup_pad[g*6 +: 6];
+        dup_hit_c = (|dup_or6) && !p1_is_recov;
+    end
+    wire proq_push = p2_v && !p2_dup && !queue_full;
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             wr_ptr             <= '0;
@@ -333,6 +378,18 @@ module directed_refresh_manager #(
             inj_row            <= '0;
             inj_victim2        <= 1'b0;
             inj_victim3        <= 1'b0;
+            p1_v               <= 1'b0;
+            p1_is_recov        <= 1'b0;
+            p1_bg              <= '0;
+            p1_bank            <= '0;
+            p1_row             <= '0;
+            p2_v               <= 1'b0;
+            p2_dup             <= 1'b0;
+            p2_bg              <= '0;
+            p2_bank            <= '0;
+            p2_row             <= '0;
+            p2_rp1             <= '0;
+            p2_rm1             <= '0;
             o_drm_ref_count    <= 16'd0;
             for (int i = 0; i < QUEUE_DEPTH; i++) begin
                 q_bg[i]   <= '0;
@@ -352,26 +409,41 @@ module directed_refresh_manager #(
                 o_drm_ref_count <= o_drm_ref_count + 1'b1;
             end
 
-            // 2. Multi-victim enqueue sequencer (guaranteed no drops; fault recovery via S_P1R)
+            // 2. Tầng 3: ghi vào PROQ từ kết quả đã kiểm trùng p2_*
+            if (proq_push) begin
+                q_bg[wr_idx]   <= p2_bg;
+                q_bank[wr_idx] <= p2_bank;
+                q_row[wr_idx]  <= p2_row;
+                q_rp1[wr_idx]  <= p2_rp1;
+                q_rm1[wr_idx]  <= p2_rm1;
+                wr_ptr         <= wr_ptr + 1'b1;
+                pq_v[wr_idx]   <= 1'b1;
+            end
+
+            // 3. Tầng 2: chốt kết quả CAM và tính sẵn ±1 cho bước ghi PROQ
+            p2_v    <= p1_v;
+            p2_dup  <= dup_hit_c;
+            p2_bg   <= p1_bg;
+            p2_bank <= p1_bank;
+            p2_row  <= p1_row;
+            p2_rp1  <= (p1_row == ROW_MAX)  ? p1_row : (p1_row + 1'b1);
+            p2_rm1  <= (p1_row == ROW_ZERO) ? p1_row : (p1_row - 1'b1);
+
+            // 4. Tầng 1: phát địa chỉ nạn nhân (guaranteed no drops; fault recovery via S_P1R)
+            p1_v        <= 1'b0;
+            p1_is_recov <= 1'b0;
             if (inj_oh_err) begin
                 inj_oh <= S_P1R;
             end else begin
                 case (inj_oh)
                     S_IDLE: begin
                         if (seq_accept) begin
-                            // Enqueue Victim 1: Row + 1 (bỏ qua nếu Row == ROW_MAX, kẹp q_rp1 tại biên để PROQ không wrap)
                             if (head_row <= (ROW_MAX - ROW_WIDTH'(1))) begin
-                                logic [ROW_WIDTH-1:0] vrow;
-                                vrow = head_row + ROW_WIDTH'(1);
-                                q_bg[wr_idx]   <= head_bg;
-                                q_bank[wr_idx] <= head_bank;
-                                q_row[wr_idx]  <= vrow;
-                                q_rp1[wr_idx]  <= (vrow == ROW_MAX) ? vrow : (vrow + 1'b1);
-                                q_rm1[wr_idx]  <= vrow - 1'b1;
-                                wr_ptr         <= wr_ptr + 1'b1;
-                                pq_v[wr_idx]   <= 1'b1;
+                                p1_v    <= 1'b1;
+                                p1_bg   <= head_bg;
+                                p1_bank <= head_bank;
+                                p1_row  <= head_row + ROW_WIDTH'(1);
                             end
-
                             inj_bg      <= head_bg;
                             inj_bank    <= head_bank;
                             inj_row     <= head_row;
@@ -383,16 +455,12 @@ module directed_refresh_manager #(
 
                     S_P1R: begin
                         // Phục hồi sau lỗi FSM: nạp lại từ Victim 1 (Row + 1) nếu chưa chạm biên ROW_MAX
-                        if (!queue_full && (inj_row <= (ROW_MAX - ROW_WIDTH'(1)))) begin
-                            logic [ROW_WIDTH-1:0] vrow;
-                            vrow = inj_row + ROW_WIDTH'(1);
-                            q_bg[wr_idx]   <= inj_bg;
-                            q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= vrow;
-                            q_rp1[wr_idx]  <= (vrow == ROW_MAX) ? vrow : (vrow + 1'b1);
-                            q_rm1[wr_idx]  <= vrow - 1'b1;
-                            wr_ptr         <= wr_ptr + 1'b1;
-                            pq_v[wr_idx]   <= 1'b1;
+                        if (inj_row <= (ROW_MAX - ROW_WIDTH'(1))) begin
+                            p1_v        <= 1'b1;
+                            p1_is_recov <= 1'b1;
+                            p1_bg       <= inj_bg;
+                            p1_bank     <= inj_bank;
+                            p1_row      <= inj_row + ROW_WIDTH'(1);
                         end
                         inj_victim2 <= cfg_victim2_en;
                         inj_victim3 <= cfg_victim3_en;
@@ -400,81 +468,51 @@ module directed_refresh_manager #(
                     end
 
                     S_M1: begin
-                        // Enqueue Victim 2: Row - 1 (bỏ qua nếu Row < 1, kẹp q_rm1 ở 0 để PROQ không wrap)
-                        if (!queue_full && (inj_row >= ROW_WIDTH'(1))) begin
-                            logic [ROW_WIDTH-1:0] vrow;
-                            vrow = inj_row - ROW_WIDTH'(1);
-                            q_bg[wr_idx]   <= inj_bg;
-                            q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= vrow;
-                            q_rp1[wr_idx]  <= vrow + 1'b1;
-                            q_rm1[wr_idx]  <= (vrow == ROW_ZERO) ? vrow : (vrow - 1'b1);
-                            wr_ptr         <= wr_ptr + 1'b1;
-                            pq_v[wr_idx]   <= 1'b1;
+                        if (inj_row >= ROW_WIDTH'(1)) begin
+                            p1_v    <= 1'b1;
+                            p1_bg   <= inj_bg;
+                            p1_bank <= inj_bank;
+                            p1_row  <= inj_row - ROW_WIDTH'(1);
                         end
                         inj_oh <= inj_victim2 ? S_P2 : S_IDLE;
                     end
 
                     S_P2: begin
-                        // Enqueue Victim 3: Row + 2 (bỏ qua nếu vượt ROW_MAX)
-                        if (!queue_full && (inj_row <= (ROW_MAX - ROW_WIDTH'(2)))) begin
-                            logic [ROW_WIDTH-1:0] vrow;
-                            vrow = inj_row + ROW_WIDTH'(2);
-                            q_bg[wr_idx]   <= inj_bg;
-                            q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= vrow;
-                            q_rp1[wr_idx]  <= (vrow == ROW_MAX) ? vrow : (vrow + 1'b1);
-                            q_rm1[wr_idx]  <= vrow - 1'b1;
-                            wr_ptr         <= wr_ptr + 1'b1;
-                            pq_v[wr_idx]   <= 1'b1;
+                        if (inj_row <= (ROW_MAX - ROW_WIDTH'(2))) begin
+                            p1_v    <= 1'b1;
+                            p1_bg   <= inj_bg;
+                            p1_bank <= inj_bank;
+                            p1_row  <= inj_row + ROW_WIDTH'(2);
                         end
                         inj_oh <= S_M2;
                     end
 
                     S_M2: begin
-                        // Enqueue Victim 4: Row - 2 (bỏ qua nếu Row < 2)
-                        if (!queue_full && (inj_row >= ROW_WIDTH'(2))) begin
-                            logic [ROW_WIDTH-1:0] vrow;
-                            vrow = inj_row - ROW_WIDTH'(2);
-                            q_bg[wr_idx]   <= inj_bg;
-                            q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= vrow;
-                            q_rp1[wr_idx]  <= vrow + 1'b1;
-                            q_rm1[wr_idx]  <= (vrow == ROW_ZERO) ? vrow : (vrow - 1'b1);
-                            wr_ptr         <= wr_ptr + 1'b1;
-                            pq_v[wr_idx]   <= 1'b1;
+                        if (inj_row >= ROW_WIDTH'(2)) begin
+                            p1_v    <= 1'b1;
+                            p1_bg   <= inj_bg;
+                            p1_bank <= inj_bank;
+                            p1_row  <= inj_row - ROW_WIDTH'(2);
                         end
                         inj_oh <= inj_victim3 ? S_P3 : S_IDLE;
                     end
 
                     S_P3: begin
-                        // Enqueue Victim 5: Row + 3 (bỏ qua nếu vượt ROW_MAX)
-                        if (!queue_full && (inj_row <= (ROW_MAX - ROW_WIDTH'(3)))) begin
-                            logic [ROW_WIDTH-1:0] vrow;
-                            vrow = inj_row + ROW_WIDTH'(3);
-                            q_bg[wr_idx]   <= inj_bg;
-                            q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= vrow;
-                            q_rp1[wr_idx]  <= (vrow == ROW_MAX) ? vrow : (vrow + 1'b1);
-                            q_rm1[wr_idx]  <= vrow - 1'b1;
-                            wr_ptr         <= wr_ptr + 1'b1;
-                            pq_v[wr_idx]   <= 1'b1;
+                        if (inj_row <= (ROW_MAX - ROW_WIDTH'(3))) begin
+                            p1_v    <= 1'b1;
+                            p1_bg   <= inj_bg;
+                            p1_bank <= inj_bank;
+                            p1_row  <= inj_row + ROW_WIDTH'(3);
                         end
                         inj_oh <= S_M3;
                     end
 
                     S_M3: begin
-                        // Enqueue Victim 6: Row - 3 (bỏ qua nếu Row < 3)
-                        if (!queue_full && (inj_row >= ROW_WIDTH'(3))) begin
-                            logic [ROW_WIDTH-1:0] vrow;
-                            vrow = inj_row - ROW_WIDTH'(3);
-                            q_bg[wr_idx]   <= inj_bg;
-                            q_bank[wr_idx] <= inj_bank;
-                            q_row[wr_idx]  <= vrow;
-                            q_rp1[wr_idx]  <= vrow + 1'b1;
-                            q_rm1[wr_idx]  <= (vrow == ROW_ZERO) ? vrow : (vrow - 1'b1);
-                            wr_ptr         <= wr_ptr + 1'b1;
-                            pq_v[wr_idx]   <= 1'b1;
+                        if (inj_row >= ROW_WIDTH'(3)) begin
+                            p1_v    <= 1'b1;
+                            p1_bg   <= inj_bg;
+                            p1_bank <= inj_bank;
+                            p1_row  <= inj_row - ROW_WIDTH'(3);
                         end
                         inj_oh <= S_IDLE;
                     end
@@ -492,13 +530,8 @@ module directed_refresh_manager #(
     // Đề nghị (offer) lệnh giảm thiểu được đăng ký và giữ ổn định tới khi arbiter cấp: arbiter đọc thanh ghi,
     // grant chỉ xoá offer; nguồn được cấp (PROQ hay scrubber) đã chốt trong offer nên việc pop/báo scrubber ở chu kỳ
     // sau luôn đúng nguồn kể cả khi hàng đợi vừa nhận nạn nhân mới. Offer chỉ nạp lại sau khi pop xong.
-    logic                  offer_v, offer_src;   // offer_src: 0 = PROQ, 1 = scrubber
-    logic [BG_WIDTH-1:0]   offer_bg;
-    logic [BANK_WIDTH-1:0] offer_bank;
-    logic [ROW_WIDTH-1:0]  offer_row;
-    logic                  pend_pop, pend_src;
-    wire                   sel_scrub = scrub_prio_boost || (queue_empty && i_scrub_req);
-    wire                   sel_any   = scrub_prio_boost || !queue_empty || i_scrub_req;
+    wire sel_scrub = scrub_prio_boost || (queue_empty && i_scrub_req);
+    wire sel_any   = scrub_prio_boost || !queue_empty || i_scrub_req;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

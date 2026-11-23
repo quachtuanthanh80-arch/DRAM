@@ -1,6 +1,6 @@
 # Q-Shield SystemVerilog RTL Hierarchy (`rtl/`)
 
-This directory contains the synthesizable SystemVerilog (IEEE 1800-2017) source files for the Q-Shield DDR5/DDR4 memory controller.
+This directory contains the synthesizable SystemVerilog (IEEE 1800-2017) source files for the Q-Shield DDR5 memory controller.
 
 ---
 

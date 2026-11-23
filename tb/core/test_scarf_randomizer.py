@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_scarf_randomizer.py
 # Description: Cocotb testbench for SCARF DRAM Address Randomizer (Homma Lab USENIX '23)
 #              Verifies:

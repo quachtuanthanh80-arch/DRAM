@@ -11,17 +11,17 @@ frontend = ramulator.frontend.SimpleO3(
     translation=ramulator.translation.NoTranslation(max_addr=2147483648),
 )
 
-print("Creating DDR4...")
-ddr4 = ramulator.dram.DDR4(
-    org_preset="DDR4_8Gb_x8",
-    timing_preset="DDR4_3200AA",
+print("Creating DDR5...")
+ddr5 = ramulator.dram.DDR5(
+    org_preset="DDR5_16Gb_x8",
+    timing_preset="DDR5_4800B",
     rank=2,
     verbose=False,
 )
 
 print("Creating Controller...")
 ctrl = ramulator.controller.GenericDDR(
-    dram=ddr4,
+    dram=ddr5,
     scheduler=ramulator.scheduler.FRFCFS(),
     refresh_manager=ramulator.refresh_manager.AllBank(),
     row_policy=ramulator.row_policy.Open(),

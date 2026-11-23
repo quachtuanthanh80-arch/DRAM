@@ -1,0 +1,86 @@
+{
+  "scheme": "Hydra_ACT",
+  "dram_support": "none",
+  "dram_support_evidence": "hydra_act.cpp:200-355 (commercial DRAM equivalent, ACT+PREpb radius=2, no VRR)",
+  "common": {
+    "frontend": {
+      "impl": "BHO3",
+      "clock_ratio": 5,
+      "ipc": 4,
+      "inst_window_depth": 128,
+      "llc_capacity_per_core": "2MB",
+      "llc_num_mshr_per_core": 16,
+      "translation": {
+        "impl": "NoTranslation",
+        "max_addr": 17179869184
+      }
+    },
+    "memory_system": {
+      "impl": "GenericDRAM",
+      "clock_ratio": 2,
+      "channel_mapper": {
+        "impl": "CacheLineInterleave"
+      }
+    },
+    "dram": {
+      "impl": "DDR5_VRR",
+      "org_preset": "DDR5_16Gb_x4",
+      "timing_preset": "DDR5_3200C",
+      "rank": 1
+    },
+    "scheduler": {
+      "impl": "FRFCFS"
+    },
+    "refresh_manager": {
+      "impl": "AllBank"
+    },
+    "row_policy": {
+      "impl": "Open"
+    },
+    "addr_mapper": {
+      "impl": "RoBaRaCoCh"
+    }
+  },
+  "per_nrh": {
+    "1024": {
+      "controller": "GenericDDR",
+      "plugin": "HydraAct",
+      "hydra_tracking_threshold": 512,
+      "hydra_group_threshold": 409,
+      "hydra_row_group_size": 128,
+      "hydra_reset_period_ns": 32000000,
+      "hydra_rcc_num_per_rank": 4096,
+      "blast_radius": 2
+    },
+    "512": {
+      "controller": "GenericDDR",
+      "plugin": "HydraAct",
+      "hydra_tracking_threshold": 256,
+      "hydra_group_threshold": 204,
+      "hydra_row_group_size": 128,
+      "hydra_reset_period_ns": 32000000,
+      "hydra_rcc_num_per_rank": 4096,
+      "blast_radius": 2
+    },
+    "256": {
+      "controller": "GenericDDR",
+      "plugin": "HydraAct",
+      "hydra_tracking_threshold": 128,
+      "hydra_group_threshold": 102,
+      "hydra_row_group_size": 128,
+      "hydra_reset_period_ns": 32000000,
+      "hydra_rcc_num_per_rank": 4096,
+      "blast_radius": 2
+    },
+    "128": {
+      "controller": "GenericDDR",
+      "plugin": "HydraAct",
+      "hydra_tracking_threshold": 64,
+      "hydra_group_threshold": 51,
+      "hydra_row_group_size": 128,
+      "hydra_reset_period_ns": 32000000,
+      "hydra_rcc_num_per_rank": 4096,
+      "blast_radius": 2
+    }
+  }
+}

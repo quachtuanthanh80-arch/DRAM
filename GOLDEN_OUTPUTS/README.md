@@ -10,8 +10,6 @@ This directory contains deterministic, verified golden reference outputs generat
 | :--- | :--- | :--- |
 | [`regression_summary.json`](regression_summary.json) | RTL Simulation (Icarus / Verilator) | 14 <!-- số cũ, chờ T51 --> synthesizable SystemVerilog unit tests across DDR4/DDR5 FSMs, skid buffers, SEC-DED, and dual-hash filter. |
 | [`attack_emulation_summary.json`](attack_emulation_summary.json) | Trace Security Emulation | Defense mitigation metrics across 6 attack and benign traces (bit-flips prevented, false positive rate). |
-| [`literature_reported_values.json`](literature_reported_values.json) | SOTA Comparison Tier 2 | Cross-study comparison against published metrics (BlockHammer, AQUA, PRAC, PrISM) with explicit methodology caveats. |
-| [`qualitative_taxonomy.json`](qualitative_taxonomy.json) | SOTA Comparison Tier 3 | Architectural defense mechanisms, threat model boundaries, and silicon overhead trade-offs. |
 | [`lifecycle_validation_summary.json`](lifecycle_validation_summary.json) | Lifecycle Pipeline | End-to-end verification summary verifying RTL, security emulation, benchmarks, and SOTA generation. |
 
 > Removed 2026-10-30: `bench_summary.json`, `bench_metrics.csv` and `apples_to_apples_cycle_accurate.json`. The first two

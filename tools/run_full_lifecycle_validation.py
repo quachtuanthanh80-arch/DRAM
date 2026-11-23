@@ -5,7 +5,7 @@ Script: run_full_lifecycle_validation.py
 Description: Full-Lifecycle Multi-Phase Semiconductor Memory Controller Validation
              Orchestrates 5 validation phases:
              - Phase 1: Functional RTL Linting & Protocol Handshake Validation
-             - Phase 2: Memory Physical Timing Validation (JEDEC DDR5/DDR4 Timing)
+             - Phase 2: Memory Physical Timing Validation (JEDEC DDR5 Timing)
              - Phase 3: Reliability & Error-Correction Validation (March C-, ECC)
              - Phase 4: Security Resilience & Adversarial Stress Testing
              - Phase 5: Power & Area Estimation (Yosys OpenROAD Characterization)

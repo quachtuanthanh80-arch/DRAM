@@ -1,6 +1,8 @@
 # Q-Shield ASIC Design Enablement & Implementation Suite
 
-Thư mục này chứa toàn bộ hạ tầng phục vụ **ASIC Synthesis (G1)** và **Physical Design Flow (G2)** cho lõi điều khiển bộ nhớ **Q-Shield DDR5/DDR4 Memory Controller** (`axi_ddr5_mc_top` và `sec_ddr5_controller_top`).
+> **Trạng thái hiện tại:** Tổng hợp và place-and-route ASIC (OpenROAD Nangate45 / PDK thương mại) **chưa được chạy** trên kho mã nguồn này. Các script dưới đây là mẫu hạ tầng chuẩn bị sẵn; mọi bảng GE/diện tích/công suất/$F_{max}$ ASIC trước đây đã bị rút lại vì không có log tổng hợp thật. Số liệu PPA phần cứng duy nhất đã đo hiện nay là số liệu sau Place & Route trên FPGA `xczu7ev` tại [`reports/paper/fpga/t89/fpga_ppa_summary.md`](../../reports/paper/fpga/t89/fpga_ppa_summary.md) và [`reports/paper/fpga/t92/fpga_ppa_summary.md`](../../reports/paper/fpga/t92/fpga_ppa_summary.md).
+
+Thư mục này chứa hạ tầng chuẩn bị cho **ASIC Synthesis** và **Physical Design Flow** của bộ điều khiển bộ nhớ **Q-Shield DDR5 Memory Controller** (lõi chuẩn `axi_ddr5_mc_top` và top bảo mật `axi_ddr5_mc_secure_top`; lưu ý `sec_ddr5_controller_top` chỉ là top demo tích hợp sớm, không dùng cho báo cáo số liệu).
 
 ---
 
@@ -9,16 +11,16 @@ Thư mục này chứa toàn bộ hạ tầng phục vụ **ASIC Synthesis (G1)*
 ```text
 synth/asic/
 ├── constraints/
-│   └── qshield_dual_clk.sdc          # SDC constraints cho Dual-Clock (250 MHz / 400 MHz) & I/O delays
+│   └── qshield_dual_clk.sdc          # Mẫu ràng buộc SDC dual-clock cũ (250 MHz / 400 MHz); RTL chuẩn hiện dùng 1 miền clock
 ├── scripts/
 │   ├── filelist_dc.tcl               # Thứ tự biên dịch phân cấp các module RTL SystemVerilog
-│   ├── run_dc_synthesis.tcl          # Synopsys Design Compiler master synthesis script
+│   ├── run_dc_synthesis.tcl          # Synopsys Design Compiler synthesis script (chưa chạy trên RTL hiện hành)
 │   └── extract_asic_metrics.py       # Python parser trích xuất PPA ra Terminal, JSON và LaTeX
 ├── openlane/
-│   ├── config.json                   # Cấu hình OpenLane 2 / OpenROAD (Open-source P&R)
+│   ├── config.json                   # Cấu hình mẫu OpenLane 2 / OpenROAD (chưa chạy)
 │   └── pin_order.cfg                 # Ràng buộc hướng I/O pins (AXI ở West, DFI ở East)
 ├── innovus/
-│   └── run_innovus_pnr.tcl           # Cadence Innovus flow script (Commercial P&R)
+│   └── run_innovus_pnr.tcl           # Cadence Innovus flow script mẫu (chưa chạy)
 ├── reports/                          # Nơi lưu trữ báo cáo Area, Timing, Power, QoR, LaTeX
 ├── netlist/                          # Chứa gate-level netlists sau tổng hợp (.v)
 └── outputs/                          # Chứa SDC, SDF, DDC, DEF, SPEF, GDSII
@@ -26,15 +28,14 @@ synth/asic/
 
 ---
 
-## 2. G1: ASIC Synthesis với Synopsys Design Compiler
+## 2. ASIC Synthesis với Synopsys Design Compiler (Mẫu tham khảo)
 
 ### Đặc thù kiến trúc:
-- **Dual Clock Domains**:
-  - `clk_axi`: **250 MHz** ($T = 4.00\,\text{ns}$) phục vụ AMBA AXI4 Host Interface.
-  - `clk_ddr`: **400 MHz** ($T = 2.50\,\text{ns}$) phục vụ DFI 5.0 / DDR5 Backend Memory Interface.
-  - **Asynchronous Clock Grouping**: Đã khai báo `set_clock_groups -asynchronous` bảo vệ Gray-code CDC FIFOs.
+- **Clock Domain**:
+  - RTL chuẩn (`axi_ddr5_mc_top` và `axi_ddr5_mc_secure_top`) hoạt động trên **một miền xung nhịp duy nhất** với mục tiêu `400 MHz` (`T = 2.50 ns`); các cổng `clk_ddr`/`aresetn_ddr` chỉ giữ tương thích và không nối vào logic lõi.
+  - File `constraints/qshield_dual_clk.sdc` (`250 MHz` / `400 MHz`) là mẫu cũ từ phiên bản demo dual-clock và cần cập nhật trước khi chạy tổng hợp ASIC thật.
 - **Thư viện chuẩn (PDK)**:
-  - Mặc định sử dụng **Nangate 45nm Open Cell Library** (`NangateOpenCellLibrary_typical.db`) phục vụ nghiên cứu học thuật và đối chiếu với các công trình IEEE SOTA.
+  - Cấu hình mẫu hướng tới **Nangate 45nm Open Cell Library** (`NangateOpenCellLibrary_typical.db`) cho nghiên cứu học thuật (chưa có lần chạy và log thực tế trong kho này).
   - Hỗ trợ chuyển đổi nhanh sang TSMC 28nm HPC+ hoặc GF 22FDX bằng cách thay đổi biến `$TARGET_DB` trong `run_dc_synthesis.tcl`.
 
 ### Hướng dẫn chạy tổng hợp:

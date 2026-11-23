@@ -1,0 +1,291 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+-------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version     : Vivado v.2026.1 (win64) Build 6511674 Tue Jun 16 11:02:23 MDT 2026
+| Date             : Sun Nov 22 11:53:29 2026
+| Host             : DESKTOP-9DADM3P running 64-bit major release  (build 9200)
+| Command          : report_power -file D:/RAM/reports/paper/fpga/t89/sec_2500ps_route_power.rpt
+| Design           : axi_ddr5_mc_secure_top
+| Device           : xczu7ev-ffvc1156-2-e
+| Design State     : routed
+| Grade            : extended
+| Process          : typical
+| Characterization : Production
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+Power Report
+
+Table of Contents
+-----------------
+1. Summary
+1.1 On-Chip Components
+1.2 Power Supply Summary
+1.3 Confidence Level
+2. Settings
+2.1 Environment
+2.2 Clock Constraints
+3. Detailed Reports
+3.1 By Hierarchy
+
+1. Summary
+----------
+
++--------------------------+--------------+
+| Total On-Chip Power (W)  | 6.933        |
+| Design Power Budget (W)  | Unspecified* |
+| Power Budget Margin (W)  | NA           |
+| Dynamic (W)              | 6.305        |
+| Device Static (W)        | 0.628        |
+| Effective TJA (C/W)      | 1.0          |
+| Max Ambient (C)          | 93.2         |
+| Junction Temperature (C) | 31.8         |
+| Confidence Level         | Medium       |
+| Setting File             | ---          |
+| Simulation Activity File | ---          |
+| Design Nets Matched      | NA           |
++--------------------------+--------------+
+* Specify Design Power Budget using, set_operating_conditions -design_power_budget <value in Watts>
+
+
+1.1 On-Chip Components
+----------------------
+
++--------------------------+-----------+----------+-----------+-----------------+
+| On-Chip                  | Power (W) | Used     | Available | Utilization (%) |
++--------------------------+-----------+----------+-----------+-----------------+
+| Clocks                   |     0.774 |        4 |       --- |             --- |
+| CLB Logic                |     2.542 |   333298 |       --- |             --- |
+|   LUT as Logic           |     2.429 |   165616 |    230400 |           71.88 |
+|   LUT as Distributed RAM |     0.055 |     1478 |    101760 |            1.45 |
+|   Register               |     0.042 |   110454 |    460800 |           23.97 |
+|   CARRY8                 |     0.014 |     2800 |     28800 |            9.72 |
+|   LUT as Shift Register  |     0.001 |       45 |    101760 |            0.04 |
+|   BUFG                   |    <0.001 |        2 |        64 |            3.13 |
+|   Others                 |     0.000 |      185 |       --- |             --- |
+|   F7/F8 Muxes            |     0.000 |    34431 |    230400 |           14.94 |
+| Signals                  |     2.905 |   203834 |       --- |             --- |
+| Block RAM                |     0.085 |      7.5 |       312 |            2.40 |
+| Static Power             |     0.628 |          |           |                 |
+| Total                    |     6.933 |          |           |                 |
++--------------------------+-----------+----------+-----------+-----------------+
+
+
+1.2 Power Supply Summary
+------------------------
+
++------------------+-------------+-----------+-------------+------------+-------------+-------------+------------+
+| Source           | Voltage (V) | Total (A) | Dynamic (A) | Static (A) | Powerup (A) | Budget (A)  | Margin (A) |
++------------------+-------------+-----------+-------------+------------+-------------+-------------+------------+
+| Vccint           |       0.850 |     7.588 |       7.413 |      0.175 |       NA    | Unspecified | NA         |
+| Vccint_io        |       0.850 |     0.072 |       0.000 |      0.072 |       NA    | Unspecified | NA         |
+| Vccbram          |       0.850 |     0.007 |       0.005 |      0.002 |       NA    | Unspecified | NA         |
+| Vccaux           |       1.800 |     0.146 |       0.000 |      0.146 |       NA    | Unspecified | NA         |
+| Vccaux_io        |       1.800 |     0.055 |       0.000 |      0.055 |       NA    | Unspecified | NA         |
+| Vcco33           |       3.300 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| Vcco25           |       2.500 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| Vcco18           |       1.800 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| Vcco15           |       1.500 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| Vcco135          |       1.350 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| Vcco12           |       1.200 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| Vcco10           |       1.000 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| Vccadc           |       1.800 |     0.008 |       0.000 |      0.008 |       NA    | Unspecified | NA         |
+| VCC_PSINTFP      |       0.850 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCC_PSINTLP      |       0.850 |     0.006 |       0.000 |      0.006 |       NA    | Unspecified | NA         |
+| VPS_MGTRAVCC     |       0.850 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCC_PSINTFP_DDR  |       0.850 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCC_PSPLL        |       1.200 |     0.002 |       0.000 |      0.002 |       NA    | Unspecified | NA         |
+| VPS_MGTRAVTT     |       1.800 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCCO_PSDDR_504   |       1.200 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCC_PSAUX        |       1.800 |     0.002 |       0.000 |      0.002 |       NA    | Unspecified | NA         |
+| VCC_PSBATT       |       1.200 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCC_PSDDR_PLL    |       1.800 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCCO_PSIO0_500   |       3.300 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCCO_PSIO1_501   |       3.300 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCCO_PSIO2_502   |       3.300 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCCO_PSIO3_503   |       3.300 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VCC_PSADC        |       1.800 |     0.002 |       0.000 |      0.002 |       NA    | Unspecified | NA         |
+| VCCINT_VCU       |       0.900 |     0.030 |       0.000 |      0.030 |       NA    | Unspecified | NA         |
+| VMGTAVCC (GTH)   |       0.900 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VMGTAVTT (GTH)   |       1.200 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
+| VMGTVCCAUX (GTH) |       1.800 |     0.000 |       0.000 |      0.000 |       NA    | Unspecified | NA         |
++------------------+-------------+-----------+-------------+------------+-------------+-------------+------------+
+
+
+1.3 Confidence Level
+--------------------
+
++-----------------------------+------------+------------------------------------------------+------------------------------------------------------------------------------------------------------------+
+| User Input Data             | Confidence | Details                                        | Action                                                                                                     |
++-----------------------------+------------+------------------------------------------------+------------------------------------------------------------------------------------------------------------+
+| Design implementation state | High       | Design is routed                               |                                                                                                            |
+| Clock nodes activity        | High       | User specified more than 95% of clocks         |                                                                                                            |
+| I/O nodes activity          | High       | User specified more than 95% of inputs         |                                                                                                            |
+| Internal nodes activity     | Medium     | User specified less than 25% of internal nodes | Provide missing internal nodes activity with simulation results or by editing the "By Resource Type" views |
+| Device models               | High       | Device models are Production                   |                                                                                                            |
+|                             |            |                                                |                                                                                                            |
+| Overall confidence level    | Medium     |                                                |                                                                                                            |
++-----------------------------+------------+------------------------------------------------+------------------------------------------------------------------------------------------------------------+
+
+
+2. Settings
+-----------
+
+2.1 Environment
+---------------
+
++-----------------------+--------------------------+
+| Ambient Temp (C)      | 25.0                     |
+| ThetaJA (C/W)         | 1.0                      |
+| Airflow (LFM)         | 250                      |
+| Heat Sink             | medium (Medium Profile)  |
+| ThetaSA (C/W)         | 1.5                      |
+| Board Selection       | medium (10"x10")         |
+| # of Board Layers     | 12to15 (12 to 15 Layers) |
+| Board Temperature (C) | 25.0                     |
++-----------------------+--------------------------+
+
+
+2.2 Clock Constraints
+---------------------
+
++---------+---------+-----------------+
+| Clock   | Domain  | Constraint (ns) |
++---------+---------+-----------------+
+| clk_axi | clk_axi |             2.5 |
++---------+---------+-----------------+
+
+
+3. Detailed Reports
+-------------------
+
+3.1 By Hierarchy
+----------------
+
++---------------------------------------+-----------+
+| Name                                  | Power (W) |
++---------------------------------------+-----------+
+| axi_ddr5_mc_secure_top                |     6.305 |
+|   u_crypto_bridge                     |     4.429 |
+|     gen_mask_aes_round[10].u_mask_rnd |     0.015 |
+|     gen_mask_aes_round[11].u_mask_rnd |     0.015 |
+|     gen_mask_aes_round[12].u_mask_rnd |     0.016 |
+|     gen_mask_aes_round[13].u_mask_rnd |     0.008 |
+|     gen_mask_aes_round[14].u_mask_rnd |     0.007 |
+|     gen_mask_aes_round[1].u_mask_rnd  |     0.023 |
+|     gen_mask_aes_round[2].u_mask_rnd  |     0.015 |
+|     gen_mask_aes_round[3].u_mask_rnd  |     0.016 |
+|     gen_mask_aes_round[4].u_mask_rnd  |     0.016 |
+|     gen_mask_aes_round[5].u_mask_rnd  |     0.016 |
+|     gen_mask_aes_round[6].u_mask_rnd  |     0.015 |
+|     gen_mask_aes_round[7].u_mask_rnd  |     0.015 |
+|     gen_mask_aes_round[8].u_mask_rnd  |     0.015 |
+|     gen_mask_aes_round[9].u_mask_rnd  |     0.015 |
+|     u_bmt_engine                      |     1.429 |
+|       gen_aes_round[10].u_rnd         |     0.019 |
+|       gen_aes_round[11].u_rnd         |     0.020 |
+|       gen_aes_round[12].u_rnd         |     0.014 |
+|       gen_aes_round[13].u_rnd         |     0.006 |
+|       gen_aes_round[14].u_rnd         |     0.010 |
+|       gen_aes_round[1].u_rnd          |     0.025 |
+|       gen_aes_round[2].u_rnd          |     0.020 |
+|       gen_aes_round[3].u_rnd          |     0.020 |
+|       gen_aes_round[4].u_rnd          |     0.019 |
+|       gen_aes_round[5].u_rnd          |     0.020 |
+|       gen_aes_round[6].u_rnd          |     0.020 |
+|       gen_aes_round[7].u_rnd          |     0.020 |
+|       gen_aes_round[8].u_rnd          |     0.020 |
+|       gen_aes_round[9].u_rnd          |     0.020 |
+|       u_key_expand                    |     0.091 |
+|       u_mac_unit                      |     0.431 |
+|       u_meta_cache                    |     0.330 |
+|     u_data_mac                        |     0.469 |
+|       u_gf128_mul                     |     0.427 |
+|     u_dec_pipe                        |     1.158 |
+|       gen_inv_rounds[10].u_inv_round  |     0.085 |
+|       gen_inv_rounds[11].u_inv_round  |     0.068 |
+|       gen_inv_rounds[12].u_inv_round  |     0.074 |
+|       gen_inv_rounds[13].u_inv_round  |     0.016 |
+|       gen_inv_rounds[14].u_inv_round  |     0.008 |
+|       gen_inv_rounds[1].u_inv_round   |     0.017 |
+|       gen_inv_rounds[2].u_inv_round   |     0.019 |
+|       gen_inv_rounds[3].u_inv_round   |     0.078 |
+|       gen_inv_rounds[4].u_inv_round   |     0.088 |
+|       gen_inv_rounds[5].u_inv_round   |     0.094 |
+|       gen_inv_rounds[6].u_inv_round   |     0.091 |
+|       gen_inv_rounds[7].u_inv_round   |     0.017 |
+|       gen_inv_rounds[8].u_inv_round   |     0.084 |
+|       gen_inv_rounds[9].u_inv_round   |     0.087 |
+|       u_mid_skid                      |     0.085 |
+|       u_out_skid                      |     0.026 |
+|       u_s0_skid                       |     0.035 |
+|     u_enc_lane                        |     0.346 |
+|       gen_rounds[10].u_round          |     0.028 |
+|       gen_rounds[11].u_round          |     0.028 |
+|       gen_rounds[12].u_round          |     0.025 |
+|       gen_rounds[13].u_round          |     0.014 |
+|       gen_rounds[14].u_round          |     0.009 |
+|       gen_rounds[1].u_round           |     0.014 |
+|       gen_rounds[2].u_round           |     0.016 |
+|       gen_rounds[3].u_round           |     0.017 |
+|       gen_rounds[4].u_round           |     0.019 |
+|       gen_rounds[5].u_round           |     0.018 |
+|       gen_rounds[6].u_round           |     0.016 |
+|       gen_rounds[7].u_round           |     0.006 |
+|       gen_rounds[8].u_round           |     0.027 |
+|       gen_rounds[9].u_round           |     0.029 |
+|       u_mid_skid                      |     0.020 |
+|       u_out_skid                      |     0.028 |
+|       u_s0_skid                       |     0.020 |
+|     u_integ_csr                       |     0.019 |
+|     u_k1_expand                       |     0.097 |
+|     u_k2_expand                       |     0.096 |
+|     u_k3_expand                       |     0.097 |
+|     u_tweak_unit                      |     0.030 |
+|       gen_tweak_rounds[10].u_round    |     0.002 |
+|       gen_tweak_rounds[11].u_round    |     0.002 |
+|       gen_tweak_rounds[12].u_round    |     0.002 |
+|       gen_tweak_rounds[13].u_round    |     0.001 |
+|       gen_tweak_rounds[14].u_round    |     0.001 |
+|       gen_tweak_rounds[1].u_round     |     0.010 |
+|       gen_tweak_rounds[2].u_round     |     0.002 |
+|       gen_tweak_rounds[3].u_round     |     0.002 |
+|       gen_tweak_rounds[4].u_round     |     0.002 |
+|       gen_tweak_rounds[5].u_round     |     0.002 |
+|       gen_tweak_rounds[6].u_round     |     0.002 |
+|       gen_tweak_rounds[7].u_round     |     0.002 |
+|       gen_tweak_rounds[8].u_round     |     0.002 |
+|       gen_tweak_rounds[9].u_round     |     0.002 |
+|   u_mc_core                           |     1.875 |
+|     u_addr_mapper                     |     0.045 |
+|       u_scarf_randomizer              |     0.043 |
+|     u_ar_split                        |     0.003 |
+|     u_ate                             |     0.008 |
+|     u_aw_split                        |     0.011 |
+|     u_bank_credit                     |     0.035 |
+|     u_cmd_engine                      |     0.139 |
+|     u_decoy_prf                       |     0.036 |
+|     u_drm                             |     0.068 |
+|     u_ecc_scrubber                    |     0.006 |
+|     u_fh_csr                          |     0.001 |
+|     u_frontend                        |     0.060 |
+|       u_aw_skid                       |     0.003 |
+|       u_r_skid                        |     0.049 |
+|       u_w_skid                        |     0.007 |
+|     u_pmu                             |     0.003 |
+|     u_qos_queue                       |     0.085 |
+|     u_rd_iq                           |     0.006 |
+|     u_rd_ks                           |     0.030 |
+|     u_rob                             |     0.082 |
+|     u_rst_sync_axi                    |     0.001 |
+|     u_sdc_filter                      |     0.603 |
+|     u_wdata_buffer                    |     0.097 |
+|       data_mem_reg_0_31_0_13          |     0.018 |
+|       data_mem_reg_0_31_14_27         |     0.016 |
+|       data_mem_reg_0_31_28_41         |     0.017 |
+|       data_mem_reg_0_31_42_55         |     0.017 |
+|       data_mem_reg_0_31_56_69         |     0.016 |
+|       data_mem_reg_0_31_70_72         |     0.004 |
+|     u_wds                             |     0.401 |
+|     u_wr_ks                           |     0.031 |
++---------------------------------------+-----------+
+
+

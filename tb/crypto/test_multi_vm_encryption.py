@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_multi_vm_encryption.py
 # Description: Cocotb testbench for Multi-ASID Confidential Key Management (AMD SEV-style)
 #              Verifies:

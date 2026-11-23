@@ -92,7 +92,8 @@ module adaptive_threshold_engine #(
                 st = (dynamic_thresh_reg - base_thresh) >> alpha_shift;
                 if (st == '0) st = 16'd1;
                 pen_step_q  <= st;
-                pen_floor_q <= !(dynamic_thresh_reg > (base_thresh + st));
+                // Tính trong (COUNT_WIDTH+1) bit để tránh tràn 16 bit khi base_thresh = 16'hFFFF/16'hFFFE
+                pen_floor_q <= !({1'b0, dynamic_thresh_reg} > ({1'b0, base_thresh} + {1'b0, st}));
             end
             ph2 <= 1'b0;
             ph3 <= ph2;
@@ -126,11 +127,11 @@ module adaptive_threshold_engine #(
                     relax_q <= (d_thr > (d_acc >> 5)) && (d_thr >= 32'd4);
                     tight_q <= (d_thr <= 32'd2);
                 end else if (ph3) begin
-                    // Pha 3: cập nhật ngưỡng
+                    // Pha 3: cập nhật ngưỡng (cộng bão hòa ở COUNT_WIDTH+1 bit tránh quay vòng về 0 tại 16'hFFFF)
                     if (relax_q)
-                        dynamic_thresh_reg <= ((cur_q + st_up_q) <= max_thresh) ? cur_q + st_up_q : max_thresh;
+                        dynamic_thresh_reg <= (({1'b0, cur_q} + {1'b0, st_up_q}) <= {1'b0, max_thresh}) ? (cur_q + st_up_q) : max_thresh;
                     else if (tight_q)
-                        dynamic_thresh_reg <= (cur_q > (base_thresh + st_dn_q)) ? cur_q - st_dn_q : base_thresh;
+                        dynamic_thresh_reg <= ({1'b0, cur_q} > ({1'b0, base_thresh} + {1'b0, st_dn_q})) ? (cur_q - st_dn_q) : base_thresh;
                     else
                         dynamic_thresh_reg <= cur_q;
                 end else if (epoch_counter == 16'd0) begin

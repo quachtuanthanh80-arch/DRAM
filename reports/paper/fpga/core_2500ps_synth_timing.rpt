@@ -1,0 +1,2198 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2026.1 (win64) Build 6511674 Tue Jun 16 11:02:23 MDT 2026
+| Date              : Sun Nov 15 10:59:29 2026
+| Host              : DESKTOP-9DADM3P running 64-bit major release  (build 9200)
+| Command           : report_timing_summary -file D:/RAM/reports/paper/fpga/core_2500ps_synth_timing.rpt -max_paths 10
+| Design            : axi_ddr5_mc_top
+| Device            : xczu7ev-ffvc1156
+| Speed File        : -2  PRODUCTION 1.31 12-08-2025
+| Design State      : Synthesized
+| Temperature Grade : E
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Summary Report
+
+------------------------------------------------------------------------------------------------
+| Timer Settings
+| --------------
+------------------------------------------------------------------------------------------------
+
+  Enable Multi Corner Analysis               :  Yes
+  Enable Pessimism Removal                   :  Yes
+  Pessimism Removal Resolution               :  Nearest Common Node
+  Enable Input Delay Default Clock           :  No
+  Enable Preset / Clear Arcs                 :  No
+  Disable Flight Delays                      :  No
+  Ignore I/O Paths                           :  No
+  Timing Early Launch at Borrowing Latches   :  No
+  Borrow Time for Max Delay Exceptions       :  Yes
+  Merge Timing Exceptions                    :  Yes
+  Inter-SLR Compensation                     :  Conservative
+
+  Corner  Analyze    Analyze    
+  Name    Max Paths  Min Paths  
+  ------  ---------  ---------  
+  Slow    Yes        Yes        
+  Fast    Yes        Yes        
+
+
+------------------------------------------------------------------------------------------------
+| Report Methodology
+| ------------------
+------------------------------------------------------------------------------------------------
+
+No report available as report_methodology has not been run prior. Run report_methodology on the current design for the summary of methodology violations.
+
+
+
+check_timing report
+
+Table of Contents
+-----------------
+1. checking no_clock (0)
+2. checking constant_clock (0)
+3. checking pulse_width_clock (0)
+4. checking unconstrained_internal_endpoints (0)
+5. checking no_input_delay (372)
+6. checking no_output_delay (596)
+7. checking multiple_clock (0)
+8. checking generated_clocks (0)
+9. checking loops (0)
+10. checking partial_input_delay (0)
+11. checking partial_output_delay (0)
+12. checking latch_loops (0)
+
+1. checking no_clock (0)
+------------------------
+ There are 0 register/latch pins with no clock.
+
+
+2. checking constant_clock (0)
+------------------------------
+ There are 0 register/latch pins with constant_clock.
+
+
+3. checking pulse_width_clock (0)
+---------------------------------
+ There are 0 register/latch pins which need pulse_width check
+
+
+4. checking unconstrained_internal_endpoints (0)
+------------------------------------------------
+ There are 0 pins that are not constrained for maximum delay.
+
+ There are 0 pins that are not constrained for maximum delay due to constant clock.
+
+
+5. checking no_input_delay (372)
+--------------------------------
+ There are 372 input ports with no input delay specified. (HIGH)
+
+ There are 0 input ports with no input delay but user has a false path constraint.
+
+
+6. checking no_output_delay (596)
+---------------------------------
+ There are 596 ports with no output delay specified. (HIGH)
+
+ There are 0 ports with no output delay but user has a false path constraint
+
+ There are 0 ports with no output delay but with a timing clock defined on it or propagating through it
+
+
+7. checking multiple_clock (0)
+------------------------------
+ There are 0 register/latch pins with multiple clocks.
+
+
+8. checking generated_clocks (0)
+--------------------------------
+ There are 0 generated clocks that are not connected to a clock source.
+
+
+9. checking loops (0)
+---------------------
+ There are 0 combinational loops in the design.
+
+
+10. checking partial_input_delay (0)
+------------------------------------
+ There are 0 input ports with partial input delay specified.
+
+
+11. checking partial_output_delay (0)
+-------------------------------------
+ There are 0 ports with partial output delay specified.
+
+
+12. checking latch_loops (0)
+----------------------------
+ There are 0 combinational latch loops in the design through latch input
+
+
+
+------------------------------------------------------------------------------------------------
+| Design Timing Summary
+| ---------------------
+------------------------------------------------------------------------------------------------
+
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+     -0.022       -0.720                     33               107161        0.028        0.000                      0               107161        0.718        0.000                       0                 44497  
+
+
+Timing constraints are not met.
+
+
+------------------------------------------------------------------------------------------------
+| Clock Summary
+| -------------
+------------------------------------------------------------------------------------------------
+
+Clock    Waveform(ns)         Period(ns)      Frequency(MHz)
+-----    ------------         ----------      --------------
+clk_axi  {0.000 1.250}        2.500           400.000         
+clk_ddr  {0.000 1.250}        2.500           400.000         
+
+
+------------------------------------------------------------------------------------------------
+| Intra Clock Table
+| -----------------
+------------------------------------------------------------------------------------------------
+
+Clock             WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+-----             -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+clk_axi            -0.022       -0.720                     33                85385        0.028        0.000                      0                85385        0.718        0.000                       0                 44497  
+
+
+------------------------------------------------------------------------------------------------
+| Inter Clock Table
+| -----------------
+------------------------------------------------------------------------------------------------
+
+From Clock    To Clock          WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints  
+----------    --------          -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------  
+
+
+------------------------------------------------------------------------------------------------
+| Other Path Groups Table
+| -----------------------
+------------------------------------------------------------------------------------------------
+
+Path Group         From Clock         To Clock               WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints  
+----------         ----------         --------               -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------  
+**async_default**  clk_axi            clk_axi                  1.683        0.000                      0                21776        0.347        0.000                      0                21776  
+
+
+------------------------------------------------------------------------------------------------
+| Timing Details
+| --------------
+------------------------------------------------------------------------------------------------
+
+
+---------------------------------------------------------------------------------------------------
+From Clock:  clk_axi
+  To Clock:  clk_axi
+
+Setup :           33  Failing Endpoints,  Worst Slack       -0.022ns,  Total Violation       -0.720ns
+Hold  :            0  Failing Endpoints,  Worst Slack        0.028ns,  Total Violation        0.000ns
+PW    :            0  Failing Endpoints,  Worst Slack        0.718ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Max Delay Paths
+--------------------------------------------------------------------------------------
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[10][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[10]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[10][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[10][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[10]_93[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[10]_i_103/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[10]_i_103_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[10]_i_89/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[10]_i_89_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[10]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/rp_due[10]_i_44_n_0
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[10]_i_54/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[10]_i_54_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[10]_i_47/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[10]_i_47_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[10]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/rp_due[10]_i_22_n_0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[10]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[10]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[10]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due176_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[10]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/rp_due79_out
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[10]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[10]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[10]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[11][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[11]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[11][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[11][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[11]_92[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[11]_i_103/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[11]_i_103_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[11]_i_89/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[11]_i_89_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[11]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/rp_due[11]_i_44_n_0
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[11]_i_54/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[11]_i_54_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[11]_i_47/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[11]_i_47_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[11]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/rp_due[11]_i_22_n_0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[11]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[11]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[11]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due172_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[11]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/rp_due75_out
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[11]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[11]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[11]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[12][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[12]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[12][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[12][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[12]_202[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[12]_i_103/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[12]_i_103_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[12]_i_89/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[12]_i_89_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[12]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/rp_due[12]_i_44_n_0
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[12]_i_54/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[12]_i_54_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[12]_i_47/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[12]_i_47_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[12]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/rp_due[12]_i_22_n_0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[12]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[12]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[12]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due168_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[12]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/rp_due71_out
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[12]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[12]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[12]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[13][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[13]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[13][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[13][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[13]_199[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[13]_i_104/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[13]_i_104_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[13]_i_90/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[13]_i_90_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[13]_i_45/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/rp_due[13]_i_45_n_0
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[13]_i_55/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[13]_i_55_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[13]_i_48/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[13]_i_48_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[13]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/rp_due[13]_i_22_n_0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[13]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[13]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[13]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due164_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[13]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/rp_due67_out
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[13]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[13]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[13]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[14][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[14]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[14][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[14][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[14]_90[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[14]_i_103/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[14]_i_103_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[14]_i_89/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[14]_i_89_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[14]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/rp_due[14]_i_44_n_0
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[14]_i_54/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[14]_i_54_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[14]_i_47/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[14]_i_47_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[14]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/rp_due[14]_i_22_n_0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[14]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[14]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[14]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due160_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[14]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/rp_due63_out
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[14]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[14]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[14]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[15][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[15]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[15][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[15][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[15]_87[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[15]_i_103/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[15]_i_103_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[15]_i_89/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[15]_i_89_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[15]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/sel0[1]
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[15]_i_54/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[15]_i_54_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[15]_i_47/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[15]_i_47_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[15]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/calc_dyn_rowpress_thresh1
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[15]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[15]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[15]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due156_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[15]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/p_48_out[15]
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[15]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[15]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[15]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[16][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[16]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[16][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[16][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[16]_88[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[16]_i_103/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[16]_i_103_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[16]_i_89/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[16]_i_89_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[16]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/rp_due[16]_i_44_n_0
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[16]_i_54/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[16]_i_54_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[16]_i_47/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[16]_i_47_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[16]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/rp_due[16]_i_22_n_0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[16]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[16]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[16]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due152_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[16]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/p_48_out[16]
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[16]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[16]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[16]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[17][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[17]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[17][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[17][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[17]_196[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[17]_i_103/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[17]_i_103_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[17]_i_89/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[17]_i_89_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[17]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/rp_due[17]_i_44_n_0
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[17]_i_54/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[17]_i_54_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[17]_i_47/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[17]_i_47_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[17]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/rp_due[17]_i_22_n_0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[17]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[17]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[17]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due149_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[17]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/p_48_out[17]
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[17]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[17]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[17]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[18][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[18]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[18][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[18][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[18]_191[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[18]_i_103/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[18]_i_103_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[18]_i_89/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[18]_i_89_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[18]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/rp_due[18]_i_44_n_0
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[18]_i_54/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[18]_i_54_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[18]_i_47/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[18]_i_47_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[18]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/rp_due[18]_i_22_n_0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[18]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[18]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[18]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due146_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[18]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/p_48_out[18]
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[18]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[18]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[18]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+Slack (VIOLATED) :        -0.022ns  (required time - arrival time)
+  Source:                 u_cmd_engine/act_duration_reg[19][5]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            u_cmd_engine/rp_due_reg[19]/D
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        2.503ns  (logic 0.973ns (38.873%)  route 1.530ns (61.127%))
+  Logic Levels:           9  (CARRY8=1 LUT3=1 LUT5=1 LUT6=6)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/act_duration_reg[19][5]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_cmd_engine/act_duration_reg[19][5]/Q
+                         net (fo=15, unplaced)        0.196     0.303    u_cmd_engine/act_duration_reg[19]_189[5]
+                         LUT6 (Prop_LUT6_I0_O)        0.150     0.453 r  u_cmd_engine/rp_due[19]_i_104/O
+                         net (fo=2, unplaced)         0.186     0.639    u_cmd_engine/rp_due[19]_i_104_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.677 r  u_cmd_engine/rp_due[19]_i_90/O
+                         net (fo=4, unplaced)         0.198     0.875    u_cmd_engine/rp_due[19]_i_90_n_0
+                         LUT6 (Prop_LUT6_I3_O)        0.038     0.913 r  u_cmd_engine/rp_due[19]_i_44/O
+                         net (fo=15, unplaced)        0.182     1.095    u_cmd_engine/sel0__0[1]
+                         LUT6 (Prop_LUT6_I1_O)        0.090     1.185 f  u_cmd_engine/rp_due[19]_i_55/O
+                         net (fo=2, unplaced)         0.105     1.290    u_cmd_engine/rp_due[19]_i_55_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.440 f  u_cmd_engine/rp_due[19]_i_48/O
+                         net (fo=1, unplaced)         0.105     1.545    u_cmd_engine/rp_due[19]_i_48_n_0
+                         LUT6 (Prop_LUT6_I0_O)        0.150     1.695 r  u_cmd_engine/rp_due[19]_i_22/O
+                         net (fo=16, unplaced)        0.230     1.925    u_cmd_engine/calc_dyn_rowpress_thresh1__0
+                         LUT5 (Prop_LUT5_I3_O)        0.070     1.995 r  u_cmd_engine/rp_due[19]_i_10/O
+                         net (fo=1, unplaced)         0.260     2.255    u_cmd_engine/rp_due[19]_i_10_n_0
+                         CARRY8 (Prop_CARRY8_DI[0]_CO[7])
+                                                      0.140     2.395 r  u_cmd_engine/rp_due_reg[19]_i_2/CO[7]
+                         net (fo=1, unplaced)         0.020     2.415    u_cmd_engine/rp_due143_in
+                         LUT3 (Prop_LUT3_I0_O)        0.070     2.485 r  u_cmd_engine/rp_due[19]_i_1/O
+                         net (fo=1, unplaced)         0.048     2.533    u_cmd_engine/p_48_out[19]
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[19]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    u_cmd_engine/clk_axi
+                         FDCE                                         r  u_cmd_engine/rp_due_reg[19]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Setup_FDCE_C_D)        0.025     2.511    u_cmd_engine/rp_due_reg[19]
+  -------------------------------------------------------------------
+                         required time                          2.511    <hidden>
+                         arrival time                          -2.533    <hidden>
+  -------------------------------------------------------------------
+                         slack                                 -0.022    <hidden>
+
+
+
+
+
+Min Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbank_reg_0_15_0_0/DP/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbank_reg_0_15_0_0/A2
+                         RAMD32                                       r  wr_cbank_reg_0_15_0_0/DP/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbank_reg_0_15_0_0/WCLK
+                         RAMD32                                       r  wr_cbank_reg_0_15_0_0/DP/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbank_reg_0_15_0_0/DP
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbank_reg_0_15_0_0/SP/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbank_reg_0_15_0_0/A2
+                         RAMD32                                       r  wr_cbank_reg_0_15_0_0/SP/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbank_reg_0_15_0_0/WCLK
+                         RAMD32                                       r  wr_cbank_reg_0_15_0_0/SP/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbank_reg_0_15_0_0/SP
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbank_reg_0_15_1_1/DP/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbank_reg_0_15_1_1/A2
+                         RAMD32                                       r  wr_cbank_reg_0_15_1_1/DP/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbank_reg_0_15_1_1/WCLK
+                         RAMD32                                       r  wr_cbank_reg_0_15_1_1/DP/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbank_reg_0_15_1_1/DP
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbank_reg_0_15_1_1/SP/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbank_reg_0_15_1_1/A2
+                         RAMD32                                       r  wr_cbank_reg_0_15_1_1/SP/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbank_reg_0_15_1_1/WCLK
+                         RAMD32                                       r  wr_cbank_reg_0_15_1_1/SP/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbank_reg_0_15_1_1/SP
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbg_reg_0_15_0_2/RAMA/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbg_reg_0_15_0_2/ADDRD2
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMA/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbg_reg_0_15_0_2/WCLK
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMA/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbg_reg_0_15_0_2/RAMA
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbg_reg_0_15_0_2/RAMA_D1/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbg_reg_0_15_0_2/ADDRD2
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMA_D1/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbg_reg_0_15_0_2/WCLK
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMA_D1/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbg_reg_0_15_0_2/RAMA_D1
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbg_reg_0_15_0_2/RAMB/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbg_reg_0_15_0_2/ADDRD2
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMB/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbg_reg_0_15_0_2/WCLK
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMB/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbg_reg_0_15_0_2/RAMB
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbg_reg_0_15_0_2/RAMB_D1/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbg_reg_0_15_0_2/ADDRD2
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMB_D1/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbg_reg_0_15_0_2/WCLK
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMB_D1/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbg_reg_0_15_0_2/RAMB_D1
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbg_reg_0_15_0_2/RAMC/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbg_reg_0_15_0_2/ADDRD2
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMC/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbg_reg_0_15_0_2/WCLK
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMC/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbg_reg_0_15_0_2/RAMC
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+Slack (MET) :             0.028ns  (arrival time - required time)
+  Source:                 u_wds/cur_tag_reg[2]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            wr_cbg_reg_0_15_0_2/RAMC_D1/WADR2
+                            (rising edge-triggered cell RAMD32 clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             clk_axi
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.116ns  (logic 0.038ns (32.759%)  route 0.078ns (67.241%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.026ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.039ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_wds/clk_axi
+                         FDCE                                         r  u_wds/cur_tag_reg[2]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_wds/cur_tag_reg[2]/Q
+                         net (fo=32, unplaced)        0.078     0.129    wr_cbg_reg_0_15_0_2/ADDRD2
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMC_D1/WADR2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.039     0.039    wr_cbg_reg_0_15_0_2/WCLK
+                         RAMD32                                       r  wr_cbg_reg_0_15_0_2/RAMC_D1/CLK
+                         clock pessimism              0.000     0.039    <hidden>
+                         RAMD32 (Hold_RAMD32_CLK_WADR2)
+                                                      0.062     0.101    wr_cbg_reg_0_15_0_2/RAMC_D1
+  -------------------------------------------------------------------
+                         required time                         -0.101    <hidden>
+                         arrival time                           0.129    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.028    <hidden>
+
+
+
+
+
+Pulse Width Checks
+--------------------------------------------------------------------------------------
+Clock Name:         clk_axi
+Waveform(ns):       { 0.000 1.250 }
+Period(ns):         2.500
+Sources:            { clk_axi }
+
+Check Type        Corner  Lib Pin     Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location  Pin
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAMA/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAMA_D1/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAMB/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAMB_D1/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAMC/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAMC_D1/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAMD/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAMD_D1/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAME/CLK
+Min Period        n/a     RAMD32/CLK  n/a            1.064         2.500       1.436                kf_mem_reg_0_15_0_13/RAME_D1/CLK
+Low Pulse Width   Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMA/CLK
+Low Pulse Width   Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMA/CLK
+Low Pulse Width   Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMA_D1/CLK
+Low Pulse Width   Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMA_D1/CLK
+Low Pulse Width   Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMB/CLK
+Low Pulse Width   Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMB/CLK
+Low Pulse Width   Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMB_D1/CLK
+Low Pulse Width   Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMB_D1/CLK
+Low Pulse Width   Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMC/CLK
+Low Pulse Width   Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMC/CLK
+High Pulse Width  Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMA/CLK
+High Pulse Width  Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMA/CLK
+High Pulse Width  Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMA_D1/CLK
+High Pulse Width  Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMA_D1/CLK
+High Pulse Width  Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMB/CLK
+High Pulse Width  Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMB/CLK
+High Pulse Width  Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMB_D1/CLK
+High Pulse Width  Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMB_D1/CLK
+High Pulse Width  Slow    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMC/CLK
+High Pulse Width  Fast    RAMD32/CLK  n/a            0.532         1.250       0.718                kf_mem_reg_0_15_0_13/RAMC/CLK
+
+
+
+---------------------------------------------------------------------------------------------------
+Path Group:  **async_default**
+From Clock:  clk_axi
+  To Clock:  clk_axi
+
+Setup :            0  Failing Endpoints,  Worst Slack        1.683ns,  Total Violation        0.000ns
+Hold  :            0  Failing Endpoints,  Worst Slack        0.347ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Max Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cfg_pend_q_reg/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cfg_pend_q_reg/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cfg_pend_q_reg/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cfg_pend_q_reg
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cfg_rehash_q_reg/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cfg_rehash_q_reg/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cfg_rehash_q_reg/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cfg_rehash_q_reg
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cfg_we_reg_reg/PRE
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDPE                                         f  cfg_we_reg_reg/PRE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDPE                                         r  cfg_we_reg_reg/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDPE (Recov_FDPE_C_PRE)     -0.066     2.420    cfg_we_reg_reg
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bank_oh_reg[0]/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bank_oh_reg[0]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cs_bank_oh_reg[0]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cs_bank_oh_reg[0]
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bank_oh_reg[1]/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bank_oh_reg[1]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cs_bank_oh_reg[1]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cs_bank_oh_reg[1]
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bank_oh_reg[2]/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bank_oh_reg[2]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cs_bank_oh_reg[2]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cs_bank_oh_reg[2]
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bank_oh_reg[3]/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bank_oh_reg[3]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cs_bank_oh_reg[3]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cs_bank_oh_reg[3]
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bg_oh_reg[0]/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bg_oh_reg[0]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cs_bg_oh_reg[0]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cs_bg_oh_reg[0]
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bg_oh_reg[1]/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bg_oh_reg[1]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cs_bg_oh_reg[1]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cs_bg_oh_reg[1]
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+Slack (MET) :             1.683ns  (required time - arrival time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bg_oh_reg[2]/CLR
+                            (recovery check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            2.500ns  (clk_axi rise@2.500ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.707ns  (logic 0.115ns (16.266%)  route 0.592ns (83.734%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 2.521 - 2.500 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.030     0.030    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.077     0.107 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.198     0.305    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.038     0.343 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.394     0.737    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bg_oh_reg[2]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    2.500     2.500 r  <hidden>
+                                                      0.000     2.500 r  clk_axi
+                         net (fo=44496, unset)        0.021     2.521    clk_axi
+                         FDCE                                         r  cs_bg_oh_reg[2]/C
+                         clock pessimism              0.000     2.521    <hidden>
+                         clock uncertainty           -0.035     2.486    <hidden>
+                         FDCE (Recov_FDCE_C_CLR)     -0.066     2.420    cs_bg_oh_reg[2]
+  -------------------------------------------------------------------
+                         required time                          2.420    <hidden>
+                         arrival time                          -0.737    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  1.683    <hidden>
+
+
+
+
+
+Min Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cfg_pend_q_reg/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cfg_pend_q_reg/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cfg_pend_q_reg/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cfg_pend_q_reg
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cfg_rehash_q_reg/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cfg_rehash_q_reg/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cfg_rehash_q_reg/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cfg_rehash_q_reg
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cfg_we_reg_reg/PRE
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDPE                                         f  cfg_we_reg_reg/PRE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDPE                                         r  cfg_we_reg_reg/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDPE (Remov_FDPE_C_PRE)     -0.020    -0.001    cfg_we_reg_reg
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bank_oh_reg[0]/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bank_oh_reg[0]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cs_bank_oh_reg[0]/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cs_bank_oh_reg[0]
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bank_oh_reg[1]/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bank_oh_reg[1]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cs_bank_oh_reg[1]/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cs_bank_oh_reg[1]
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bank_oh_reg[2]/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bank_oh_reg[2]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cs_bank_oh_reg[2]/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cs_bank_oh_reg[2]
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bank_oh_reg[3]/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bank_oh_reg[3]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cs_bank_oh_reg[3]/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cs_bank_oh_reg[3]
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bg_oh_reg[0]/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bg_oh_reg[0]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cs_bg_oh_reg[0]/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cs_bg_oh_reg[0]
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bg_oh_reg[1]/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bg_oh_reg[1]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cs_bg_oh_reg[1]/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cs_bg_oh_reg[1]
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+Slack (MET) :             0.347ns  (arrival time - required time)
+  Source:                 u_rst_sync_axi/sync_reg_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Destination:            cs_bg_oh_reg[2]/CLR
+                            (removal check against rising-edge clock clk_axi  {rise@0.000ns fall@1.250ns period=2.500ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk_axi rise@0.000ns - clk_axi rise@0.000ns)
+  Data Path Delay:        0.333ns  (logic 0.052ns (15.616%)  route 0.281ns (84.384%))
+  Logic Levels:           1  (LUT1=1)
+  Clock Path Skew:        0.006ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.019ns
+    Source Clock Delay      (SCD):    0.013ns
+    Clock Pessimism Removal (CPR):    -0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.013     0.013    u_rst_sync_axi/clk_axi
+                         FDCE                                         r  u_rst_sync_axi/sync_reg_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_FDCE_C_Q)         0.038     0.051 r  u_rst_sync_axi/sync_reg_reg[1]/Q
+                         net (fo=34, unplaced)        0.099     0.150    u_rst_sync_axi/sync_reg[1]
+                         LUT1 (Prop_LUT1_I0_O)        0.014     0.164 f  u_rst_sync_axi/m_data[5]_i_3/O
+                         net (fo=21776, unplaced)     0.182     0.346    u_rst_sync_axi_n_1
+                         FDCE                                         f  cs_bg_oh_reg[2]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_axi rise edge)    0.000     0.000 r  <hidden>
+                                                      0.000     0.000 r  clk_axi
+                         net (fo=44496, unset)        0.019     0.019    clk_axi
+                         FDCE                                         r  cs_bg_oh_reg[2]/C
+                         clock pessimism              0.000     0.019    <hidden>
+                         FDCE (Remov_FDCE_C_CLR)     -0.020    -0.001    cs_bg_oh_reg[2]
+  -------------------------------------------------------------------
+                         required time                          0.001    <hidden>
+                         arrival time                           0.346    <hidden>
+  -------------------------------------------------------------------
+                         slack                                  0.347    <hidden>
+
+
+
+
+

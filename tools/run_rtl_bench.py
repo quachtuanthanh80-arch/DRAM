@@ -74,6 +74,9 @@ def main():
     ap.add_argument("--only", default="", help="comma-separated workload names")
     args = ap.parse_args()
 
+    args.traces = os.path.abspath(args.traces)
+    args.out = os.path.abspath(args.out)
+    args.build = os.path.abspath(args.build)
     os.makedirs(args.build, exist_ok=True)
     os.makedirs(args.out, exist_ok=True)
     vvp_file = os.path.join(args.build, "tb_bench_trace.vvp")

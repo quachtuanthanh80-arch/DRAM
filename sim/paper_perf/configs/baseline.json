@@ -1,0 +1,70 @@
+{
+  "scheme": "Baseline",
+  "dram_support": "none",
+  "dram_support_evidence": "generic_ddr_controller.cpp:8-80 (no mitigation)",
+  "common": {
+    "frontend": {
+      "impl": "BHO3",
+      "clock_ratio": 5,
+      "ipc": 4,
+      "inst_window_depth": 128,
+      "llc_capacity_per_core": "2MB",
+      "llc_num_mshr_per_core": 16,
+      "translation": {
+        "impl": "NoTranslation",
+        "max_addr": 17179869184
+      }
+    },
+    "memory_system": {
+      "impl": "GenericDRAM",
+      "clock_ratio": 2,
+      "channel_mapper": {
+        "impl": "CacheLineInterleave"
+      }
+    },
+    "dram": {
+      "impl": "DDR5_VRR",
+      "org_preset": "DDR5_16Gb_x4",
+      "timing_preset": "DDR5_3200C",
+      "rank": 1
+    },
+    "scheduler": {
+      "impl": "FRFCFS"
+    },
+    "refresh_manager": {
+      "impl": "AllBank"
+    },
+    "row_policy": {
+      "impl": "Open"
+    },
+    "addr_mapper": {
+      "impl": "RoBaRaCoCh"
+    }
+  },
+  "per_nrh": {
+    "1024": {
+      "controller": "GenericDDR",
+      "plugins": [
+        "RowHammerObserver"
+      ]
+    },
+    "512": {
+      "controller": "GenericDDR",
+      "plugins": [
+        "RowHammerObserver"
+      ]
+    },
+    "256": {
+      "controller": "GenericDDR",
+      "plugins": [
+        "RowHammerObserver"
+      ]
+    },
+    "128": {
+      "controller": "GenericDDR",
+      "plugins": [
+        "RowHammerObserver"
+      ]
+    }
+  }
+}

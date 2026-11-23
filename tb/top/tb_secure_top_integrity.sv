@@ -303,6 +303,43 @@ module tb_secure_top_integrity #(
     logic [AXI_ID_WIDTH-1:0] captured_bid;
     int          b_done_count = 0;
 
+    // Kiểm toán giao dịch AXI metadata theo ID (BMT=8, ML=9, REENC=10) so với số giao dịch logic
+    int axi_aw_id8_cnt = 0, axi_aw_id9_cnt = 0, axi_aw_id10_cnt = 0;
+    int axi_ar_id8_cnt = 0, axi_ar_id9_cnt = 0, axi_ar_id10_cnt = 0;
+    int logic_bmt_wr_cnt = 0, logic_ml_wr_cnt = 0, logic_reenc_wr_cnt = 0;
+    int logic_bmt_rd_cnt = 0, logic_ml_rd_cnt = 0, logic_reenc_rd_cnt = 0;
+    bit ml_wr_q = 0, reenc_wr_q = 0, ml_rd_q = 0, reenc_rd_q = 0;
+
+    always @(posedge clk_axi) begin
+        if (!aresetn_axi) begin
+            ml_wr_q    <= 1'b0;
+            reenc_wr_q <= 1'b0;
+            ml_rd_q    <= 1'b0;
+            reenc_rd_q <= 1'b0;
+        end else begin
+            if (dut.u_crypto_bridge.m_axi_awvalid && dut.u_crypto_bridge.m_axi_awready) begin
+                if (dut.u_crypto_bridge.m_axi_awid == 4'd8)  axi_aw_id8_cnt++;
+                if (dut.u_crypto_bridge.m_axi_awid == 4'd9)  axi_aw_id9_cnt++;
+                if (dut.u_crypto_bridge.m_axi_awid == 4'd10) axi_aw_id10_cnt++;
+            end
+            if (dut.u_crypto_bridge.m_axi_arvalid && dut.u_crypto_bridge.m_axi_arready) begin
+                if (dut.u_crypto_bridge.m_axi_arid == 4'd8)  axi_ar_id8_cnt++;
+                if (dut.u_crypto_bridge.m_axi_arid == 4'd9)  axi_ar_id9_cnt++;
+                if (dut.u_crypto_bridge.m_axi_arid == 4'd10) axi_ar_id10_cnt++;
+            end
+            if (dut.u_crypto_bridge.bmt_dram_wr_ready) logic_bmt_wr_cnt++;
+            if (dut.u_crypto_bridge.ml_dram_wr_valid && !ml_wr_q)       logic_ml_wr_cnt++;
+            if (dut.u_crypto_bridge.reenc_dram_wr_valid && !reenc_wr_q) logic_reenc_wr_cnt++;
+            if (dut.u_crypto_bridge.bmt_dram_rd_ready) logic_bmt_rd_cnt++;
+            if (dut.u_crypto_bridge.ml_dram_rd_req && !ml_rd_q)         logic_ml_rd_cnt++;
+            if (dut.u_crypto_bridge.reenc_dram_rd_req && !reenc_rd_q)   logic_reenc_rd_cnt++;
+            ml_wr_q    <= dut.u_crypto_bridge.ml_dram_wr_valid;
+            reenc_wr_q <= dut.u_crypto_bridge.reenc_dram_wr_valid;
+            ml_rd_q    <= dut.u_crypto_bridge.ml_dram_rd_req;
+            reenc_rd_q <= dut.u_crypto_bridge.reenc_dram_rd_req;
+        end
+    end
+
     always @(posedge clk_axi) begin
         if (s_axi_bvalid && s_axi_bready) begin
             captured_bresp <= s_axi_bresp;
@@ -1196,6 +1233,17 @@ module tb_secure_top_integrity #(
                  o_mc_hit_cnt, o_mc_miss_cnt,
                  (o_mc_hit_cnt + o_mc_miss_cnt > 0) ? (real'(o_mc_hit_cnt) * 100.0 / real'(o_mc_hit_cnt + o_mc_miss_cnt)) : 0.0);
         $display("================================================================================");
+
+        $display("[META_AXI_AUDIT] AW id8=%0d (logic=%0d) id9=%0d (logic=%0d) id10=%0d (logic=%0d)",
+                 axi_aw_id8_cnt, logic_bmt_wr_cnt, axi_aw_id9_cnt, logic_ml_wr_cnt, axi_aw_id10_cnt, logic_reenc_wr_cnt);
+        $display("[META_AXI_AUDIT] AR id8=%0d (logic=%0d) id9=%0d (logic=%0d) id10=%0d (logic=%0d)",
+                 axi_ar_id8_cnt, logic_bmt_rd_cnt, axi_ar_id9_cnt, logic_ml_rd_cnt, axi_ar_id10_cnt, logic_reenc_rd_cnt);
+        tb_check(axi_aw_id8_cnt  === logic_bmt_wr_cnt,   $sformatf("META_AXI_AUDIT: BMT AW id8=%0d == logic=%0d", axi_aw_id8_cnt, logic_bmt_wr_cnt));
+        tb_check(axi_aw_id9_cnt  === logic_ml_wr_cnt,    $sformatf("META_AXI_AUDIT: ML AW id9=%0d == logic=%0d", axi_aw_id9_cnt, logic_ml_wr_cnt));
+        tb_check(axi_aw_id10_cnt === logic_reenc_wr_cnt, $sformatf("META_AXI_AUDIT: REENC AW id10=%0d == logic=%0d", axi_aw_id10_cnt, logic_reenc_wr_cnt));
+        tb_check(axi_ar_id8_cnt  === logic_bmt_rd_cnt,   $sformatf("META_AXI_AUDIT: BMT AR id8=%0d == logic=%0d", axi_ar_id8_cnt, logic_bmt_rd_cnt));
+        tb_check(axi_ar_id9_cnt  === logic_ml_rd_cnt,    $sformatf("META_AXI_AUDIT: ML AR id9=%0d == logic=%0d", axi_ar_id9_cnt, logic_ml_rd_cnt));
+        tb_check(axi_ar_id10_cnt === logic_reenc_rd_cnt, $sformatf("META_AXI_AUDIT: REENC AR id10=%0d == logic=%0d", axi_ar_id10_cnt, logic_reenc_rd_cnt));
 
         tb_report();
         $finish;

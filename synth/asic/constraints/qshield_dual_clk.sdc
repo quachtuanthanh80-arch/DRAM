@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # File:        qshield_dual_clk.sdc
 # Description: Synopsys Design Constraints (SDC) for Dual-Clock ASIC Target
 #              - Clock 1 (AXI Bus Host Domain): 250 MHz (T = 4.00 ns)

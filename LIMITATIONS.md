@@ -1,5 +1,7 @@
 # Q-Shield Architectural Limitations, Threat Boundaries & Trade-Offs
 
+> **Scope: DDR5 only.** The controller, its verification and every measurement in this repository target DDR5. There is no RTL command engine, testbench or measurement for DDR4; the address mapper still carries an unverified DDR4 bank-group mode (`cfg_is_ddr5`) that is not supported and is planned for removal. Results quoted here are simulation and FPGA results, not measurements on silicon or on real DRAM.
+
 > **Provenance note (2026-10-30).** Ramulator-based throughput/overhead figures (SPEC CPU2017/PARSEC, ±σ), the "apples-to-apples" table and the Nangate 45 nm gate counts were not reproducible from this repository and are withdrawn. See `sim/results/PROVENANCE.md` for what each result file is, and the README section "What has been measured" for the numbers that are backed by runs.
 
 This document provides a comprehensive, peer-review-grade disclosure of the architectural boundaries, underlying assumptions, failure modes, and engineering trade-offs of the **Q-Shield** memory controller.
@@ -31,28 +33,40 @@ Q-Shield is engineered specifically as a **controller-side digital logic mitigat
 ## 2. Mathematical Bounds & Failure Modes of Algorithmic Components
 
 ### 2.1 Count-Min Sketch under Byzantine Adversaries
-The SDC filter employs a 2-way associative Count-Min sketch with $w = 1,024$ physical bins:
-- **Theoretical Guarantee**: For any row $r$, the estimated activation count $C(r) = \min(T_1[h_1(r)], T_2[h_2(r)])$ satisfies:
-  $$C(r) \ge A(r) \quad \text{and} \quad \Pr[C(r) \ge A(r) + \epsilon N] \le \left(\frac{e}{w}\right)^d$$
-  Where $d = 2$, ensuring **zero false negatives** ($FNR = 0$): an aggressor row cannot evade detection by counter underestimation.
+The SDC filter employs two counter tables (A and B) of `TABLE_ENTRIES = 256` bins each, indexed by two hash functions (`rtl/core/sdc_resilient_filter.sv:13`), in the style of a Count-Min sketch with depth $d = 2$ and width $w = 256$:
+- **Guarantee of the plain Count-Min sketch** (Cormode and Muthukrishnan, J. Algorithms 2005, Theorem 1, PDF p. 7; dimensions $w = \lceil e/\epsilon \rceil$, $d = \lceil \ln(1/\delta) \rceil$, p. 6): the estimate $C(r) = \min(T_A[h_A(r)], T_B[h_B(r)])$ satisfies
+  $$C(r) \ge A(r) \quad \text{and, with probability at least } 1 - \delta, \quad C(r) \le A(r) + \epsilon \lVert A \rVert_1, \qquad \delta = e^{-d}.$$
+  The first inequality means the plain sketch never under-counts. **This property does not carry over to the RTL as built**: the filter subtracts $T$ (or resets a bin) when a row reaches the threshold, so rows that share a bin can under-count each other. T82 (`r82_many_sided_6r`) and the known-seed cases below measured exactly this, so no zero-false-negative claim is made for the implementation. The probabilistic bound also assumes pairwise-independent hash functions (PDF pp. 6-7); that the RTL hash meets this assumption has not been proved here.
 - **Byzantine Collision Attack Vulnerability**:
-  If an adversary possesses full knowledge of the hash polynomials ($\text{CRC16-CCITT}$ and $\text{Jenkins-32}$) and can manipulate physical addresses, they can deliberately generate a "hash collision storm"—activating hundreds of non-hammered rows whose addresses hash into the exact same bin indices as a victim thread.
+  If an adversary knows the secret seed of the hash (`cfg_pxor_seed`; the default is the PXOR matrix hash) and can manipulate physical addresses, they can deliberately generate a "hash collision storm": activating hundreds of non-hammered rows whose addresses hash into the same bin indices as a victim thread.
 - **Consequence of Byzantine Collisions**:
-  While no attacks are missed, the accumulated false-positive rate ($FPR$) rises. This forces innocent victim rows sharing those hash bins into conservative rate pacing, inducing a localized denial-of-service (QoS degradation) for the targeted bank group.
+  Collisions raise the accumulated false-positive rate ($FPR$). This forces innocent victim rows sharing those hash bins into conservative rate pacing, inducing a localized denial-of-service (QoS degradation) for the targeted bank group.
+- **Known-Seed PXOR Collision Threat-Model Boundary (Measured in T82/T86)**:
+  The defense threat model assumes `cfg_pxor_seed` remains secret. If an adversary knows `cfg_pxor_seed` (tested with `0xA5A55A5A01234567`), they can construct dual-table colliding decoy rows (`d_a=(2,2,0x0a3a)` matching `v-1=0x00ff` at `ha=0xe0, hb=0x5f`; `d_b=(2,2,0x0bc4)` matching `v+1=0x0101` at `ha=0x5e, hb=0xb4`) to drain/decrement shared counters before the target row reaches $T$. Across RTL evaluations (`reports/paper/security/security_eval_table.csv`):
+  - Pre-T86 (T82 zero-reset): `N_RH=128 (T=16)` reached $D = 272$ ($D/N_{RH} = 2.1250$, `bin_wipes = 22`); `N_RH=256 (T=32)` reached $D = 443$ ($1.7305$, `bin_wipes = 19`); `N_RH=512 (T=64)` reached $D = 313 > B_1 = 259$ ($0.6113$, `bin_wipes = 5`); `N_RH=1024 (T=128)` reached $D = 434$ ($0.4238$, `bin_wipes = 2`).
+  - Post-T86 (Subtract-$T$, 32-bank tracking, DRM PROQ dedup): `N_RH=128 (T=15)` still reaches $D = 156$ ($D/N_{RH} = 1.2188$, `bin_wipes = 13`); `N_RH=256 (T=31)` reaches $D = 199 > B_1 = 131$ ($0.7773$, `bin_wipes = 7`); `N_RH=512 (T=63)` reaches $D = 303 > B_1 = 259$ ($0.5918$, `bin_wipes = 5`); `N_RH=1024 (T=127)` reaches $D = 431$ ($0.4209$, `bin_wipes = 2`, `PASS_UNDER_PHYS`).
+  - Under unknown seed (`hash_coll_unknown_seed` and `hash_coll_unknown_seed_2bank`), all post-T86 cases remain bounded below $B_1$ ($D = 21\text{--}113$, `bin_wipes = 0`).
 
 ### 2.2 Adaptive Threshold Engine (ATE) Dynamic Response Limits
 The ATE modulates the mitigation threshold using an Exponentially Weighted Moving Average (EWMA):
 $$T_{k+1} = \text{clamp}\left(\alpha \cdot T_k + (1-\alpha) \cdot \lambda_{act}, \; T_{min}, \; T_{max}\right)$$
 - **Evasion via Phase-Shifted Burst Hammering**:
-  An attacker who understands the EWMA smoothing constant $\alpha = 0.875$ can structure an alternating activation attack: issuing intense hammering bursts immediately followed by idle cooldown phases. During the cooldown phase, the EWMA estimates a low aggregate activation density, causing $T_{thresh}$ to drift toward $T_{max} = 512$. If the attacker fires a rapid burst before the EWMA responds, activations can accumulate toward $T_{max}$ before clamping takes effect.
+  An attacker who understands the EWMA step (default `ALPHA_SHIFT_DEF = 4`: each step moves $1/16$ of the remaining distance, `rtl/core/adaptive_threshold_engine.sv:9`) can structure an alternating activation attack: issuing intense hammering bursts immediately followed by idle cooldown phases. During the cooldown phase, the EWMA estimates a low aggregate activation density, causing $T_{thresh}$ to drift toward the configured maximum. If the attacker fires a rapid burst before the EWMA responds, activations can accumulate toward that maximum before the clamp takes effect.
 - **Defense Invariant**:
-  Even under worst-case phase manipulation, the hard saturation clamp $T_{thresh} \le 512$ guarantees that the threshold never exceeds the critical physical RowHammer threshold ($N_{RH} \approx 1,000$ in modern DDR5), preventing cell flips.
+  The upper clamp of the engine is the configured threshold: `axi_ddr5_mc_top.sv:1226` passes `voted_rh_threshold` as `cfg_max_thresh`. This bounds the per-row trigger threshold $T$; it is **not** a proof that no cell flips. The bound on victim disturbance is $B_1$ in `docs/security_bound.md`, and the simulation evidence for it is limited as stated in section 5.3.
 
-### 2.3 DRAM Refresh Budget & Refresh Starvation Bounds
+### 2.3 Disturbance outside the refresh radius
+The bound `B1` in `docs/security_bound.md` is defined for victim rows at distance 1 to $R$ from the aggressor. It does **not** cover rows at distance $R+1$ and beyond.
+- **Mechanism**: the directed refresh manager refreshes the rows at distance 1 to $R$ of an aggressor with activate commands. Each of those activates disturbs the rows at distance 1 and 2 from it, and the tracker `u_sdc_filter` does not count these refresh activates. Rows at distance $R+1$ therefore accumulate disturbance with no mitigation until a periodic refresh reaches them (once per `tREFW`).
+- **Measurement** (RTL simulation, one case, `N_RH = 128`, $T = 15$, $R = 2$, single-sided attack on row `0xFF`, no benign traffic; only the number of rounds was changed from the T82 case): 96 rounds gave disturbance 12 at distance 3; 400 rounds (800 activates) gave 50; 1100 rounds (2200 activates, 81,559 cycles) gave **136, above `N_RH`**, on a row with no user activate and no mitigation activate. No JEDEC violation was reported.
+- **Consequence**: the T82 and T86 results ("56 of 56") remain correct for victims within $R$ at the attack lengths that were run (96 rounds), but they do not show a bound for rows outside $R$. The long-window Ramulator2 runs of T91 show the same pattern at model level.
+- **Status**: one case and one configuration; the DRAM model counts activation disturbance, not bit flips. A fix (counting refresh activates in the tracker) is planned and not yet verified.
+
+### 2.4 DRAM Refresh Budget & Refresh Starvation Bounds
 - **Standard JEDEC Timing Budget**:
-  In DDR5, the standard refresh interval is $t_{REFI} = 3.9\,\mu\text{s}$ ($1.95\,\mu\text{s}$ at elevated temperatures), with a maximum burst allowance of 8 back-to-back refreshes.
+  In DDR5 the refresh interval is $t_{REFI} = 3.9\,\mu\text{s}$ (Chronus, arXiv 2024, PDF p. 3).
 - **Refresh Budget Starvation under Multi-Bank Attacks**:
-  When an adversary attacks 16 bank groups simultaneously, each issuing Target Row Refresh (TRR/DRFM) requests, the controller must issue mitigation refreshes across multiple banks. If the rate of required mitigations exceeds the allowable command bus idle slots without violating $t_{RFC}$ (refresh cycle time, $\approx 295\text{ ns}$ in DDR5), the controller must stall incoming normal memory traffic.
+  When an adversary attacks all 8 bank groups (32 banks) simultaneously, each issuing Target Row Refresh (TRR/DRFM) requests, the controller must issue mitigation refreshes across multiple banks. If the rate of required mitigations exceeds the allowable command bus idle slots without violating $t_{RFC}$ (refresh cycle time, $\approx 295\text{ ns}$ in DDR5), the controller must stall incoming normal memory traffic.
 - **Worst-Case Stalling**: Under pathological multi-bank hammering across all 32 banks, total memory bus throughput is reduced by mandatory refresh command injection; the size of the reduction has not been measured.
 
 ---
@@ -62,8 +76,7 @@ $$T_{k+1} = \text{clamp}\left(\alpha \cdot T_k + (1-\alpha) \cdot \lambda_{act},
 The SDC filter size, the mitigation threshold and the rate-pacing parameters trade area against false-positive rate,
 detection latency and throughput loss under attack. An earlier version of this section tabulated numbers for three
 configurations (area in gate equivalents, false-positive rate, detection latency, throughput loss). Those numbers were
-withdrawn because no run in this repository produced them. Quantifying this trade-off is part of the planned
-evaluation in [`EVALUATION.md`](EVALUATION.md).
+withdrawn because no run in this repository produced them. The ablation runs of T90 (`reports/paper/crossval/crossval_ablations_v2.json`) cover part of this trade-off at model level; a full area, false-positive and latency table is still not available. See [`EVALUATION.md`](EVALUATION.md).
 
 ---
 
@@ -71,18 +84,17 @@ evaluation in [`EVALUATION.md`](EVALUATION.md).
 
 ### 4.1 FPGA timing and area
 
-Measured results (Xilinx `xczu7ev`, Vivado 2026.1) are in [`DESIGN.md`](DESIGN.md) section 3:
+Measured results (Xilinx `xczu7ev`, Vivado 2026.1) are in [`reports/paper/fpga/t89/fpga_ppa_summary.md`](reports/paper/fpga/t89/fpga_ppa_summary.md) and [`reports/paper/fpga/t92/fpga_ppa_summary.md`](reports/paper/fpga/t92/fpga_ppa_summary.md):
 
-- The core controller closes timing at 3.8 ns (about 263 MHz) after place and route and **does not close at 2.5 ns
-  (400 MHz)**: WNS is -1.273 ns at the 2.5 ns target.
-- The encryption and integrity layer adds a large amount of logic: the secure top uses 164,062 LUTs (71.2 % of the
-  device) after place and route, and closes timing at 4.15 ns (about 241 MHz), not at 2.5 ns (WNS -1.595 ns).
+- The core controller **does not close at 2.5 ns (400 MHz)**: WNS is -1.673 ns at the 2.5 ns target. It closes timing at 3.900 ns (256.41 MHz, WNS +0.014 ns, 0 failing endpoints), the smallest period of a six-point sweep (4.150 to 3.900 ns) in which every point met timing. This is an upper bound on the achievable period: 3.850 ns was not run, and the 0.014 ns margin is small.
+- The encryption and integrity layer adds a large amount of logic: the secure top uses 165,776 LUTs (71.95 % of the
+  device) after place and route, and closes timing at 4.150 ns (240.96 MHz, WNS +0.018 ns), not at 2.5 ns (WNS -1.648 ns).
 - Large storage arrays (for example the metadata cache) are mapped to block RAM. Using block RAM adds a cycle of read
   latency, and the surrounding logic is written for it.
 
 ### 4.2 Power and energy
 
-Power was estimated for the core controller at 263.16 MHz by Vivado in vectorless mode (1.618 W total). That is a
+Power was estimated for the core controller at 256.41 MHz by Vivado in vectorless mode (1.645 W total). That is a
 rough estimate and not a measurement. ASIC power and energy per operation were not measured, and earlier figures for
 them were withdrawn.
 
@@ -96,7 +108,7 @@ To ensure complete experimental transparency regarding the boundaries between si
 
 - **Functional behaviour in simulation**: the testbenches listed in [`README.md`](README.md) pass; the coverage and mutation limits are in section 9.
 - **Command timing**: a JEDEC DDR5 timing checker runs in every top-level testbench and reports no violations in those runs.
-- **FPGA timing after place and route (core controller)**: closes at 3.8 ns (about 263 MHz), **does not close at 2.5 ns (400 MHz)**; see [`DESIGN.md`](DESIGN.md) section 3.
+- **FPGA timing after place and route (core controller)**: closes at 3.900 ns (256.41 MHz, upper bound, see section 4.1), **does not close at 2.5 ns (400 MHz)**; see [`reports/paper/fpga/t92/fpga_ppa_summary.md`](reports/paper/fpga/t92/fpga_ppa_summary.md).
 
 ### 5.2 Unverified Physical Dimensions (Open Research Questions)
 - **Post-P&R Gate-Level Netlist Timing**: Evaluated through pre-layout synthesis; full physical place-and-route clock tree synthesis (CTS) and parasitic RC back-annotation remain future work.
@@ -106,8 +118,9 @@ To ensure complete experimental transparency regarding the boundaries between si
 - **Long-Term Device Reliability**: Electromigration, Time-Dependent Dielectric Breakdown (TDDB), and Negative Bias Temperature Instability (NBTI) aging are not modeled.
 
 ### 5.3 Security Validation Boundaries
-- **Proven Defenses**: RowHammer bit-flip prevention (single, double, many-sided), RowPress hold-time capping, adaptive rate pacing, and autonomous single-bit SEC-DED soft-error scrubbing.
-- **Mitigation-timing channels (LeakyHammer / PRACLeak)**: A tenant can no longer observe another tenant's mitigation activity across banks. Victim refreshes occupy only the aggressor's bank (bank-parallel engine), and queue capacity is split per bank: each bank has one reserved slot in its bank-group queue, and the remaining slots form a shared pool. As a result, commands stalled behind a pending victim refresh cannot exhaust the queue entries of a different bank. `tb_security_attacks_vcd` V19 measures 39 vs 40 cycles for the two symbols, and the receiver decodes 7/16 bits (chance level). A receiver in the *same* physical bank still sees the refresh, because the bank itself is the shared resource. Bank coloring (V23) separates tenants at bank granularity.
+- **Defenses demonstrated in simulation (one run per case, one seed, not a proof)**: the disturbance counter of the behavioural DRAM model stayed within the bound `B1` for victim rows within the refresh radius `R` across all `B1` / unknown-seed `B2` matrix cases in the post-T86 RTL evaluation (`total=56`, `0` B1 violations, `0` JEDEC violations, including `r3_half_double_nrh128` at $D = 60 \le B_1 = 64$), RowPress single-hold time capping (`o_rowpress_alert`), adaptive rate pacing, and autonomous single-bit SEC-DED soft-error scrubbing. The model counts activation-induced disturbance; it does not model real bit flips.
+- **RowPress Sub-Threshold Weighting Disconnected on Canonical Top**: In `rtl/top/axi_ddr5_mc_top.sv` (`u_sdc_filter`, line 1186), `.i_rowpress_weight` is tied to `8'd0` because `ddr5_cmd_engine` has no per-`ACT` RowPress weight output port (avoiding extra logic on the command critical path). While single long holds exceeding `cfg_rowpress_curve` trigger `o_rowpress_alert` (`rowpress_long_hold`: `rp_single_max = 1013` cycles post-T86 / `1011` in T82, `rp_alerts = 2`, $D = 6$), repeated sub-threshold holds ($\le 677$ cycles) accumulate without incrementing `u_sdc_filter` or firing `rp_alerts` (`0`): `rowpress_subthresh` measured `rp_open_max = 35,928` cycles (`N_RH=1024`, unchanged between T82 and T86), `15,104` / post-T86 `14,786` (`N_RH=512`), `9,726` / post-T86 `9,685` (`N_RH=256`), and `7,280` / post-T86 `7,258` (`N_RH=128`) while `ACT` count remains bounded. No cycle-to-`ACT` RowPress equivalence factor is claimed without silicon characterization.
+- **Mitigation-timing channels (LeakyHammer / PRACLeak)**: The design aims to keep a tenant from observing another tenant's mitigation activity across banks; this is a design property argued from the RTL structure plus one testbench measurement, not a leakage evaluation. Victim refreshes occupy only the aggressor's bank (bank-parallel engine), and queue capacity is split per bank: each bank has one reserved slot in its bank-group queue, and the remaining slots form a shared pool. As a result, commands stalled behind a pending victim refresh cannot exhaust the queue entries of a different bank. `tb_security_attacks_vcd` V19 measures 39 vs 40 cycles for the two symbols, and the receiver decodes 7/16 bits (chance level). A receiver in the *same* physical bank still sees the refresh, because the bank itself is the shared resource. `domain_bank_coloring.sv` only maps addresses to bank groups and banks; it does not prevent an agent from addressing another tenant's bank, so any separation between tenants depends on how the operating system allocates pages.
 - **Explicit Non-Goals**: Side-channel resistance beyond the scheduling channels above (power analysis, electromagnetic emission), transient speculative execution, and physical bus tampering.
 
 ---
@@ -240,10 +253,7 @@ Phần này nêu rõ phạm vi những gì đã được kiểm chứng và nh�
   prints the per-stage result and fails on any unexplained failure.
 - The remaining stage is the PyUVM random/corner stage, which needs the `pyuvm` package that was not installed in the local
   Linux environment (it passes where the package is installed: 23 of 23 checks).
-- The SDC-filter counters are reset to zero when a row reaches the threshold, so rows that share a counter bin can
-  under-count each other. The many-sided test needed 8 rounds instead of 6 to throttle all 8 aggressors at threshold 4. How much of that
-  is the old test's counting and how much is real under-counting from bin collisions has not been separated yet; it is part of the planned
-  RowHammer evaluation, so do not quote an effective threshold of 2T as proven.
+- The SDC-filter counters previously reset to zero when a row reached the threshold, allowing rows that shared a counter bin to under-count each other. T82/R-82 (`r82_many_sided_6r`) proved that the 6-round `pxor=0` miss (`4/8` throttled) was caused by Table A bin-collision resets (`bin_a_resets_by_other = 4`). In T86, `sdc_resilient_filter.sv` replaced zero-reset on `will_throttle` with saturating Subtract-$T$ (`cur_cnt - thresh_q`), restoring `8/8` throttling across all four `r82_many_sided_6r` variants (`pxor=0/1`, `rounds=6/8`, `counts_out = 2..5`). Note: `hash_coll_known_seed` remains an explicit threat-model boundary (§2.1), and post-T86 core/secure-top FPGA $F_{max}$ must still be re-measured post-route (T83 re-run).
 - The continuous-integration workflow still runs these suites as a non-blocking job, because the workflow has not yet been
   run with the newer Verilator it installs.
 - The regression that is maintained with the RTL uses Icarus Verilog: `python run_iverilog_regression.py` and

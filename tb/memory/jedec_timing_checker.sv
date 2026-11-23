@@ -1,5 +1,5 @@
 // File: jedec_timing_checker.sv
-// Chức năng: Giám sát và phát hiện vi phạm định thời chuẩn JEDEC DDR5/DDR4 (tRCD, tRP, tRAS, tCCD, tRRD, tRFC).
+// Chức năng: Giám sát và phát hiện vi phạm định thời chuẩn JEDEC DDR5 (tRCD, tRP, tRAS, tCCD, tRRD, tRFC).
 `timescale 1ns / 1ps
 
 module jedec_timing_checker #(

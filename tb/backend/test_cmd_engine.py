@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_cmd_engine.py
 # Description: Verifies ddr5_cmd_engine:
 #              1. Row-Miss: Closed bank -> ACT -> tRCD -> RD.

@@ -1,5 +1,5 @@
 //=============================================================================
-// Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+// Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 // Module:      skid_buffer_formal
 // Description: Formal Verification Wrapper for axi4_skid_buffer using SymbiYosys.
 //              Formally proves:

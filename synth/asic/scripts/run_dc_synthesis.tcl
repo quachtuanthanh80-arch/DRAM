@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # File:        run_dc_synthesis.tcl
 # Description: Production Synopsys Design Compiler (DC) ASIC Synthesis Script
 # Target Node: Nangate 45nm Open Cell Library (Default) / TSMC 28nm / ASAP7

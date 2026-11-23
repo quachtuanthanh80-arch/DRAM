@@ -455,7 +455,8 @@ module ddr5_cmd_engine #(
     wire act_gate = !last_act && rrd_s_z && faw_ok && rfc_z && rfc_z2;
     wire rd_gate  = !last_wr && wtr_s_z && !rd_flush;
     // Số hạng theo BG tính trước (tCCD_L, tCCD_L_WR, tWTR_L, cửa sổ DQ, wr_pacing): cắt s_wr -> c1_cand/iss_cas_cand xuống 2-3 tầng LUT
-    wire block_wr_cas = rd_starve_q || (wr_pace_cnt != '0);
+    // Trong ref_mode không chặn WR vì rd_starve_q để WR hit thoát bank, tránh deadlock hết REF_WD (T88)
+    wire block_wr_cas = (rd_starve_q && !ref_mode) || (wr_pace_cnt != '0);
     (* keep = "true" *) logic [BG_COUNT-1:0] wr_ok_g, rd_ok_g, cas_rd_ok_g, c1_wr_ok_g;
     always_comb
         for (int g = 0; g < BG_COUNT; g++) begin

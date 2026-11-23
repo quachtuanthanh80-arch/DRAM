@@ -1,0 +1,74 @@
+{
+  "scheme": "Graphene",
+  "dram_support": "vrr_non_jedec",
+  "dram_support_evidence": "graphene.cpp:51-59,157-158 (requires non-JEDEC VRR command)",
+  "common": {
+    "frontend": {
+      "impl": "BHO3",
+      "clock_ratio": 5,
+      "ipc": 4,
+      "inst_window_depth": 128,
+      "llc_capacity_per_core": "2MB",
+      "llc_num_mshr_per_core": 16,
+      "translation": {
+        "impl": "NoTranslation",
+        "max_addr": 17179869184
+      }
+    },
+    "memory_system": {
+      "impl": "GenericDRAM",
+      "clock_ratio": 2,
+      "channel_mapper": {
+        "impl": "CacheLineInterleave"
+      }
+    },
+    "dram": {
+      "impl": "DDR5_VRR",
+      "org_preset": "DDR5_16Gb_x4",
+      "timing_preset": "DDR5_3200C",
+      "rank": 1
+    },
+    "scheduler": {
+      "impl": "FRFCFS"
+    },
+    "refresh_manager": {
+      "impl": "AllBank"
+    },
+    "row_policy": {
+      "impl": "Open"
+    },
+    "addr_mapper": {
+      "impl": "RoBaRaCoCh"
+    }
+  },
+  "per_nrh": {
+    "1024": {
+      "controller": "GenericDDR",
+      "plugin": "Graphene",
+      "activation_threshold": 512,
+      "num_table_entries": 1249,
+      "reset_period_ns": 32000000
+    },
+    "512": {
+      "controller": "GenericDDR",
+      "plugin": "Graphene",
+      "activation_threshold": 256,
+      "num_table_entries": 2499,
+      "reset_period_ns": 32000000
+    },
+    "256": {
+      "controller": "GenericDDR",
+      "plugin": "Graphene",
+      "activation_threshold": 128,
+      "num_table_entries": 4999,
+      "reset_period_ns": 32000000
+    },
+    "128": {
+      "controller": "GenericDDR",
+      "plugin": "Graphene",
+      "activation_threshold": 64,
+      "num_table_entries": 9999,
+      "reset_period_ns": 32000000
+    }
+  }
+}

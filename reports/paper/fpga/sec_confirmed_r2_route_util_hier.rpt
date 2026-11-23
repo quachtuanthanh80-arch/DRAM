@@ -1,0 +1,229 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2026.1 (win64) Build 6511674 Tue Jun 16 11:02:23 MDT 2026
+| Date         : Thu Nov 19 22:35:45 2026
+| Host         : DESKTOP-9DADM3P running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file D:/RAM/reports/paper/fpga/sec_confirmed_r2_route_util_hier.rpt
+| Design       : axi_ddr5_mc_secure_top
+| Device       : xczu7ev-ffvc1156-2-e
+| Speed File   : -2
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-------------------------------------------+------------------------------------+------------+------------+---------+------+--------+--------+--------+------+------------+
+|                  Instance                 |               Module               | Total LUTs | Logic LUTs | LUTRAMs | SRLs |   FFs  | RAMB36 | RAMB18 | URAM | DSP Blocks |
++-------------------------------------------+------------------------------------+------------+------------+---------+------+--------+--------+--------+------+------------+
+| axi_ddr5_mc_secure_top                    |                              (top) |     164062 |     162539 |    1478 |   45 | 110190 |      7 |      1 |    0 |          0 |
+|   (axi_ddr5_mc_secure_top)                |                              (top) |          1 |          1 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|   u_crypto_bridge                         |          qshield_axi_crypto_bridge |     101121 |      99749 |    1370 |    2 |  65864 |      7 |      1 |    0 |          0 |
+|     (u_crypto_bridge)                     |          qshield_axi_crypto_bridge |      35706 |      34336 |    1370 |    0 |  20301 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[10].u_mask_rnd     |                     aes_round_pipe |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[10].u_mask_rnd) |                     aes_round_pipe |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[11].u_mask_rnd     |                   aes_round_pipe_3 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[11].u_mask_rnd) |                   aes_round_pipe_3 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[12].u_mask_rnd     |                   aes_round_pipe_4 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[12].u_mask_rnd) |                   aes_round_pipe_4 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[13].u_mask_rnd     |                   aes_round_pipe_5 |          0 |          0 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[13].u_mask_rnd) |                   aes_round_pipe_5 |          0 |          0 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[14].u_mask_rnd     |                   aes_round_pipe_6 |        197 |        197 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[14].u_mask_rnd) |                   aes_round_pipe_6 |        197 |        197 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[1].u_mask_rnd      |                   aes_round_pipe_7 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[1].u_mask_rnd)  |                   aes_round_pipe_7 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[2].u_mask_rnd      |                   aes_round_pipe_8 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[2].u_mask_rnd)  |                   aes_round_pipe_8 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[3].u_mask_rnd      |                   aes_round_pipe_9 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[3].u_mask_rnd)  |                   aes_round_pipe_9 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[4].u_mask_rnd      |                  aes_round_pipe_10 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[4].u_mask_rnd)  |                  aes_round_pipe_10 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[5].u_mask_rnd      |                  aes_round_pipe_11 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[5].u_mask_rnd)  |                  aes_round_pipe_11 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[6].u_mask_rnd      |                  aes_round_pipe_12 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[6].u_mask_rnd)  |                  aes_round_pipe_12 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[7].u_mask_rnd      |                  aes_round_pipe_13 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[7].u_mask_rnd)  |                  aes_round_pipe_13 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[8].u_mask_rnd      |                  aes_round_pipe_14 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[8].u_mask_rnd)  |                  aes_round_pipe_14 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     gen_mask_aes_round[9].u_mask_rnd      |                  aes_round_pipe_15 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       (gen_mask_aes_round[9].u_mask_rnd)  |                  aes_round_pipe_15 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|     u_bmt_engine                          |                 qshield_bmt_engine |      30463 |      30462 |       0 |    1 |  21654 |      7 |      1 |    0 |          0 |
+|       (u_bmt_engine)                      |                 qshield_bmt_engine |      13228 |      13228 |       0 |    0 |  11849 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[10].u_rnd             |                 aes_round_pipe_744 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[10].u_rnd)         |                 aes_round_pipe_744 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[11].u_rnd             |                 aes_round_pipe_745 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[11].u_rnd)         |                 aes_round_pipe_745 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[12].u_rnd             |                 aes_round_pipe_746 |         79 |         79 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[12].u_rnd)         |                 aes_round_pipe_746 |         79 |         79 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[13].u_rnd             |                 aes_round_pipe_747 |          0 |          0 |       0 |    0 |     65 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[13].u_rnd)         |                 aes_round_pipe_747 |          0 |          0 |       0 |    0 |     65 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[14].u_rnd             |                 aes_round_pipe_748 |         68 |         68 |       0 |    0 |     65 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[14].u_rnd)         |                 aes_round_pipe_748 |         68 |         68 |       0 |    0 |     65 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[1].u_rnd              |                 aes_round_pipe_749 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[1].u_rnd)          |                 aes_round_pipe_749 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[2].u_rnd              |                 aes_round_pipe_750 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[2].u_rnd)          |                 aes_round_pipe_750 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[3].u_rnd              |                 aes_round_pipe_751 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[3].u_rnd)          |                 aes_round_pipe_751 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[4].u_rnd              |                 aes_round_pipe_752 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[4].u_rnd)          |                 aes_round_pipe_752 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[5].u_rnd              |                 aes_round_pipe_753 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[5].u_rnd)          |                 aes_round_pipe_753 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[6].u_rnd              |                 aes_round_pipe_754 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[6].u_rnd)          |                 aes_round_pipe_754 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[7].u_rnd              |                 aes_round_pipe_755 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[7].u_rnd)          |                 aes_round_pipe_755 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[8].u_rnd              |                 aes_round_pipe_756 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[8].u_rnd)          |                 aes_round_pipe_756 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_aes_round[9].u_rnd              |                 aes_round_pipe_757 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_aes_round[9].u_rnd)          |                 aes_round_pipe_757 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       u_key_expand                        |              aes256_key_expand_758 |        684 |        684 |       0 |    0 |   2312 |      0 |      0 |    0 |          0 |
+|         (u_key_expand)                    |              aes256_key_expand_758 |        684 |        684 |       0 |    0 |   2312 |      0 |      0 |    0 |          0 |
+|       u_mac_unit                          |               qshield_mac_unit_759 |       8127 |       8126 |       0 |    1 |   2252 |      0 |      0 |    0 |          0 |
+|         (u_mac_unit)                      |               qshield_mac_unit_759 |        608 |        608 |       0 |    0 |   1159 |      0 |      0 |    0 |          0 |
+|         u_gf128_mul                       |                 gf128_mul_pipe_760 |       7519 |       7518 |       0 |    1 |   1093 |      0 |      0 |    0 |          0 |
+|       u_meta_cache                        |                 qshield_meta_cache |       6716 |       6716 |       0 |    0 |   3563 |      7 |      1 |    0 |          0 |
+|     u_data_mac                            |                   qshield_mac_unit |       7874 |       7873 |       0 |    1 |   2314 |      0 |      0 |    0 |          0 |
+|       (u_data_mac)                        |                   qshield_mac_unit |        312 |        312 |       0 |    0 |   1224 |      0 |      0 |    0 |          0 |
+|       u_gf128_mul                         |                     gf128_mul_pipe |       7562 |       7561 |       0 |    1 |   1090 |      0 |      0 |    0 |          0 |
+|     u_dec_pipe                            |                aes_inv_cipher_pipe |      15011 |      15011 |       0 |    0 |   5304 |      0 |      0 |    0 |          0 |
+|       (u_dec_pipe)                        |                aes_inv_cipher_pipe |       7168 |       7168 |       0 |    0 |   1904 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[10].u_inv_round      |                 aes_inv_round_pipe |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[10].u_inv_round)  |                 aes_inv_round_pipe |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[11].u_inv_round      |             aes_inv_round_pipe_506 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[11].u_inv_round)  |             aes_inv_round_pipe_506 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[12].u_inv_round      |             aes_inv_round_pipe_507 |        449 |        449 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[12].u_inv_round)  |             aes_inv_round_pipe_507 |        449 |        449 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[13].u_inv_round      |             aes_inv_round_pipe_508 |          2 |          2 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[13].u_inv_round)  |             aes_inv_round_pipe_508 |          2 |          2 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[14].u_inv_round      |             aes_inv_round_pipe_509 |        129 |        129 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[14].u_inv_round)  |             aes_inv_round_pipe_509 |        129 |        129 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[1].u_inv_round       |             aes_inv_round_pipe_510 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[1].u_inv_round)   |             aes_inv_round_pipe_510 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[2].u_inv_round       |             aes_inv_round_pipe_511 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[2].u_inv_round)   |             aes_inv_round_pipe_511 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[3].u_inv_round       |             aes_inv_round_pipe_512 |        445 |        445 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[3].u_inv_round)   |             aes_inv_round_pipe_512 |        445 |        445 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[4].u_inv_round       |             aes_inv_round_pipe_513 |        445 |        445 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[4].u_inv_round)   |             aes_inv_round_pipe_513 |        445 |        445 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[5].u_inv_round       |             aes_inv_round_pipe_514 |        445 |        445 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[5].u_inv_round)   |             aes_inv_round_pipe_514 |        445 |        445 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[6].u_inv_round       |             aes_inv_round_pipe_515 |        445 |        445 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[6].u_inv_round)   |             aes_inv_round_pipe_515 |        445 |        445 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[7].u_inv_round       |             aes_inv_round_pipe_516 |          0 |          0 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[7].u_inv_round)   |             aes_inv_round_pipe_516 |          0 |          0 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[8].u_inv_round       |             aes_inv_round_pipe_517 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[8].u_inv_round)   |             aes_inv_round_pipe_517 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_inv_rounds[9].u_inv_round       |             aes_inv_round_pipe_518 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_inv_rounds[9].u_inv_round)   |             aes_inv_round_pipe_518 |        447 |        447 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       u_mid_skid                          |                 aes_inv_skid_stage |        592 |        592 |       0 |    0 |    531 |      0 |      0 |    0 |          0 |
+|       u_out_skid                          |             aes_inv_skid_stage_519 |        951 |        951 |       0 |    0 |    533 |      0 |      0 |    0 |          0 |
+|       u_s0_skid                           |             aes_inv_skid_stage_520 |       1258 |       1258 |       0 |    0 |    530 |      0 |      0 |    0 |          0 |
+|     u_enc_lane                            |                       aes_xts_lane |       3952 |       3952 |       0 |    0 |   4907 |      0 |      0 |    0 |          0 |
+|       (u_enc_lane)                        |                       aes_xts_lane |        127 |        127 |       0 |    0 |   1806 |      0 |      0 |    0 |          0 |
+|       gen_rounds[10].u_round              |                 aes_round_pipe_267 |        143 |        143 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[10].u_round)          |                 aes_round_pipe_267 |        143 |        143 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[11].u_round              |                 aes_round_pipe_268 |        146 |        146 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[11].u_round)          |                 aes_round_pipe_268 |        146 |        146 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[12].u_round              |                 aes_round_pipe_269 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[12].u_round)          |                 aes_round_pipe_269 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[13].u_round              |                 aes_round_pipe_270 |          6 |          6 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[13].u_round)          |                 aes_round_pipe_270 |          6 |          6 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[14].u_round              |                 aes_round_pipe_271 |        129 |        129 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[14].u_round)          |                 aes_round_pipe_271 |        129 |        129 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[1].u_round               |                 aes_round_pipe_272 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[1].u_round)           |                 aes_round_pipe_272 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[2].u_round               |                 aes_round_pipe_273 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[2].u_round)           |                 aes_round_pipe_273 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[3].u_round               |                 aes_round_pipe_274 |        143 |        143 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[3].u_round)           |                 aes_round_pipe_274 |        143 |        143 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[4].u_round               |                 aes_round_pipe_275 |        146 |        146 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[4].u_round)           |                 aes_round_pipe_275 |        146 |        146 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[5].u_round               |                 aes_round_pipe_276 |        145 |        145 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[5].u_round)           |                 aes_round_pipe_276 |        145 |        145 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[6].u_round               |                 aes_round_pipe_277 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[6].u_round)           |                 aes_round_pipe_277 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[7].u_round               |                 aes_round_pipe_278 |          1 |          1 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[7].u_round)           |                 aes_round_pipe_278 |          1 |          1 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[8].u_round               |                 aes_round_pipe_279 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[8].u_round)           |                 aes_round_pipe_279 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_rounds[9].u_round               |                 aes_round_pipe_280 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_rounds[9].u_round)           |                 aes_round_pipe_280 |        144 |        144 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       u_mid_skid                          |                 aes_xts_skid_stage |        280 |        280 |       0 |    0 |    519 |      0 |      0 |    0 |          0 |
+|       u_out_skid                          | aes_xts_skid_stage__parameterized0 |        476 |        476 |       0 |    0 |    260 |      0 |      0 |    0 |          0 |
+|       u_s0_skid                           |             aes_xts_skid_stage_281 |       1347 |       1347 |       0 |    0 |    516 |      0 |      0 |    0 |          0 |
+|     u_integ_csr                           |              qshield_integrity_csr |       1361 |       1361 |       0 |    0 |    337 |      0 |      0 |    0 |          0 |
+|     u_k1_expand                           |                  aes256_key_expand |        806 |        806 |       0 |    0 |   2441 |      0 |      0 |    0 |          0 |
+|       (u_k1_expand)                       |                  aes256_key_expand |        806 |        806 |       0 |    0 |   2441 |      0 |      0 |    0 |          0 |
+|     u_k2_expand                           |               aes256_key_expand_16 |        731 |        731 |       0 |    0 |   2441 |      0 |      0 |    0 |          0 |
+|       (u_k2_expand)                       |               aes256_key_expand_16 |        731 |        731 |       0 |    0 |   2441 |      0 |      0 |    0 |          0 |
+|     u_k3_expand                           |               aes256_key_expand_17 |       1201 |       1201 |       0 |    0 |   2441 |      0 |      0 |    0 |          0 |
+|       (u_k3_expand)                       |               aes256_key_expand_17 |       1201 |       1201 |       0 |    0 |   2441 |      0 |      0 |    0 |          0 |
+|     u_tweak_unit                          |             qshield_xts_tweak_unit |       2119 |       2119 |       0 |    0 |   1918 |      0 |      0 |    0 |          0 |
+|       (u_tweak_unit)                      |             qshield_xts_tweak_unit |         25 |         25 |       0 |    0 |    112 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[10].u_round        |                  aes_round_pipe_18 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[10].u_round)    |                  aes_round_pipe_18 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[11].u_round        |                  aes_round_pipe_19 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[11].u_round)    |                  aes_round_pipe_19 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[12].u_round        |                  aes_round_pipe_20 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[12].u_round)    |                  aes_round_pipe_20 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[13].u_round        |                  aes_round_pipe_21 |          0 |          0 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[13].u_round)    |                  aes_round_pipe_21 |          0 |          0 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[14].u_round        |                  aes_round_pipe_22 |        288 |        288 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[14].u_round)    |                  aes_round_pipe_22 |        288 |        288 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[1].u_round         |                  aes_round_pipe_23 |        244 |        244 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[1].u_round)     |                  aes_round_pipe_23 |        244 |        244 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[2].u_round         |                  aes_round_pipe_24 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[2].u_round)     |                  aes_round_pipe_24 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[3].u_round         |                  aes_round_pipe_25 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[3].u_round)     |                  aes_round_pipe_25 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[4].u_round         |                  aes_round_pipe_26 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[4].u_round)     |                  aes_round_pipe_26 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[5].u_round         |                  aes_round_pipe_27 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[5].u_round)     |                  aes_round_pipe_27 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[6].u_round         |                  aes_round_pipe_28 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[6].u_round)     |                  aes_round_pipe_28 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[7].u_round         |                  aes_round_pipe_29 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[7].u_round)     |                  aes_round_pipe_29 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[8].u_round         |                  aes_round_pipe_30 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[8].u_round)     |                  aes_round_pipe_30 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|       gen_tweak_rounds[9].u_round         |                  aes_round_pipe_31 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|         (gen_tweak_rounds[9].u_round)     |                  aes_round_pipe_31 |        142 |        142 |       0 |    0 |    129 |      0 |      0 |    0 |          0 |
+|   u_mc_core                               |                    axi_ddr5_mc_top |      62943 |      62792 |     108 |   43 |  44326 |      0 |      0 |    0 |          0 |
+|     (u_mc_core)                           |                    axi_ddr5_mc_top |        235 |        183 |      52 |    0 |    764 |      0 |      0 |    0 |          0 |
+|     u_addr_mapper                         |                   addr_mapper_ddr5 |        470 |        439 |       0 |   31 |    153 |      0 |      0 |    0 |          0 |
+|       u_scarf_randomizer                  |            scarf_dram_randomizer_2 |        433 |        423 |       0 |   10 |    111 |      0 |      0 |    0 |          0 |
+|     u_ar_split                            |                 axi_burst_splitter |        169 |        169 |       0 |    0 |    112 |      0 |      0 |    0 |          0 |
+|     u_arbiter                             |                slack_aware_arbiter |        216 |        216 |       0 |    0 |     11 |      0 |      0 |    0 |          0 |
+|     u_ate                                 |          adaptive_threshold_engine |        288 |        288 |       0 |    0 |    246 |      0 |      0 |    0 |          0 |
+|     u_aw_split                            |               axi_burst_splitter_0 |        208 |        208 |       0 |    0 |    112 |      0 |      0 |    0 |          0 |
+|     u_bank_credit                         |                   bank_credit_ctrl |        949 |        949 |       0 |    0 |    204 |      0 |      0 |    0 |          0 |
+|     u_cmd_engine                          |                    ddr5_cmd_engine |       9642 |       9630 |      12 |    0 |   4403 |      0 |      0 |    0 |          0 |
+|     u_decoy_prf                           |              scarf_dram_randomizer |        173 |        173 |       0 |    0 |     95 |      0 |      0 |    0 |          0 |
+|     u_drm                                 |           directed_refresh_manager |       3050 |       3050 |       0 |    0 |   2352 |      0 |      0 |    0 |          0 |
+|     u_ecc_scrubber                        |                       ecc_scrubber |         75 |         75 |       0 |    0 |     87 |      0 |      0 |    0 |          0 |
+|     u_frontend                            |                 axi_slave_frontend |        186 |        186 |       0 |    0 |    527 |      0 |      0 |    0 |          0 |
+|       u_w_skid                            |   axi4_skid_buffer__parameterized0 |         36 |         36 |       0 |    0 |    148 |      0 |      0 |    0 |          0 |
+|       u_ar_skid                           |                   axi4_skid_buffer |         33 |         33 |       0 |    0 |    108 |      0 |      0 |    0 |          0 |
+|       u_aw_skid                           |                 axi4_skid_buffer_1 |         14 |         14 |       0 |    0 |    108 |      0 |      0 |    0 |          0 |
+|       u_r_skid                            |   axi4_skid_buffer__parameterized2 |         91 |         91 |       0 |    0 |    152 |      0 |      0 |    0 |          0 |
+|     u_pmu                                 |                  perf_monitor_unit |        328 |        328 |       0 |    0 |    263 |      0 |      0 |    0 |          0 |
+|     u_qos_queue                           |                qos_scheduler_queue |      15265 |      15265 |       0 |    0 |   5372 |      0 |      0 |    0 |          0 |
+|     u_rd_iq                               |                     rd_issue_queue |       1306 |       1306 |       0 |    0 |    503 |      0 |      0 |    0 |          0 |
+|     u_rd_ks                               |  scrambler_ks_pipe__parameterized0 |        400 |        399 |       0 |    1 |    391 |      0 |      0 |    0 |          0 |
+|     u_rob                                 |                 reorder_buffer_rob |       4470 |       4470 |       0 |    0 |   9211 |      0 |      0 |    0 |          0 |
+|     u_sdc_filter                          |               sdc_resilient_filter |      11987 |      11987 |       0 |    0 |   9244 |      0 |      0 |    0 |          0 |
+|     u_wdata_buffer                        |                       wdata_buffer |        271 |        227 |      44 |    0 |    364 |      0 |      0 |    0 |          0 |
+|     u_wds                                 |                      wr_data_store |      12977 |      12977 |       0 |    0 |   9444 |      0 |      0 |    0 |          0 |
+|     u_wr_ks                               |                  scrambler_ks_pipe |        446 |        435 |       0 |   11 |    446 |      0 |      0 |    0 |          0 |
++-------------------------------------------+------------------------------------+------------+------------+---------+------+--------+--------+--------+------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

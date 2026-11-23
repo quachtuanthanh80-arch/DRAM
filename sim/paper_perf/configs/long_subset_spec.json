@@ -1,0 +1,135 @@
+{
+  "git_commit": "847f9ba8e849a2b5b74efc57d075f6a17802994b",
+  "num_max_cycles": 134400000,
+  "num_expected_insts": 2000000000,
+  "expected_ctrl_cycles": 53760000,
+  "expected_sim_time_ms": 33.6,
+  "tREFW_ms": 32.0,
+  "nrh_values": [
+    1024,
+    128
+  ],
+  "schemes": [
+    "Baseline",
+    "BlockHammer",
+    "PARA_ACT",
+    "Graphene_ACT",
+    "Hydra_ACT",
+    "QShield",
+    "QShield_Integ",
+    "PARA",
+    "Graphene",
+    "Hydra",
+    "PRAC",
+    "RFM"
+  ],
+  "para_seeds": [
+    123,
+    456,
+    789
+  ],
+  "selection_rationale": "6 single-core workloads (2 per LLC MPKI group from matrix_spec.json): High=[429.mcf (highest MPKI, mandatory), tpch6 (explicitly requested, low DRAM MPKI 4.46, short trace 279,379 lines)]; Medium=[tpch17 (mid-high Medium), 401.bzip2 (median Medium, attack co-runner)]; Low=[511.povray (longest Low trace 3.22M lines), 458.sjeng (median Low, attack co-runner)]. Plus all 4 attack scenarios (1 attacker + 3 co-runners: 434.zeusmp, 401.bzip2, 458.sjeng) and Baseline alone run for 434.zeusmp at the exact same time window.",
+  "single_core": [
+    {
+      "name": "429.mcf",
+      "path": "/home/thanh/refs/Chronus/cputraces/429.mcf",
+      "size_bytes": 290750457,
+      "sha256": "3cb7239ad448c19375522c26c684846a1563eeddf4ad5d604a06e2941781bc37",
+      "lines": 15281312,
+      "llc_mpki": 464.6451,
+      "dram_mpki": 72.198,
+      "baseline_ipc_5m": 0.3869,
+      "group": "High"
+    },
+    {
+      "name": "tpch6",
+      "path": "/home/thanh/refs/Chronus/cputraces/tpch6",
+      "size_bytes": 5218073,
+      "sha256": "c4dead49e9a1a361868b4ceaa33a71c2e5bfa4992816fe6758fc0c52acfddce3",
+      "lines": 279379,
+      "llc_mpki": 17.2958,
+      "dram_mpki": 4.4582,
+      "baseline_ipc_5m": 2.3172,
+      "group": "High"
+    },
+    {
+      "name": "tpch17",
+      "path": "/home/thanh/refs/Chronus/cputraces/tpch17",
+      "size_bytes": 42615312,
+      "sha256": "71a3b53fc65a90234fe5507059daebe2d40d3883234415aa512f0b5d55727cfb",
+      "lines": 2339287,
+      "llc_mpki": 6.7552,
+      "dram_mpki": 6.8332,
+      "baseline_ipc_5m": 1.2399,
+      "group": "Medium"
+    },
+    {
+      "name": "401.bzip2",
+      "path": "/home/thanh/refs/Chronus/cputraces/401.bzip2",
+      "size_bytes": 20716563,
+      "sha256": "c3d251c8fd7f0f6d8575e50a63f359ce75bdd20f5076ce4fcde16f715074068d",
+      "lines": 856299,
+      "llc_mpki": 3.3076,
+      "dram_mpki": 3.3076,
+      "baseline_ipc_5m": 2.2355,
+      "group": "Medium"
+    },
+    {
+      "name": "511.povray",
+      "path": "/home/thanh/refs/Chronus/cputraces/511.povray",
+      "size_bytes": 46817099,
+      "sha256": "55a244b78ba4706588d4287b0f67a64953a5a380a70ae5f31e3f57daddc186d1",
+      "lines": 3218300,
+      "llc_mpki": 0.358,
+      "dram_mpki": 0.2852,
+      "baseline_ipc_5m": 2.974,
+      "group": "Low"
+    },
+    {
+      "name": "458.sjeng",
+      "path": "/home/thanh/refs/Chronus/cputraces/458.sjeng",
+      "size_bytes": 2100864,
+      "sha256": "8f13ca712f36daac7d914b01a5d794fde6689fa5c5b962a02056f2824a44c128",
+      "lines": 71977,
+      "llc_mpki": 0.581,
+      "dram_mpki": 0.51,
+      "baseline_ipc_5m": 3.1946,
+      "group": "Low"
+    }
+  ],
+  "attack_corunners": [
+    "434.zeusmp",
+    "401.bzip2",
+    "458.sjeng"
+  ],
+  "extra_attack_alone_baselines": [
+    "434.zeusmp"
+  ],
+  "attacks": [
+    {
+      "name": "double_sided",
+      "path": "/mnt/d/RAM/sim/paper_perf/attacks/double_sided.trace",
+      "lines": 1800,
+      "sha256": "86167a869011ef2aee34abea0415c18c6957593ecc4ced621c8e60c1fe061844"
+    },
+    {
+      "name": "half_double",
+      "path": "/mnt/d/RAM/sim/paper_perf/attacks/half_double.trace",
+      "lines": 2160,
+      "sha256": "3baad5b6ed319f3bc210355dfb9ee91889abe3047bebc23b6bfc06bec60d9643"
+    },
+    {
+      "name": "many_sided",
+      "path": "/mnt/d/RAM/sim/paper_perf/attacks/many_sided.trace",
+      "lines": 1800,
+      "sha256": "11fd3f718560b84a3240d1a8b51f8ebd6d061c3aa73176303e97c66748ba7b95"
+    },
+    {
+      "name": "rowpress_hold",
+      "path": "/mnt/d/RAM/sim/paper_perf/attacks/rowpress_hold.trace",
+      "lines": 14720,
+      "sha256": "2e6aa68b21e09dbdb2cbb444f1afe5d956b4a96a2486bda34bf4733f2eb9cf0d"
+    }
+  ],
+  "total_jobs": 321
+}

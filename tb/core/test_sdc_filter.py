@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_sdc_filter.py
 # Description: Verifies Novelty Pillar #1 (Configurable Dual-Hash SDC Filter):
 #              1. RowHammer activation threshold detection & throttle flag assertion.

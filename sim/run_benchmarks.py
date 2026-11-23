@@ -33,15 +33,6 @@ DEFAULT_RESULTS_DIR = os.path.join(SCRIPT_DIR, "results")
 DEFAULT_TRACES_DIR = os.path.join(SCRIPT_DIR, "traces")
 
 DRAM_CONFIGS = {
-    "DDR4-3200": {
-        "org": "DDR4_8Gb_x8",
-        "timing": "DDR4_3200AA",
-        "rank": 2,
-        "channel_width_bits": 64,
-        "tCK_ns": 0.625,
-        "theoretical_peak_gbps": 25.6,
-        "supported_schemes": ["Baseline", "BlockHammer", "Q-Shield"],
-    },
     "DDR5-4800": {
         "org": "DDR5_16Gb_x8",
         "timing": "DDR5_4800B",
@@ -172,7 +163,7 @@ def run_single_simulation(dram_name, dram_info, workload_name, workload_info, tr
         # Real Ramulator 2.0 invocation
         try:
             frontend = ramulator.frontend.LoadStoreTrace(clock_ratio=2, path=trace_path)
-            dram_cls = ramulator.dram.DDR4 if dram_name.startswith("DDR4") else ramulator.dram.DDR5
+            dram_cls = ramulator.dram.DDR5
             dram = dram_cls(org_preset=dram_info["org"], timing_preset=dram_info["timing"], rank=dram_info["rank"], verbose=False)
             if scheme == "Baseline":
                 ctrl = ramulator.controller.GenericDDR(dram=dram, scheduler=ramulator.scheduler.FRFCFS(), refresh_manager=ramulator.refresh_manager.AllBank(), row_policy=ramulator.row_policy.Open(), addr_mapper=ramulator.addr_mapper.RoBaRaCoCh())
@@ -410,7 +401,7 @@ def main():
             bw = f"{item['throughput_mbps']['mean']:.1f} $\\pm$ {item['throughput_mbps']['stddev']:.1f}"
             lat = f"{item['read_latency_ns']['mean']:.1f}"
             slow = f"{item['slowdown']['mean']:.2f}$\\times$"
-            ovh = "0.0\\%" if item['scheme'] == "Q-Shield" else ("N/A" if item['scheme'] == "Baseline" else "Severe")
+            ovh = f"{item['overhead_pct']['mean']:.2f}\\%" if "overhead_pct" in item else "N/A"
             f.write(f"{item['dram']} & {item['workload']} & {sch} & {bw} & {lat} & {slow} & {ovh} \\\\\n")
         f.write("\\hline\n")
         f.write("\\end{tabular}\n")

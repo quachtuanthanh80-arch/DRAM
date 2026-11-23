@@ -2,7 +2,7 @@
 """
 ===============================================================================
 Script:      extract_asic_metrics.py
-Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 Description: Automated Parser and Metric Extractor for Synopsys Design Compiler (DC)
              Reports (Area, Timing, Power, QoR, Cell Distribution).
 Outputs:     - Terminal Summary Dashboard

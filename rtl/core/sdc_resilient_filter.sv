@@ -233,16 +233,28 @@ module sdc_resilient_filter #(
         end
     end
 
-    // SledgeHammer Defense: Cross-Bank Multi-Active Monitoring
-    logic [BANK_COUNT-1:0] bank_throttled_flags;
-    logic                  coordinated_throttle_active;
-    logic [15:0]           coordinated_throttle_cnt;
+    // SledgeHammer Defense: Cross-Bank Multi-Active Monitoring ({bg, bank} = 32 physical banks)
+    localparam int TOTAL_BANKS = 1 << (BG_WIDTH + BANK_WIDTH);
+    logic [TOTAL_BANKS-1:0] phys_bank_throttled_flags;
+    logic [BANK_COUNT-1:0]  bank_throttled_flags;
+    logic                   coordinated_throttle_active;
+    logic [15:0]            coordinated_throttle_cnt;
+
+    always_comb begin
+        bank_throttled_flags = '0;
+        for (int g = 0; g < (1 << BG_WIDTH); g++) begin
+            bank_throttled_flags = bank_throttled_flags | phys_bank_throttled_flags[g * BANK_COUNT +: BANK_COUNT];
+        end
+    end
 
     assign o_coordinated_throttle_active = coordinated_throttle_active;
     assign o_bank_throttled_flags         = bank_throttled_flags;
     assign o_coordinated_throttle_cnt     = coordinated_throttle_cnt;
 
-    wire will_throttle      = (effective_count >= thresh_q);
+    // So sánh song song hai bảng với thresh_q (min(a,b) >= T <=> a >= T && b >= T) để bỏ 1 tầng CARRY8 nối tiếp (R12).
+    wire ge_a               = (cur_cnt_a >= thresh_q);
+    wire ge_b               = (cur_cnt_b >= thresh_q);
+    wire will_throttle      = ge_a && (!cfg_hash_mode || ge_b);
     wire effective_throttle = will_throttle || coordinated_throttle_active;
 
     // Handshake control
@@ -251,16 +263,15 @@ module sdc_resilient_filter #(
 
     // Table Update on Handshake
     wire [COUNT_WIDTH-1:0] inc_val = 1'b1 + COUNT_WIDTH'(i_rowpress_weight);
-    // Hàng chạm ngưỡng: lệnh giảm thiểu làm tươi nạn nhân nên đếm lại từ 0 (mỗi T ACT một lần giảm thiểu).
-    // Giữ nguyên số đếm sẽ giảm thiểu ở MỌI truy cập tới hết tREFW (bão refresh). Đánh đổi: hàng khác dùng chung
-    // bin có thể bị đếm thiếu, nên bảo đảm hiệu dụng là 2T ACT -> cấu hình T <= ngưỡng RowHammer / 2.
+    // Hàng chạm ngưỡng: trừ T (bão hoà ở 0) thay vì xoá thẳng về 0 để giữ lại phần tích luỹ của hàng khác
+    // dùng chung một bin do va chạm băm, không mất đếm sai lệch như ở bài R-82.
     always_comb begin
-        if (will_throttle)                                  new_cnt_a = '0;
+        if (will_throttle)                                     new_cnt_a = ge_a ? (cur_cnt_a - thresh_q) : '0;
         else if (cur_cnt_a <= ({COUNT_WIDTH{1'b1}} - inc_val)) new_cnt_a = cur_cnt_a + inc_val;
-        else                                                new_cnt_a = {COUNT_WIDTH{1'b1}};
-        if (will_throttle)                                  new_cnt_b = '0;
+        else                                                   new_cnt_a = {COUNT_WIDTH{1'b1}};
+        if (will_throttle)                                     new_cnt_b = ge_b ? (cur_cnt_b - thresh_q) : '0;
         else if (cur_cnt_b <= ({COUNT_WIDTH{1'b1}} - inc_val)) new_cnt_b = cur_cnt_b + inc_val;
-        else                                                new_cnt_b = {COUNT_WIDTH{1'b1}};
+        else                                                   new_cnt_b = {COUNT_WIDTH{1'b1}};
     end
 
     always_ff @(posedge clk or negedge rst_n) begin
@@ -302,7 +313,8 @@ module sdc_resilient_filter #(
     logic                      out_valid;
     logic [AXI_ID_WIDTH-1:0]   out_id;
     logic                      out_is_write;
-    logic [BG_WIDTH-1:0]       out_bg;
+    // Giới hạn fanout để Vivado giữ các bản sao thanh ghi cho đường out_bg -> u_qos_queue/q_age (R12).
+    (* max_fanout = 64 *) logic [BG_WIDTH-1:0] out_bg;
     logic [BANK_WIDTH-1:0]     out_bank;
     logic [ROW_WIDTH-1:0]      out_row;
     logic [COL_WIDTH-1:0]      out_col;
@@ -338,22 +350,22 @@ module sdc_resilient_filter #(
             sdc_alert_reg               <= 1'b0;
             telemetry_accesses_reg      <= '0;
             telemetry_throttles_reg     <= '0;
-            bank_throttled_flags        <= '0;
+            phys_bank_throttled_flags   <= '0;
             coordinated_throttle_active <= 1'b0;
             coordinated_throttle_cnt    <= '0;
         end else begin
             // Mitigation pulse is single-cycle
             mitigation_req_reg <= 1'b0;
 
-            // SledgeHammer Cross-Bank tracking
+            // SledgeHammer Cross-Bank tracking theo {bg, bank} đầy đủ 32 bank vật lý
             if (window_timer >= cfg_window_size) begin
-                bank_throttled_flags        <= '0;
+                phys_bank_throttled_flags   <= '0;
                 coordinated_throttle_active <= 1'b0;
             end else begin
                 if (s_fire && will_throttle) begin
-                    bank_throttled_flags[s_bank] <= 1'b1;
+                    phys_bank_throttled_flags[{s_bg, s_bank}] <= 1'b1;
                 end
-                if ($countones(bank_throttled_flags) > cfg_multibank_thresh) begin
+                if ($countones(phys_bank_throttled_flags) > cfg_multibank_thresh) begin
                     coordinated_throttle_active <= 1'b1;
                     if (!coordinated_throttle_active) begin
                         coordinated_throttle_cnt <= coordinated_throttle_cnt + 1'b1;
@@ -378,11 +390,15 @@ module sdc_resilient_filter #(
 
                     if (effective_throttle) begin
                         telemetry_throttles_reg <= telemetry_throttles_reg + 1'b1;
+                        sdc_alert_reg           <= 1'b1;
+                    end
+                    // Chỉ kích DRFM khi hàng đang xét thật sự chạm ngưỡng (will_throttle); không biến
+                    // coordinated_throttle_active thành bão refresh cho các lệnh dưới ngưỡng.
+                    if (will_throttle) begin
                         mitigation_req_reg      <= 1'b1;
                         mitigation_bg_reg       <= s_bg;
                         mitigation_bank_reg     <= s_bank;
                         mitigation_row_reg      <= s_row;
-                        sdc_alert_reg           <= 1'b1;
                     end
                 end
             end
@@ -485,7 +501,7 @@ module sdc_resilient_filter #(
     // Property 6: SledgeHammer Multi-Bank Coordinated Throttling Guarantee
     always_ff @(posedge clk) begin
         if (rst_n && $past(rst_n)) begin
-            if ($past(rst_n && ($countones(bank_throttled_flags) > cfg_multibank_thresh) && (window_timer < cfg_window_size))) begin
+            if ($past(rst_n && ($countones(phys_bank_throttled_flags) > cfg_multibank_thresh) && (window_timer < cfg_window_size))) begin
                 assert (coordinated_throttle_active);
             end
         end

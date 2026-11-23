@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_semiconductor_lifecycle.py
 # Description: Industrial 3-Stage Semiconductor Memory Verification & Validation Suite:
 #

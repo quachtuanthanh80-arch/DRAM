@@ -1,117 +1,48 @@
 # Q-Shield Formal Verification Report & SVA Specification
 
-This document details the formal verification methodology, temporal logic specifications, SystemVerilog Assertions (SVA), solver assumptions, and proof guarantees for the **Q-Shield** secure memory controller.
+This document details the formal verification methodology, SystemVerilog Assertions (SVA), solver setup, verified bounded checks, and known limitations for the **Q-Shield** DDR5 secure memory controller.
 
 ---
 
-> **Status of this document.** The property table below was written for earlier revisions of the RTL and has not been
-> fully re-run against the current RTL. What has been re-run and passes: bounded model checking (depth 12 to 15) for the
-> lock and key-valid rules, scheduler bank timing, AXI4 handshake stability and reorder-buffer beat conservation
-> (`formal/formal_sec_lock.sby`, `formal_scheduler_bank.sby`, `formal_axi_protocol.sby`, `formal_rob_retire.sby`).
-> The integrity invariants (`formal/formal_integrity.sby`) are proven on an **abstract model**
-> (`formal/integrity_formal.sv`) that does not instantiate the RTL, with reduced parameters. Bounded model checking
-> shows that no violation exists within the stated depth; it is not an unbounded proof. Claims of unbounded proofs
-> (k-induction) in the table remain to be re-verified.
-
+> **Status of this document.** The verified formal evidence in this repository consists of **five SymbiYosys Bounded Model Checking (BMC) + Cover suites** executed with Z3. Bounded model checking confirms that no assertion violation occurs within the stated cycle depth (`depth 15`); it is **not** an unbounded proof. In addition, the integrity suite (`formal/formal_integrity.sby`) verifies an **abstract model** (`formal/integrity_formal.sv`) with reduced parameters that does not instantiate the RTL (`qshield_bmt_engine`, `qshield_meta_cache`, `qshield_axi_crypto_bridge`). Earlier legacy `.sby` tables claiming unbounded $k$-induction (`k = 20..30`) have not been re-verified on the current RTL and are listed separately below.
 
 ## 1. Formal Verification Architecture & Solver Setup
 
-- **Toolchain**: SymbiYosys (SBY) v0.38+ with Yosys 0.38+
-- **SMT Solvers**: Yices 2.6.4 (primary for bit-level arithmetic and BMC), Z3 4.12.2 (secondary for $k$-induction)
-- **Clock Domain**: Synchronous controller core domain (`clk`, active-high synchronous `rst_n`)
-- **Execution Script**: [`formal/run_all_formal.sh`](formal/run_all_formal.sh)
+- **Toolchain**: SymbiYosys (SBY) with Yosys 0.52 (executed in WSL Ubuntu)
+- **SMT Solver**: Z3 (`smtbmc z3`)
+- **Clock Domain**: Single synchronous controller core domain (`clk`, active-low `rst_n`)
+- **Concurrent SVA Library (for commercial simulators)**: [`tb/sv_props/`](tb/sv_props/) (`integrity_invariants_sva.sv`, `security_lock_sva.sv`, `scheduler_sva.sv`, `axi_protocol_sva.sv`, `rob_sva.sv`)
+- **Known Open Legacy Assertions**: [`formal/known_open.txt`](formal/known_open.txt)
 
 ---
 
-## 2. Classification of Formal Properties: BMC vs. Induction
+## 2. Verified Formal Suites (BMC + Cover)
 
-Formal methods distinguish between **Bounded Model Checking (BMC)** (which verifies that no safety property is violated within the first $k$ cycles from reset) and **$k$-Induction (Prove Mode)** (which mathematically proves unbounded correctness for all future time steps).
+All five suites below were executed with SymbiYosys + Z3 and returned `PASS` (`rc = 0`, 17 cover traces total; logged in [`formal/evidence/bmc_cover_run.log`](formal/evidence/bmc_cover_run.log)):
 
-| # | Property Target | SBY Configuration File | Mode | Depth ($k$) | Solver | Verified Guarantee |
-| :- | :--- | :--- | :--- | :-: | :--- | :--- |
-| **P1** | SDC Counter Monotonicity | [`formal_sdc_filter.sby`](formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: Counters monotonically increment upon activation; never decrement or wrap illegally. |
-| **P2** | SDC Single-Cycle Reset | [`formal_sdc_filter.sby`](formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: On epoch trigger, all counter outputs evaluate to 0 within exactly 1 clock cycle. |
-| **P3** | SDC False-Negative Immunity | [`formal_sdc_filter.sby`](formal/formal_sdc_filter.sby) | **Prove ($k$-Ind)** | **30** | Yices + Z3 | Unbounded: If true row activations exceed threshold $T$, filter output never reports $< T$. |
-| **P4** | ATE Clamping Safety | [`formal_ate.sby`](formal/formal_ate.sby) | **BMC** | **20** | Yices | Bounded: Threshold $T_{thresh}$ is strictly bounded within $[T_{min}, T_{max}] = [16, 512]$ across all arbitrary inputs. |
-| **P5** | ATE Saturation Invariance | [`formal_ate.sby`](formal/formal_ate.sby) | **BMC** | **20** | Yices | Bounded: EWMA multiplier arithmetic does not experience arithmetic overflow or sign bit corruption. |
-| **P6** | DRM Rate Pacing Safety | [`formal_drm.sby`](formal/formal_drm.sby) | **BMC** | **20** | Yices | Bounded: Throttled aggressor rows cannot exceed target dispatch rate $R_{max}$. |
-| **P7** | DRM Queue Non-Starvation | [`formal_drm.sby`](formal/formal_drm.sby) | **BMC** | **20** | Yices | Bounded: Benign bank queues never experience indefinite backpressure due to aggressor stalls. |
-| **P8** | CMD $t_{RCD}$ Timing Compliance | [`formal_cmd_engine.sby`](formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: `READ`/`WRITE` commands are strictly separated from prior `ACT` by $\ge t_{RCD}$ cycles. |
-| **P9** | CMD $t_{RP}$ Precharge Compliance | [`formal_cmd_engine.sby`](formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: Subsequent `ACT` to same bank is strictly separated from `PRE` by $\ge t_{RP}$ cycles. |
-| **P10** | CMD $t_{CCD\_L}$ Bank Group Spacing | [`formal_cmd_engine.sby`](formal/formal_cmd_engine.sby) | **BMC** | **25** | Yices | Bounded: Back-to-back column commands to same bank group respect $t_{CCD\_L}$ timing gap. |
-| **P11** | Skid Buffer Zero-Drop Liveness | [`formal_skid_buffer.sby`](formal/formal_skid_buffer.sby) | **Prove ($k$-Ind)** | **20** | Yices + Z3 | Unbounded: No valid transaction beats are dropped during backpressure handshake transitions. |
-
-### 2.1 BMC Depth Selection & Justification
-
-The finite depth $k \in [20, 25]$ for properties P4–P10 was chosen based on hardware protocol boundaries and controller pipeline stages:
-- **JEDEC DDR5 Timing**: $t_{RCD}$ (14 ns) corresponds to ~35 physical PHY cycles or ~18 controller core cycles at 1.25 GHz.
-- **Controller Pipeline Latency**: AXI4 skid buffer to command dispatch queue latency is bounded at 4 cycles max.
-- **Typical Row Access Sequence**: An activation sequence ($\text{ACT} \rightarrow t_{RCD} \rightarrow \text{RD/WR} \rightarrow t_{CAS} \rightarrow \text{DATA}$) takes ~20–22 controller core cycles.
-- **Transaction Coverage**: Therefore, $k = 25$ covers a complete single-row access transaction cycle from arrival to bus retirement.
-
-⚠️ **Formal Boundary & Unchecked Scenarios**:
-- Attacks spanning $> 25$ cycles (e.g., multi-epoch coordinated refresh conflicts or long-term threshold drift) are not formally proven unbounded under BMC.
-- These long-term dynamics are mitigated in hardware by the Dynamic Rate Limiter (DRM) leaky bucket rate pacing, which is empirically validated across 50M-cycle simulation windows.
+| # | Target Scope | SBY Configuration File | Model / Source | BMC Mode & Depth | Cover Mode & Traces | Checked Safety Invariants (Bounded) |
+| :- | :--- | :--- | :--- | :-: | :-: | :--- |
+| **F1** | Integrity & BMT Invariants | [`formal_integrity.sby`](formal/formal_integrity.sby) | **Abstract model** (`formal/integrity_formal.sv`, no RTL instantiation) | BMC `depth 15` PASS | Cover `depth 12` (4 traces) PASS | Uniqueness of `(major, minor, addr)` and `(L, major, minor)`, MAC failure returning SLVERR, metadata cache unpinned way rule, BMT root update consistency. |
+| **F2** | Security Lock & Key-Valid Gating | [`formal_sec_lock.sby`](formal/formal_sec_lock.sby) | `formal/sec_lock_formal.sv`, `formal/apb_csr_regs.sv`, `formal/fault_hardened_csr.sv` | BMC `depth 15` PASS | Cover `depth 8` (2 traces) PASS | Once `sec_locked` is asserted, `enc_enable` remains stable; `!keys_valid` gates `pipe_in_valid`; non-secure APB writes return `pslverr`. |
+| **F3** | Scheduler Bank Timing | [`formal_scheduler_bank.sby`](formal/formal_scheduler_bank.sby) | `formal/scheduler_bank_formal.sv`, `formal/ddr5_subchannel_scheduler.sv` | BMC `depth 15` PASS | Cover `depth 15` (4 traces) PASS | `RD`/`WR` commands require the targeted `{bg, bank}` to be in `BANK_ACTIVE` state after `ACT` (covering `ACT`, `RD`, `WR`, `PRE`). |
+| **F4** | AMBA AXI4 Handshake Stability | [`formal_axi_protocol.sby`](formal/formal_axi_protocol.sby) | `formal/axi_protocol_formal.sv` | BMC `depth 15` PASS | Cover `depth 15` (3 traces) PASS | Channel `VALID` and payload stability under backpressure (`!READY`) and bounded handshake progress. |
+| **F5** | ROB Beat Conservation | [`formal_rob_retire.sby`](formal/formal_rob_retire.sby) | `formal/rob_retire_formal.sv` | BMC `depth 15` PASS | Cover `depth 15` (4 traces) PASS | Read beat conservation across retirement and no duplicate `R` beat emission when `RREADY = 0`. |
 
 ---
 
-## 3. Temporal Logic & SystemVerilog Assertion (SVA) Specifications
+## 3. Legacy Formal Targets (Not Re-Verified on Current RTL)
 
-### 3.1 P2: Single-Cycle Epoch Reset
-$$\mathbf{G} \left( \text{epoch\_reset\_pulse} \implies \mathbf{X} (\forall i \in [0, N-1], \; \text{filter\_count}[i] == 0) \right)$$
-```systemverilog
-property p_single_cycle_epoch_reset;
-    @(posedge clk) disable iff (!rst_n)
-    epoch_reset_pulse |=> (filter_effective_count == '0);
-endproperty
-assert property (p_single_cycle_epoch_reset);
-```
+Older `.sby` configurations remain in `formal/` from earlier repository revisions (`formal_sdc_filter.sby`, `formal_ate.sby`, `formal_drm.sby`, `formal_cmd_engine.sby`, `formal_cmd_engine_v2.sby`, `formal_skid_buffer.sby`, `formal_ecc_scrubber.sby`, `formal_scrambler.sby`, `formal_async_fifo.sby`, `formal_qos_queue.sby`, `formal_slack_arbiter.sby`, `formal_rob.sby`, `formal_axi_frontend.sby`). They are **not** claimed as passing or unbounded $k$-induction proofs on the current RTL. Specifically, two legacy assertions are tracked as **known open** in [`formal/known_open.txt`](formal/known_open.txt):
 
-### 3.2 P3: SDC False-Negative Boundedness
-Let $A(r)$ be the true activation count of row $r$ within the current epoch, and $C(r) = \min(\text{Table}_1[h_1(r)], \text{Table}_2[h_2(r)])$ be the Count-Min estimate:
-$$\mathbf{G} \left( C(r) \ge A(r) \right)$$
-```systemverilog
-property p_sdc_no_false_negatives;
-    @(posedge clk) disable iff (!rst_n)
-    (true_row_activations >= threshold) |-> (filter_alert_flag == 1'b1);
-endproperty
-assert property (p_sdc_no_false_negatives);
-```
-
-### 3.3 P4: Adaptive Threshold Range Invariant
-$$\mathbf{G} \left( T_{min} \le T_{thresh} \le T_{max} \right)$$
-```systemverilog
-property p_ate_threshold_bounded;
-    @(posedge clk) disable iff (!rst_n)
-    (adaptive_threshold >= 16'd16) && (adaptive_threshold <= 16'd512);
-endproperty
-assert property (p_ate_threshold_bounded);
-```
-
-### 3.4 P8: JEDEC $t_{RCD}$ Timing Invariant
-$$\mathbf{G} \left( \text{cmd\_act}[b] \implies \neg \left( \bigvee_{i=1}^{t_{RCD}-1} \mathbf{X}^i (\text{cmd\_read}[b] \lor \text{cmd\_write}[b]) \right) \right)$$
-```systemverilog
-property p_jedec_trcd_compliance;
-    @(posedge clk) disable iff (!rst_n)
-    (cmd_valid && cmd_type == CMD_ACT) |-> 
-        not (##[1:PARAM_TRCD-1] (cmd_valid && (cmd_type == CMD_RD || cmd_type == CMD_WR) && cmd_bank == $past(cmd_bank)));
-endproperty
-assert property (p_jedec_trcd_compliance);
-```
+1. `formal_rob.sby` (`reorder_buffer_rob.sv`): legacy assertion `o_alloc_ready == !o_rob_full` does not account for `o_raw_hazard` gating `o_alloc_ready`.
+2. `formal_axi_frontend.sby` (`axi_slave_frontend.sv`): legacy `$past` assertion on `s_axi_rpoison` does not synchronize with the registered `u_r_skid` output stage under backpressure.
 
 ---
 
-## 4. Verification Assumptions & Unconstrained Inputs
+## 4. Verification Assumptions & Formal Boundaries
 
-To prove correctness without masking real failure modes, the formal harness applies only necessary protocol preconditions:
-1. **Reset Precondition**: Active-low reset `rst_n` remains asserted low for $\ge 2$ clock cycles before deassertion.
-2. **Valid Command Precondition**: Incoming AXI4 command requests adhere to valid address ranges (no undefined `1'bx` or `1'bz` control bits).
-3. **Unconstrained Attack Streams**: Row activation addresses and request frequencies are left **completely unconstrained** by the solver, allowing the formal engine to synthesize worst-case adversarial access sequences to expose safety violations.
-
----
-
-## 5. Formal Verification Limitations & Boundaries
-
-1. **Finite Depth of BMC Properties**: Properties P4–P10 are verified via Bounded Model Checking up to depth $k \in [20, 25]$. While sufficient to check command transitions and timer wrapping, BMC does not constitute an unbounded proof over arbitrary operating lifespans.
-2. **Synchronous Behavioral Abstraction**: Verification targets synthesizable register-transfer level (RTL) SystemVerilog. It abstracts analog PHY signaling, board-level impedance mismatches, clock jitter, and DRAM silicon crosstalk.
-3. **Non-Targeted Threat Classes**: Formal assertions do not model physical side-channel leakage (DPA/EM), speculative transient execution attacks, or thermal RowPress degradation beyond digital threshold models.
+1. **Reset Precondition**: Active-low reset `rst_n` is asserted during the initial cycles so sequential state starts in a well-defined reset state.
+2. **Protocol Assumptions**: Formal harnesses constrain incoming bus transactions to legal AXI4 / APB4 handshake sequences where required by the property under test.
+3. **Finite BMC Horizon**: All five verified suites use Bounded Model Checking (`depth 15`). Multi-epoch behaviors, long-horizon counter overflows, and refresh-window dynamics (`32 ms`) are outside the BMC horizon and are evaluated via RTL simulation and Ramulator2 rather than unbounded formal proofs.
+4. **Abstract Integrity Model**: `formal/integrity_formal.sv` models the BMT/MAC/counter protocol invariants with reduced parameters and does **not** instantiate the synthesizable RTL modules (`qshield_bmt_engine.sv`, `qshield_meta_cache.sv`, `qshield_axi_crypto_bridge.sv`). Functional equivalence on the RTL is checked via `tb_secure_top_integrity`, `tb_qshield_bmt_engine`, and `tb_qshield_meta_cache`.
+5. **Non-Targeted Threat Classes**: Formal assertions operate at the synchronous RTL / abstract model level and do not model analog PHY signaling, power/EM side channels, or physical DRAM cell crosstalk.

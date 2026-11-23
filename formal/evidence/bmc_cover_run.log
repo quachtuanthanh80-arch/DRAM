@@ -1,0 +1,529 @@
+SBY  2:48:20 [formal/formal_integrity_bmc] Removing directory '/mnt/d/RAM/formal/formal_integrity_bmc'.
+SBY  2:48:20 [formal/formal_integrity_bmc] Copy '/mnt/d/RAM/formal/integrity_formal.sv' to '/mnt/d/RAM/formal/formal_integrity_bmc/src/integrity_formal.sv'.
+SBY  2:48:20 [formal/formal_integrity_bmc] engine_0: smtbmc z3
+SBY  2:48:20 [formal/formal_integrity_cover] Removing directory '/mnt/d/RAM/formal/formal_integrity_cover'.
+SBY  2:48:21 [formal/formal_integrity_cover] Copy '/mnt/d/RAM/formal/integrity_formal.sv' to '/mnt/d/RAM/formal/formal_integrity_cover/src/integrity_formal.sv'.
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: smtbmc z3
+SBY  2:48:21 [formal/formal_integrity_bmc] base: starting process "cd formal/formal_integrity_bmc/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:48:21 [formal/formal_integrity_cover] base: starting process "cd formal/formal_integrity_cover/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:48:21 [formal/formal_integrity_bmc] base: Warning: Replacing memory \way_pinned with list of registers. See integrity_formal.sv:155
+SBY  2:48:21 [formal/formal_integrity_bmc] base: Warning: Replacing memory \set_pinned_cnt with list of registers. See integrity_formal.sv:143, integrity_formal.sv:140
+SBY  2:48:21 [formal/formal_integrity_bmc] base: Warning: Replacing memory \minor_table with list of registers. See integrity_formal.sv:68
+SBY  2:48:21 [formal/formal_integrity_bmc] base: Warning: Replacing memory \major_table with list of registers. See integrity_formal.sv:66
+SBY  2:48:21 [formal/formal_integrity_cover] base: Warning: Replacing memory \way_pinned with list of registers. See integrity_formal.sv:155
+SBY  2:48:21 [formal/formal_integrity_cover] base: Warning: Replacing memory \set_pinned_cnt with list of registers. See integrity_formal.sv:143, integrity_formal.sv:140
+SBY  2:48:21 [formal/formal_integrity_cover] base: Warning: Replacing memory \minor_table with list of registers. See integrity_formal.sv:68
+SBY  2:48:21 [formal/formal_integrity_cover] base: Warning: Replacing memory \major_table with list of registers. See integrity_formal.sv:66
+SBY  2:48:21 [formal/formal_integrity_bmc] base: finished (returncode=0)
+SBY  2:48:21 [formal/formal_integrity_cover] base: finished (returncode=0)
+SBY  2:48:21 [formal/formal_integrity_bmc] prep: starting process "cd formal/formal_integrity_bmc/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:48:21 [formal/formal_integrity_cover] prep: starting process "cd formal/formal_integrity_cover/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:48:21 [formal/formal_integrity_bmc] prep: finished (returncode=0)
+SBY  2:48:21 [formal/formal_integrity_cover] prep: finished (returncode=0)
+SBY  2:48:21 [formal/formal_integrity_bmc] smt2: starting process "cd formal/formal_integrity_bmc/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:48:21 [formal/formal_integrity_cover] smt2: starting process "cd formal/formal_integrity_cover/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:48:21 [formal/formal_integrity_cover] smt2: finished (returncode=0)
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: starting process "cd formal/formal_integrity_cover; yosys-smtbmc -s z3 --presat -c --noprogress -t 12  --append 0 --dump-vcd engine_0/trace%.vcd --dump-yw engine_0/trace%.yw --dump-vlogtb engine_0/trace%_tb.v --dump-smtc engine_0/trace%.smtc model/design_smt2.smt2"
+SBY  2:48:21 [formal/formal_integrity_bmc] smt2: finished (returncode=0)
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: starting process "cd formal/formal_integrity_bmc; yosys-smtbmc -s z3 --presat --noprogress -t 15  --append 0 --dump-vcd engine_0/trace.vcd --dump-yw engine_0/trace.yw --dump-vlogtb engine_0/trace_tb.v --dump-smtc engine_0/trace.smtc model/design_smt2.smt2"
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Solver: z3
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Solver: z3
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 0..
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 1..
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 2..
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Reached cover statement in step 2 at integrity_formal: integrity_formal.sv:255.13-255.33 (_witness_.check_cover_integrity_formal_sv_255_301)
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace0.vcd
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace0_tb.v
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace0.smtc
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace0.yw
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 2..
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 3..
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 4..
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 5..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 0..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 0..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 1..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 1..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 2..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 2..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 3..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 3..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 4..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 4..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 5..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 5..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 6..
+SBY  2:48:21 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 6..
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Reached cover statement in step 5 at integrity_formal: integrity_formal.sv:254.13-254.55 (_witness_.check_cover_integrity_formal_sv_254_299)
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace1.vcd
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace1_tb.v
+SBY  2:48:21 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace1.smtc
+SBY  2:48:22 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace1.yw
+SBY  2:48:22 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 5..
+SBY  2:48:22 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 6..
+SBY  2:48:22 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 7..
+SBY  2:48:22 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 7..
+SBY  2:48:22 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 7..
+SBY  2:48:22 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 8..
+SBY  2:48:22 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assertions in step 8..
+SBY  2:48:22 [formal/formal_integrity_cover] engine_0: ##   0:00:00  Checking cover reachability in step 8..
+SBY  2:48:22 [formal/formal_integrity_bmc] engine_0: ##   0:00:00  Checking assumptions in step 9..
+SBY  2:48:22 [formal/formal_integrity_bmc] engine_0: ##   0:00:01  Checking assertions in step 9..
+SBY  2:48:23 [formal/formal_integrity_bmc] engine_0: ##   0:00:02  Checking assumptions in step 10..
+SBY  2:48:23 [formal/formal_integrity_cover] engine_0: ##   0:00:02  Checking cover reachability in step 9..
+SBY  2:48:23 [formal/formal_integrity_bmc] engine_0: ##   0:00:02  Checking assertions in step 10..
+SBY  2:48:24 [formal/formal_integrity_bmc] engine_0: ##   0:00:02  Checking assumptions in step 11..
+SBY  2:48:24 [formal/formal_integrity_bmc] engine_0: ##   0:00:03  Checking assertions in step 11..
+SBY  2:48:25 [formal/formal_integrity_bmc] engine_0: ##   0:00:03  Checking assumptions in step 12..
+SBY  2:48:25 [formal/formal_integrity_bmc] engine_0: ##   0:00:03  Checking assertions in step 12..
+SBY  2:48:26 [formal/formal_integrity_bmc] engine_0: ##   0:00:04  Checking assumptions in step 13..
+SBY  2:48:26 [formal/formal_integrity_bmc] engine_0: ##   0:00:04  Checking assertions in step 13..
+SBY  2:48:26 [formal/formal_integrity_cover] engine_0: ##   0:00:04  Checking cover reachability in step 10..
+SBY  2:48:26 [formal/formal_integrity_cover] engine_0: ##   0:00:05  Reached cover statement in step 10 at integrity_formal: integrity_formal.sv:253.13-253.72 (_witness_.check_cover_integrity_formal_sv_253_295)
+SBY  2:48:26 [formal/formal_integrity_cover] engine_0: ##   0:00:05  Writing trace to VCD file: engine_0/trace2.vcd
+SBY  2:48:26 [formal/formal_integrity_cover] engine_0: ##   0:00:05  Writing trace to Verilog testbench: engine_0/trace2_tb.v
+SBY  2:48:26 [formal/formal_integrity_cover] engine_0: ##   0:00:05  Writing trace to constraints file: engine_0/trace2.smtc
+SBY  2:48:26 [formal/formal_integrity_cover] engine_0: ##   0:00:05  Writing trace to Yosys witness file: engine_0/trace2.yw
+SBY  2:48:26 [formal/formal_integrity_cover] engine_0: ##   0:00:05  Checking cover reachability in step 10..
+SBY  2:48:27 [formal/formal_integrity_bmc] engine_0: ##   0:00:05  Checking assumptions in step 14..
+SBY  2:48:27 [formal/formal_integrity_bmc] engine_0: ##   0:00:05  Checking assertions in step 14..
+SBY  2:48:27 [formal/formal_integrity_cover] engine_0: ##   0:00:06  Reached cover statement in step 10 at integrity_formal: integrity_formal.sv:252.13-252.60 (_witness_.check_cover_integrity_formal_sv_252_292)
+SBY  2:48:27 [formal/formal_integrity_cover] engine_0: ##   0:00:06  Writing trace to VCD file: engine_0/trace3.vcd
+SBY  2:48:28 [formal/formal_integrity_cover] engine_0: ##   0:00:06  Writing trace to Verilog testbench: engine_0/trace3_tb.v
+SBY  2:48:28 [formal/formal_integrity_cover] engine_0: ##   0:00:06  Writing trace to constraints file: engine_0/trace3.smtc
+SBY  2:48:28 [formal/formal_integrity_cover] engine_0: ##   0:00:06  Writing trace to Yosys witness file: engine_0/trace3.yw
+SBY  2:48:28 [formal/formal_integrity_cover] engine_0: ##   0:00:06  Status: passed
+SBY  2:48:28 [formal/formal_integrity_cover] engine_0: finished (returncode=0)
+SBY  2:48:28 [formal/formal_integrity_cover] engine_0: Status returned by engine: pass
+SBY  2:48:28 [formal/formal_integrity_cover] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:07 (7)
+SBY  2:48:28 [formal/formal_integrity_cover] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:07 (7)
+SBY  2:48:28 [formal/formal_integrity_cover] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:48:28 [formal/formal_integrity_cover] summary: cover trace: formal/formal_integrity_cover/engine_0/trace0.vcd
+SBY  2:48:28 [formal/formal_integrity_cover] summary:   reached cover statement integrity_formal._witness_.check_cover_integrity_formal_sv_255_301 at integrity_formal.sv:255.13-255.33 step 2
+SBY  2:48:28 [formal/formal_integrity_cover] summary: cover trace: formal/formal_integrity_cover/engine_0/trace1.vcd
+SBY  2:48:28 [formal/formal_integrity_cover] summary:   reached cover statement integrity_formal._witness_.check_cover_integrity_formal_sv_254_299 at integrity_formal.sv:254.13-254.55 step 5
+SBY  2:48:28 [formal/formal_integrity_cover] summary: cover trace: formal/formal_integrity_cover/engine_0/trace2.vcd
+SBY  2:48:28 [formal/formal_integrity_cover] summary:   reached cover statement integrity_formal._witness_.check_cover_integrity_formal_sv_253_295 at integrity_formal.sv:253.13-253.72 step 10
+SBY  2:48:28 [formal/formal_integrity_cover] summary: cover trace: formal/formal_integrity_cover/engine_0/trace3.vcd
+SBY  2:48:28 [formal/formal_integrity_cover] summary:   reached cover statement integrity_formal._witness_.check_cover_integrity_formal_sv_252_292 at integrity_formal.sv:252.13-252.60 step 10
+SBY  2:48:28 [formal/formal_integrity_cover] DONE (PASS, rc=0)
+SBY  2:48:28 [formal/formal_integrity_bmc] engine_0: ##   0:00:06  Status: passed
+SBY  2:48:28 [formal/formal_integrity_bmc] engine_0: finished (returncode=0)
+SBY  2:48:28 [formal/formal_integrity_bmc] engine_0: Status returned by engine: pass
+SBY  2:48:28 [formal/formal_integrity_bmc] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:07 (7)
+SBY  2:48:28 [formal/formal_integrity_bmc] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:13 (13)
+SBY  2:48:28 [formal/formal_integrity_bmc] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:48:28 [formal/formal_integrity_bmc] summary: engine_0 did not produce any traces
+SBY  2:48:28 [formal/formal_integrity_bmc] DONE (PASS, rc=0)
+SBY  2:48:36 [formal/formal_sec_lock_bmc] Removing directory '/mnt/d/RAM/formal/formal_sec_lock_bmc'.
+SBY  2:48:36 [formal/formal_sec_lock_bmc] Copy '/mnt/d/RAM/formal/fault_hardened_csr.sv' to '/mnt/d/RAM/formal/formal_sec_lock_bmc/src/fault_hardened_csr.sv'.
+SBY  2:48:36 [formal/formal_sec_lock_bmc] Copy '/mnt/d/RAM/formal/apb_csr_regs.sv' to '/mnt/d/RAM/formal/formal_sec_lock_bmc/src/apb_csr_regs.sv'.
+SBY  2:48:36 [formal/formal_sec_lock_bmc] Copy '/mnt/d/RAM/formal/sec_lock_formal.sv' to '/mnt/d/RAM/formal/formal_sec_lock_bmc/src/sec_lock_formal.sv'.
+SBY  2:48:36 [formal/formal_sec_lock_bmc] engine_0: smtbmc z3
+SBY  2:48:36 [formal/formal_sec_lock_cover] Removing directory '/mnt/d/RAM/formal/formal_sec_lock_cover'.
+SBY  2:48:36 [formal/formal_sec_lock_cover] Copy '/mnt/d/RAM/formal/fault_hardened_csr.sv' to '/mnt/d/RAM/formal/formal_sec_lock_cover/src/fault_hardened_csr.sv'.
+SBY  2:48:36 [formal/formal_sec_lock_cover] Copy '/mnt/d/RAM/formal/apb_csr_regs.sv' to '/mnt/d/RAM/formal/formal_sec_lock_cover/src/apb_csr_regs.sv'.
+SBY  2:48:36 [formal/formal_sec_lock_cover] Copy '/mnt/d/RAM/formal/sec_lock_formal.sv' to '/mnt/d/RAM/formal/formal_sec_lock_cover/src/sec_lock_formal.sv'.
+SBY  2:48:36 [formal/formal_sec_lock_cover] engine_0: smtbmc z3
+SBY  2:48:36 [formal/formal_sec_lock_bmc] base: starting process "cd formal/formal_sec_lock_bmc/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:48:36 [formal/formal_sec_lock_cover] base: starting process "cd formal/formal_sec_lock_cover/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:48:37 [formal/formal_sec_lock_bmc] base: Warning: Replacing memory \reg_key2 with list of registers. See apb_csr_regs.sv:340
+SBY  2:48:37 [formal/formal_sec_lock_bmc] base: Warning: Replacing memory \reg_key1 with list of registers. See apb_csr_regs.sv:339
+SBY  2:48:37 [formal/formal_sec_lock_cover] base: Warning: Replacing memory \reg_key2 with list of registers. See apb_csr_regs.sv:340
+SBY  2:48:37 [formal/formal_sec_lock_cover] base: Warning: Replacing memory \reg_key1 with list of registers. See apb_csr_regs.sv:339
+SBY  2:48:39 [formal/formal_sec_lock_bmc] base: finished (returncode=0)
+SBY  2:48:39 [formal/formal_sec_lock_bmc] prep: starting process "cd formal/formal_sec_lock_bmc/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:48:39 [formal/formal_sec_lock_cover] base: finished (returncode=0)
+SBY  2:48:39 [formal/formal_sec_lock_cover] prep: starting process "cd formal/formal_sec_lock_cover/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:48:39 [formal/formal_sec_lock_bmc] prep: finished (returncode=0)
+SBY  2:48:39 [formal/formal_sec_lock_bmc] smt2: starting process "cd formal/formal_sec_lock_bmc/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:48:40 [formal/formal_sec_lock_cover] prep: finished (returncode=0)
+SBY  2:48:40 [formal/formal_sec_lock_cover] smt2: starting process "cd formal/formal_sec_lock_cover/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:48:40 [formal/formal_sec_lock_bmc] smt2: finished (returncode=0)
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: starting process "cd formal/formal_sec_lock_bmc; yosys-smtbmc -s z3 --presat --noprogress -t 15  --append 0 --dump-vcd engine_0/trace.vcd --dump-yw engine_0/trace.yw --dump-vlogtb engine_0/trace_tb.v --dump-smtc engine_0/trace.smtc model/design_smt2.smt2"
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Solver: z3
+SBY  2:48:40 [formal/formal_sec_lock_cover] smt2: finished (returncode=0)
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: starting process "cd formal/formal_sec_lock_cover; yosys-smtbmc -s z3 --presat -c --noprogress -t 8  --append 0 --dump-vcd engine_0/trace%.vcd --dump-yw engine_0/trace%.yw --dump-vlogtb engine_0/trace%_tb.v --dump-smtc engine_0/trace%.smtc model/design_smt2.smt2"
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assumptions in step 0..
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assertions in step 0..
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assumptions in step 1..
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Solver: z3
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assertions in step 1..
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assumptions in step 2..
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Checking cover reachability in step 0..
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Checking cover reachability in step 1..
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Checking cover reachability in step 2..
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assertions in step 2..
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assumptions in step 3..
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Reached cover statement in step 2 at sec_lock_formal: sec_lock_formal.sv:166.13-166.59 (_witness_.check_cover_sec_lock_formal_sv_166_1145)
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Reached cover statement in step 2 at sec_lock_formal: sec_lock_formal.sv:165.13-165.57 (_witness_.check_cover_sec_lock_formal_sv_165_1143)
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace0.vcd
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace0_tb.v
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace0.smtc
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace0.yw
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Checking cover reachability in step 2..
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Checking cover reachability in step 3..
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assertions in step 3..
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assumptions in step 4..
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Reached cover statement in step 3 at sec_lock_formal: sec_lock_formal.sv:164.13-164.31 (_witness_.check_cover_sec_lock_formal_sv_164_1142)
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace1.vcd
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace1_tb.v
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace1.smtc
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace1.yw
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: ##   0:00:00  Status: passed
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: finished (returncode=0)
+SBY  2:48:40 [formal/formal_sec_lock_cover] engine_0: Status returned by engine: pass
+SBY  2:48:40 [formal/formal_sec_lock_cover] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:03 (3)
+SBY  2:48:40 [formal/formal_sec_lock_cover] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:06 (6)
+SBY  2:48:40 [formal/formal_sec_lock_cover] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:48:40 [formal/formal_sec_lock_cover] summary: cover trace: formal/formal_sec_lock_cover/engine_0/trace0.vcd
+SBY  2:48:40 [formal/formal_sec_lock_cover] summary:   reached cover statement sec_lock_formal._witness_.check_cover_sec_lock_formal_sv_165_1143 at sec_lock_formal.sv:165.13-165.57 step 2
+SBY  2:48:40 [formal/formal_sec_lock_cover] summary:   reached cover statement sec_lock_formal._witness_.check_cover_sec_lock_formal_sv_166_1145 at sec_lock_formal.sv:166.13-166.59 step 2
+SBY  2:48:40 [formal/formal_sec_lock_cover] summary: cover trace: formal/formal_sec_lock_cover/engine_0/trace1.vcd
+SBY  2:48:40 [formal/formal_sec_lock_cover] summary:   reached cover statement sec_lock_formal._witness_.check_cover_sec_lock_formal_sv_164_1142 at sec_lock_formal.sv:164.13-164.31 step 3
+SBY  2:48:40 [formal/formal_sec_lock_cover] DONE (PASS, rc=0)
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assertions in step 4..
+SBY  2:48:40 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:00  Checking assumptions in step 5..
+SBY  2:48:41 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:01  Checking assertions in step 5..
+SBY  2:48:41 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:01  Checking assumptions in step 6..
+SBY  2:48:41 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:01  Checking assertions in step 6..
+SBY  2:48:41 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:01  Checking assumptions in step 7..
+SBY  2:48:42 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:01  Checking assertions in step 7..
+SBY  2:48:42 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:02  Checking assumptions in step 8..
+SBY  2:48:43 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:03  Checking assertions in step 8..
+SBY  2:48:44 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:03  Checking assumptions in step 9..
+SBY  2:48:44 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:04  Checking assertions in step 9..
+SBY  2:48:45 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:05  Checking assumptions in step 10..
+SBY  2:48:46 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:06  Checking assertions in step 10..
+SBY  2:48:47 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:07  Checking assumptions in step 11..
+SBY  2:48:48 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:08  Checking assertions in step 11..
+SBY  2:48:49 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:09  Checking assumptions in step 12..
+SBY  2:48:51 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:10  Checking assertions in step 12..
+SBY  2:48:51 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:11  Checking assumptions in step 13..
+SBY  2:48:58 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:18  Checking assertions in step 13..
+SBY  2:48:59 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:18  Checking assumptions in step 14..
+SBY  2:49:07 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:27  Checking assertions in step 14..
+SBY  2:49:08 [formal/formal_sec_lock_bmc] engine_0: ##   0:00:27  Status: passed
+SBY  2:49:08 [formal/formal_sec_lock_bmc] engine_0: finished (returncode=0)
+SBY  2:49:08 [formal/formal_sec_lock_bmc] engine_0: Status returned by engine: pass
+SBY  2:49:08 [formal/formal_sec_lock_bmc] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:31 (31)
+SBY  2:49:08 [formal/formal_sec_lock_bmc] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:34 (34)
+SBY  2:49:08 [formal/formal_sec_lock_bmc] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:49:08 [formal/formal_sec_lock_bmc] summary: engine_0 did not produce any traces
+SBY  2:49:08 [formal/formal_sec_lock_bmc] DONE (PASS, rc=0)
+SBY  2:49:17 [formal/formal_scheduler_bank_bmc] Removing directory '/mnt/d/RAM/formal/formal_scheduler_bank_bmc'.
+SBY  2:49:17 [formal/formal_scheduler_bank_bmc] Copy '/mnt/d/RAM/formal/ddr5_subchannel_scheduler.sv' to '/mnt/d/RAM/formal/formal_scheduler_bank_bmc/src/ddr5_subchannel_scheduler.sv'.
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] engine_0: smtbmc z3
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] Removing directory '/mnt/d/RAM/formal/formal_scheduler_bank_cover'.
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] Copy '/mnt/d/RAM/formal/ddr5_subchannel_scheduler.sv' to '/mnt/d/RAM/formal/formal_scheduler_bank_cover/src/ddr5_subchannel_scheduler.sv'.
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] engine_0: smtbmc z3
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] base: starting process "cd formal/formal_scheduler_bank_bmc/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] base: starting process "cd formal/formal_scheduler_bank_cover/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] base: Warning: Replacing memory \bank_timer with list of registers. See ddr5_subchannel_scheduler.sv:118
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] base: Warning: Replacing memory \open_row with list of registers. See ddr5_subchannel_scheduler.sv:117
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] base: Warning: Replacing memory \bank_state with list of registers. See ddr5_subchannel_scheduler.sv:116
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] base: Warning: Replacing memory \bank_timer with list of registers. See ddr5_subchannel_scheduler.sv:118
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] base: Warning: Replacing memory \open_row with list of registers. See ddr5_subchannel_scheduler.sv:117
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] base: Warning: Replacing memory \bank_state with list of registers. See ddr5_subchannel_scheduler.sv:116
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] base: finished (returncode=0)
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] base: finished (returncode=0)
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] prep: starting process "cd formal/formal_scheduler_bank_cover/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] prep: starting process "cd formal/formal_scheduler_bank_bmc/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] prep: finished (returncode=0)
+SBY  2:49:18 [formal/formal_scheduler_bank_cover] smt2: starting process "cd formal/formal_scheduler_bank_cover/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] prep: finished (returncode=0)
+SBY  2:49:18 [formal/formal_scheduler_bank_bmc] smt2: starting process "cd formal/formal_scheduler_bank_bmc/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] smt2: finished (returncode=0)
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] smt2: finished (returncode=0)
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: starting process "cd formal/formal_scheduler_bank_cover; yosys-smtbmc -s z3 --presat -c --noprogress -t 15  --append 0 --dump-vcd engine_0/trace%.vcd --dump-yw engine_0/trace%.yw --dump-vlogtb engine_0/trace%_tb.v --dump-smtc engine_0/trace%.smtc model/design_smt2.smt2"
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: starting process "cd formal/formal_scheduler_bank_bmc; yosys-smtbmc -s z3 --presat --noprogress -t 15  --append 0 --dump-vcd engine_0/trace.vcd --dump-yw engine_0/trace.yw --dump-vlogtb engine_0/trace_tb.v --dump-smtc engine_0/trace.smtc model/design_smt2.smt2"
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Solver: z3
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Solver: z3
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 0..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 0..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 1..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 2..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 3..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 4..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Reached cover statement in step 4 at ddr5_subchannel_scheduler: ddr5_subchannel_scheduler.sv:235.13-235.54 (_witness_.check_cover_ddr5_subchannel_scheduler_sv_235_1782)
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace0.vcd
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace0_tb.v
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace0.smtc
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace0.yw
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 4..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 5..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 0..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 1..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 1..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 2..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 2..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 3..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 3..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 4..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 4..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 5..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 5..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 6..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 6..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 6..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 7..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 7..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 7..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Reached cover statement in step 7 at ddr5_subchannel_scheduler: ddr5_subchannel_scheduler.sv:237.13-237.53 (_witness_.check_cover_ddr5_subchannel_scheduler_sv_237_1788)
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace1.vcd
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace1_tb.v
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace1.smtc
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace1.yw
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 7..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Reached cover statement in step 7 at ddr5_subchannel_scheduler: ddr5_subchannel_scheduler.sv:236.13-236.53 (_witness_.check_cover_ddr5_subchannel_scheduler_sv_236_1785)
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace2.vcd
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace2_tb.v
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace2.smtc
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace2.yw
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 7..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assumptions in step 8..
+SBY  2:49:19 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:00  Checking assertions in step 8..
+SBY  2:49:19 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:00  Checking cover reachability in step 8..
+SBY  2:49:20 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:01  Checking assumptions in step 9..
+SBY  2:49:20 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:01  Checking assertions in step 9..
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:01  Checking cover reachability in step 9..
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:01  Reached cover statement in step 9 at ddr5_subchannel_scheduler: ddr5_subchannel_scheduler.sv:238.13-238.54 (_witness_.check_cover_ddr5_subchannel_scheduler_sv_238_1791)
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:01  Writing trace to VCD file: engine_0/trace3.vcd
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:01  Writing trace to Verilog testbench: engine_0/trace3_tb.v
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:01  Writing trace to constraints file: engine_0/trace3.smtc
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:01  Writing trace to Yosys witness file: engine_0/trace3.yw
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: ##   0:00:01  Status: passed
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: finished (returncode=0)
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] engine_0: Status returned by engine: pass
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:02 (2)
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:03 (3)
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary: cover trace: formal/formal_scheduler_bank_cover/engine_0/trace0.vcd
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary:   reached cover statement ddr5_subchannel_scheduler._witness_.check_cover_ddr5_subchannel_scheduler_sv_235_1782 at ddr5_subchannel_scheduler.sv:235.13-235.54 step 4
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary: cover trace: formal/formal_scheduler_bank_cover/engine_0/trace1.vcd
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary:   reached cover statement ddr5_subchannel_scheduler._witness_.check_cover_ddr5_subchannel_scheduler_sv_237_1788 at ddr5_subchannel_scheduler.sv:237.13-237.53 step 7
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary: cover trace: formal/formal_scheduler_bank_cover/engine_0/trace2.vcd
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary:   reached cover statement ddr5_subchannel_scheduler._witness_.check_cover_ddr5_subchannel_scheduler_sv_236_1785 at ddr5_subchannel_scheduler.sv:236.13-236.53 step 7
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary: cover trace: formal/formal_scheduler_bank_cover/engine_0/trace3.vcd
+SBY  2:49:20 [formal/formal_scheduler_bank_cover] summary:   reached cover statement ddr5_subchannel_scheduler._witness_.check_cover_ddr5_subchannel_scheduler_sv_238_1791 at ddr5_subchannel_scheduler.sv:238.13-238.54 step 9
+SBY  2:49:21 [formal/formal_scheduler_bank_cover] DONE (PASS, rc=0)
+SBY  2:49:21 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:01  Checking assumptions in step 10..
+SBY  2:49:21 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:02  Checking assertions in step 10..
+SBY  2:49:21 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:02  Checking assumptions in step 11..
+SBY  2:49:21 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:02  Checking assertions in step 11..
+SBY  2:49:21 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:02  Checking assumptions in step 12..
+SBY  2:49:21 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:02  Checking assertions in step 12..
+SBY  2:49:21 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:02  Checking assumptions in step 13..
+SBY  2:49:22 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:03  Checking assertions in step 13..
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:04  Checking assumptions in step 14..
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:04  Checking assertions in step 14..
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] engine_0: ##   0:00:04  Status: passed
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] engine_0: finished (returncode=0)
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] engine_0: Status returned by engine: pass
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:05 (5)
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:07 (7)
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] summary: engine_0 did not produce any traces
+SBY  2:49:23 [formal/formal_scheduler_bank_bmc] DONE (PASS, rc=0)
+SBY  2:49:26 [formal/formal_axi_protocol_bmc] Removing directory '/mnt/d/RAM/formal/formal_axi_protocol_bmc'.
+SBY  2:49:26 [formal/formal_axi_protocol_bmc] Copy '/mnt/d/RAM/formal/axi_protocol_formal.sv' to '/mnt/d/RAM/formal/formal_axi_protocol_bmc/src/axi_protocol_formal.sv'.
+SBY  2:49:26 [formal/formal_axi_protocol_bmc] engine_0: smtbmc z3
+SBY  2:49:27 [formal/formal_axi_protocol_cover] Removing directory '/mnt/d/RAM/formal/formal_axi_protocol_cover'.
+SBY  2:49:27 [formal/formal_axi_protocol_cover] Copy '/mnt/d/RAM/formal/axi_protocol_formal.sv' to '/mnt/d/RAM/formal/formal_axi_protocol_cover/src/axi_protocol_formal.sv'.
+SBY  2:49:27 [formal/formal_axi_protocol_cover] engine_0: smtbmc z3
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] base: starting process "cd formal/formal_axi_protocol_bmc/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:49:27 [formal/formal_axi_protocol_cover] base: starting process "cd formal/formal_axi_protocol_cover/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] base: finished (returncode=0)
+SBY  2:49:27 [formal/formal_axi_protocol_cover] base: finished (returncode=0)
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] prep: starting process "cd formal/formal_axi_protocol_bmc/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:49:27 [formal/formal_axi_protocol_cover] prep: starting process "cd formal/formal_axi_protocol_cover/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] prep: finished (returncode=0)
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] smt2: starting process "cd formal/formal_axi_protocol_bmc/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:49:27 [formal/formal_axi_protocol_cover] prep: finished (returncode=0)
+SBY  2:49:27 [formal/formal_axi_protocol_cover] smt2: starting process "cd formal/formal_axi_protocol_cover/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] smt2: finished (returncode=0)
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: starting process "cd formal/formal_axi_protocol_bmc; yosys-smtbmc -s z3 --presat --noprogress -t 15  --append 0 --dump-vcd engine_0/trace.vcd --dump-yw engine_0/trace.yw --dump-vlogtb engine_0/trace_tb.v --dump-smtc engine_0/trace.smtc model/design_smt2.smt2"
+SBY  2:49:27 [formal/formal_axi_protocol_cover] smt2: finished (returncode=0)
+SBY  2:49:27 [formal/formal_axi_protocol_cover] engine_0: starting process "cd formal/formal_axi_protocol_cover; yosys-smtbmc -s z3 --presat -c --noprogress -t 15  --append 0 --dump-vcd engine_0/trace%.vcd --dump-yw engine_0/trace%.yw --dump-vlogtb engine_0/trace%_tb.v --dump-smtc engine_0/trace%.smtc model/design_smt2.smt2"
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Solver: z3
+SBY  2:49:27 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Solver: z3
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 0..
+SBY  2:49:27 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 0..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 0..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 1..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 1..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 2..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 2..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 3..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 3..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 4..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 4..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 5..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 5..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 6..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 6..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 7..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 7..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 8..
+SBY  2:49:27 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 8..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 9..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 9..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 10..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 10..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 11..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 11..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 12..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 12..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 1..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 2..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Reached cover statement in step 2 at axi_protocol_formal: axi_protocol_formal.sv:214.13-214.51 (_witness_.check_cover_axi_protocol_formal_sv_214_129)
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace0.vcd
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace0_tb.v
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace0.smtc
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace0.yw
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 2..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 3..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 4..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 5..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 6..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 7..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Reached cover statement in step 7 at axi_protocol_formal: axi_protocol_formal.sv:216.13-216.64 (_witness_.check_cover_axi_protocol_formal_sv_216_131)
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace1.vcd
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace1_tb.v
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace1.smtc
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace1.yw
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Checking cover reachability in step 7..
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Reached cover statement in step 7 at axi_protocol_formal: axi_protocol_formal.sv:218.13-218.50 (_witness_.check_cover_axi_protocol_formal_sv_218_134)
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace2.vcd
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace2_tb.v
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace2.smtc
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace2.yw
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: ##   0:00:00  Status: passed
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: finished (returncode=0)
+SBY  2:49:28 [formal/formal_axi_protocol_cover] engine_0: Status returned by engine: pass
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:01 (1)
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:00 (0)
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary: cover trace: formal/formal_axi_protocol_cover/engine_0/trace0.vcd
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary:   reached cover statement axi_protocol_formal._witness_.check_cover_axi_protocol_formal_sv_214_129 at axi_protocol_formal.sv:214.13-214.51 step 2
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary: cover trace: formal/formal_axi_protocol_cover/engine_0/trace1.vcd
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary:   reached cover statement axi_protocol_formal._witness_.check_cover_axi_protocol_formal_sv_216_131 at axi_protocol_formal.sv:216.13-216.64 step 7
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary: cover trace: formal/formal_axi_protocol_cover/engine_0/trace2.vcd
+SBY  2:49:28 [formal/formal_axi_protocol_cover] summary:   reached cover statement axi_protocol_formal._witness_.check_cover_axi_protocol_formal_sv_218_134 at axi_protocol_formal.sv:218.13-218.50 step 7
+SBY  2:49:28 [formal/formal_axi_protocol_cover] DONE (PASS, rc=0)
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 13..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 13..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assumptions in step 14..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:00  Checking assertions in step 14..
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: ##   0:00:01  Status: passed
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: finished (returncode=0)
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] engine_0: Status returned by engine: pass
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:02 (2)
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:02 (2)
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] summary: engine_0 did not produce any traces
+SBY  2:49:28 [formal/formal_axi_protocol_bmc] DONE (PASS, rc=0)
+SBY  2:49:31 [formal/formal_rob_retire_bmc] Removing directory '/mnt/d/RAM/formal/formal_rob_retire_bmc'.
+SBY  2:49:31 [formal/formal_rob_retire_bmc] Copy '/mnt/d/RAM/formal/rob_retire_formal.sv' to '/mnt/d/RAM/formal/formal_rob_retire_bmc/src/rob_retire_formal.sv'.
+SBY  2:49:31 [formal/formal_rob_retire_bmc] engine_0: smtbmc z3
+SBY  2:49:31 [formal/formal_rob_retire_cover] Removing directory '/mnt/d/RAM/formal/formal_rob_retire_cover'.
+SBY  2:49:31 [formal/formal_rob_retire_cover] Copy '/mnt/d/RAM/formal/rob_retire_formal.sv' to '/mnt/d/RAM/formal/formal_rob_retire_cover/src/rob_retire_formal.sv'.
+SBY  2:49:31 [formal/formal_rob_retire_cover] engine_0: smtbmc z3
+SBY  2:49:31 [formal/formal_rob_retire_bmc] base: starting process "cd formal/formal_rob_retire_bmc/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:49:31 [formal/formal_rob_retire_cover] base: starting process "cd formal/formal_rob_retire_cover/src; yosys -ql ../model/design.log ../model/design.ys"
+SBY  2:49:32 [formal/formal_rob_retire_bmc] base: finished (returncode=0)
+SBY  2:49:32 [formal/formal_rob_retire_cover] base: finished (returncode=0)
+SBY  2:49:32 [formal/formal_rob_retire_bmc] prep: starting process "cd formal/formal_rob_retire_bmc/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:49:32 [formal/formal_rob_retire_cover] prep: starting process "cd formal/formal_rob_retire_cover/model; yosys -ql design_prep.log design_prep.ys"
+SBY  2:49:32 [formal/formal_rob_retire_bmc] prep: finished (returncode=0)
+SBY  2:49:32 [formal/formal_rob_retire_bmc] smt2: starting process "cd formal/formal_rob_retire_bmc/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:49:32 [formal/formal_rob_retire_cover] prep: finished (returncode=0)
+SBY  2:49:32 [formal/formal_rob_retire_cover] smt2: starting process "cd formal/formal_rob_retire_cover/model; yosys -ql design_smt2.log design_smt2.ys"
+SBY  2:49:32 [formal/formal_rob_retire_bmc] smt2: finished (returncode=0)
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: starting process "cd formal/formal_rob_retire_bmc; yosys-smtbmc -s z3 --presat --noprogress -t 15  --append 0 --dump-vcd engine_0/trace.vcd --dump-yw engine_0/trace.yw --dump-vlogtb engine_0/trace_tb.v --dump-smtc engine_0/trace.smtc model/design_smt2.smt2"
+SBY  2:49:32 [formal/formal_rob_retire_cover] smt2: finished (returncode=0)
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: starting process "cd formal/formal_rob_retire_cover; yosys-smtbmc -s z3 --presat -c --noprogress -t 15  --append 0 --dump-vcd engine_0/trace%.vcd --dump-yw engine_0/trace%.yw --dump-vlogtb engine_0/trace%_tb.v --dump-smtc engine_0/trace%.smtc model/design_smt2.smt2"
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Solver: z3
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 0..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Solver: z3
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 0..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 1..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 1..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 2..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 2..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 3..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 3..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 4..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 4..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 5..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 5..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 6..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 6..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 7..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 7..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 0..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 1..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 2..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 3..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Reached cover statement in step 3 at rob_retire_formal: rob_retire_formal.sv:130.13-130.41 (_witness_.check_cover_rob_retire_formal_sv_130_62)
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace0.vcd
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace0_tb.v
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace0.smtc
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace0.yw
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 3..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Reached cover statement in step 3 at rob_retire_formal: rob_retire_formal.sv:132.13-132.42 (_witness_.check_cover_rob_retire_formal_sv_132_64)
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace1.vcd
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace1_tb.v
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace1.smtc
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace1.yw
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 3..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 4..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Reached cover statement in step 4 at rob_retire_formal: rob_retire_formal.sv:134.13-134.31 (_witness_.check_cover_rob_retire_formal_sv_134_67)
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace2.vcd
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace2_tb.v
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace2.smtc
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace2.yw
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 4..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Checking cover reachability in step 5..
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Reached cover statement in step 5 at rob_retire_formal: rob_retire_formal.sv:136.13-136.65 (_witness_.check_cover_rob_retire_formal_sv_136_68)
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to VCD file: engine_0/trace3.vcd
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to Verilog testbench: engine_0/trace3_tb.v
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to constraints file: engine_0/trace3.smtc
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Writing trace to Yosys witness file: engine_0/trace3.yw
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: ##   0:00:00  Status: passed
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: finished (returncode=0)
+SBY  2:49:32 [formal/formal_rob_retire_cover] engine_0: Status returned by engine: pass
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:00 (0)
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:00 (0)
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary: cover trace: formal/formal_rob_retire_cover/engine_0/trace0.vcd
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary:   reached cover statement rob_retire_formal._witness_.check_cover_rob_retire_formal_sv_130_62 at rob_retire_formal.sv:130.13-130.41 step 3
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary: cover trace: formal/formal_rob_retire_cover/engine_0/trace1.vcd
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary:   reached cover statement rob_retire_formal._witness_.check_cover_rob_retire_formal_sv_132_64 at rob_retire_formal.sv:132.13-132.42 step 3
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary: cover trace: formal/formal_rob_retire_cover/engine_0/trace2.vcd
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary:   reached cover statement rob_retire_formal._witness_.check_cover_rob_retire_formal_sv_134_67 at rob_retire_formal.sv:134.13-134.31 step 4
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary: cover trace: formal/formal_rob_retire_cover/engine_0/trace3.vcd
+SBY  2:49:32 [formal/formal_rob_retire_cover] summary:   reached cover statement rob_retire_formal._witness_.check_cover_rob_retire_formal_sv_136_68 at rob_retire_formal.sv:136.13-136.65 step 5
+SBY  2:49:32 [formal/formal_rob_retire_cover] DONE (PASS, rc=0)
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 8..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 8..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 9..
+SBY  2:49:32 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 9..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 10..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 10..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 11..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 11..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 12..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 12..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 13..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 13..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assumptions in step 14..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:00  Checking assertions in step 14..
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: ##   0:00:01  Status: passed
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: finished (returncode=0)
+SBY  2:49:33 [formal/formal_rob_retire_bmc] engine_0: Status returned by engine: pass
+SBY  2:49:33 [formal/formal_rob_retire_bmc] summary: Elapsed clock time [H:MM:SS (secs)]: 0:00:01 (1)
+SBY  2:49:33 [formal/formal_rob_retire_bmc] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:01 (1)
+SBY  2:49:33 [formal/formal_rob_retire_bmc] summary: engine_0 (smtbmc z3) returned pass
+SBY  2:49:33 [formal/formal_rob_retire_bmc] summary: engine_0 did not produce any traces
+SBY  2:49:33 [formal/formal_rob_retire_bmc] DONE (PASS, rc=0)

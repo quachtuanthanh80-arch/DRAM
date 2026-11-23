@@ -576,8 +576,8 @@ module qshield_axi_crypto_bridge #(
     );
 
     wire meta_fifo_push_bmt   = bmt_dram_wr_valid && (meta_fifo_cnt < META_FIFO_D);
-    wire meta_fifo_push_ml    = !bmt_dram_wr_valid && ml_dram_wr_valid && (meta_fifo_cnt < META_FIFO_D - 2);
-    wire meta_fifo_push_reenc = !bmt_dram_wr_valid && !ml_dram_wr_valid && reenc_dram_wr_valid && (meta_fifo_cnt < META_FIFO_D - 2);
+    wire meta_fifo_push_ml    = !bmt_dram_wr_valid && ml_dram_wr_valid && !ml_dram_wr_ack && (meta_fifo_cnt < META_FIFO_D - 2);
+    wire meta_fifo_push_reenc = !bmt_dram_wr_valid && !ml_dram_wr_valid && reenc_dram_wr_valid && !reenc_dram_wr_ack && (meta_fifo_cnt < META_FIFO_D - 2);
     wire meta_fifo_push_any   = meta_fifo_push_bmt || meta_fifo_push_ml || meta_fifo_push_reenc;
     wire meta_fifo_pop_en     = (wr_bus_owner == WR_NONE) && (meta_fifo_cnt > 0);
 
@@ -743,14 +743,14 @@ module qshield_axi_crypto_bridge #(
                     bmt_rd_req_q       <= 1'b0;
                     bmt_dram_rd_ready  <= 1'b1;
                     reg_meta_rd_cnt    <= reg_meta_rd_cnt + 1'b1;
-                end else if (ml_dram_rd_req) begin
+                end else if (ml_dram_rd_req && !ml_dram_rd_valid_in) begin
                     meta_rd_active     <= 1'b1;
                     meta_rd_ar_pending <= 1'b1;
                     meta_rd_owner      <= 2'd1;
                     meta_rd_id         <= 4'b1001;
                     meta_rd_addr       <= ml_dram_rd_addr;
                     reg_meta_rd_cnt    <= reg_meta_rd_cnt + 1'b1;
-                end else if (reenc_dram_rd_req) begin
+                end else if (reenc_dram_rd_req && !reenc_dram_rd_valid_in) begin
                     meta_rd_active     <= 1'b1;
                     meta_rd_ar_pending <= 1'b1;
                     meta_rd_owner      <= 2'd2;

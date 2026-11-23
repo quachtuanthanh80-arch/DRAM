@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_qos_queue.py
 # Description: Verifies Novelty Pillar #2 (QoS-Aware Bank-Group Selection):
 #              1. QoS priority sorting: High-QoS commands beat Low-QoS commands.

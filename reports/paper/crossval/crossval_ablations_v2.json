@@ -1,0 +1,827 @@
+[
+  {
+    "split": "in_sample",
+    "wl": "bank_conflict",
+    "cfg": "secure",
+    "reason_selected": "B\u1eaft bu\u1ed9c theo brief (ACT -31.4% \u1edf T81)",
+    "rtl_act_traffic": 121,
+    "rtl_act_victim": 271,
+    "rtl_throttles": 60,
+    "cal_act_traffic": 83,
+    "cal_act_victim": 252,
+    "cal_err_act_pct": -31.4,
+    "cal_err_vic_pct": -7.01,
+    "variants": [
+      {
+        "variant": "baseline_calibrated",
+        "description": "M\u00f4 h\u00ecnh hi\u1ec7u chu\u1ea9n \u0111\u00f3ng b\u0103ng",
+        "overrides": {},
+        "bw_gbps": 2.2123,
+        "rd_lat_avg_ns": 545.85,
+        "act_traffic": 83,
+        "act_victim": 252,
+        "drm_victims": 240,
+        "scrub_acts": 12,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 60,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": -31.4,
+        "err_vic_vs_rtl_pct": -7.01
+      },
+      {
+        "variant": "no_patrol_scrub",
+        "description": "T\u1eaft tu\u1ea7n tra ECC n\u1ec1n (scrub_interval=0)",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 0
+        },
+        "bw_gbps": 2.214,
+        "rd_lat_avg_ns": 545.43,
+        "act_traffic": 82,
+        "act_victim": 240,
+        "drm_victims": 240,
+        "scrub_acts": 0,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 60,
+        "delta_act_vs_cal": -1,
+        "delta_vic_vs_cal": -12,
+        "err_act_vs_rtl_pct": -32.23,
+        "err_vic_vs_rtl_pct": -11.44
+      },
+      {
+        "variant": "scrub_interval_420",
+        "description": "T\u0103ng chu k\u1ef3 scrub 320->420 m\u00f4 ph\u1ecfng gating s_v=='0 c\u1ee7a RTL",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 420
+        },
+        "bw_gbps": 2.2123,
+        "rd_lat_avg_ns": 545.85,
+        "act_traffic": 83,
+        "act_victim": 252,
+        "drm_victims": 240,
+        "scrub_acts": 12,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 60,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": -31.4,
+        "err_vic_vs_rtl_pct": -7.01
+      },
+      {
+        "variant": "no_rowpress",
+        "description": "T\u1eaft c\u1ea3nh b\u00e1o RowPress (rowpress_thresh_ns=999999999)",
+        "overrides": {
+          "rowpress_thresh_ns": 999999999
+        },
+        "bw_gbps": 2.2123,
+        "rd_lat_avg_ns": 545.85,
+        "act_traffic": 83,
+        "act_victim": 252,
+        "drm_victims": 240,
+        "scrub_acts": 12,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 60,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": -31.4,
+        "err_vic_vs_rtl_pct": -7.01
+      },
+      {
+        "variant": "no_ref_postpone",
+        "description": "T\u1eaft ho\u00e3n REFab (ref_postpone_max=0)",
+        "overrides": {
+          "ref_postpone_max": 0
+        },
+        "bw_gbps": 2.1896,
+        "rd_lat_avg_ns": 551.56,
+        "act_traffic": 129,
+        "act_victim": 271,
+        "drm_victims": 240,
+        "scrub_acts": 31,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 60,
+        "delta_act_vs_cal": 46,
+        "delta_vic_vs_cal": 19,
+        "err_act_vs_rtl_pct": 6.61,
+        "err_vic_vs_rtl_pct": 0.0
+      },
+      {
+        "variant": "sdc_count_act_only",
+        "description": "\u0110\u1ebfm SDC theo ACT thay v\u00ec m\u1ecdi AXI req (sdc_count_requests=False)",
+        "overrides": {
+          "sdc_count_requests": false
+        },
+        "bw_gbps": 2.3456,
+        "rd_lat_avg_ns": 514.63,
+        "act_traffic": 29,
+        "act_victim": 63,
+        "drm_victims": 56,
+        "scrub_acts": 7,
+        "rowpress_alerts": 14,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": -54,
+        "delta_vic_vs_cal": -189,
+        "err_act_vs_rtl_pct": -76.03,
+        "err_vic_vs_rtl_pct": -76.75
+      },
+      {
+        "variant": "no_sdc_drm",
+        "description": "T\u1eaft k\u00edch ho\u1ea1t SDC/DRM victim refresh (sdc_thresh=65535)",
+        "overrides": {
+          "sdc_thresh": 65535
+        },
+        "bw_gbps": 2.3456,
+        "rd_lat_avg_ns": 514.63,
+        "act_traffic": 29,
+        "act_victim": 63,
+        "drm_victims": 56,
+        "scrub_acts": 7,
+        "rowpress_alerts": 14,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": -54,
+        "delta_vic_vs_cal": -189,
+        "err_act_vs_rtl_pct": -76.03,
+        "err_vic_vs_rtl_pct": -76.75
+      },
+      {
+        "variant": "frfcfs_sched",
+        "description": "\u0110\u1ed5i b\u1ed9 l\u1eadp l\u1ecbch FRFCFSRowHit -> FRFCFS",
+        "overrides": {
+          "scheduler_impl": "FRFCFS"
+        },
+        "bw_gbps": 2.2123,
+        "rd_lat_avg_ns": 545.85,
+        "act_traffic": 83,
+        "act_victim": 252,
+        "drm_victims": 240,
+        "scrub_acts": 12,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 60,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": -31.4,
+        "err_vic_vs_rtl_pct": -7.01
+      }
+    ]
+  },
+  {
+    "split": "in_sample",
+    "wl": "stream_triad",
+    "cfg": "base",
+    "reason_selected": "Top act_victim l\u1ec7ch nh\u1ea5t trong m\u1eabu (-70.60%)",
+    "rtl_act_traffic": 364,
+    "rtl_act_victim": 432,
+    "rtl_throttles": 0,
+    "cal_act_traffic": 752,
+    "cal_act_victim": 127,
+    "cal_err_act_pct": 106.59,
+    "cal_err_vic_pct": -70.6,
+    "variants": [
+      {
+        "variant": "baseline_calibrated",
+        "description": "M\u00f4 h\u00ecnh hi\u1ec7u chu\u1ea9n \u0111\u00f3ng b\u0103ng",
+        "overrides": {},
+        "bw_gbps": 2.2467,
+        "rd_lat_avg_ns": 807.1,
+        "act_traffic": 752,
+        "act_victim": 127,
+        "drm_victims": 80,
+        "scrub_acts": 47,
+        "rowpress_alerts": 20,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 106.59,
+        "err_vic_vs_rtl_pct": -70.6
+      },
+      {
+        "variant": "no_patrol_scrub",
+        "description": "T\u1eaft tu\u1ea7n tra ECC n\u1ec1n (scrub_interval=0)",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 0
+        },
+        "bw_gbps": 2.2493,
+        "rd_lat_avg_ns": 805.46,
+        "act_traffic": 719,
+        "act_victim": 96,
+        "drm_victims": 96,
+        "scrub_acts": 0,
+        "rowpress_alerts": 24,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": -33,
+        "delta_vic_vs_cal": -31,
+        "err_act_vs_rtl_pct": 97.53,
+        "err_vic_vs_rtl_pct": -77.78
+      },
+      {
+        "variant": "scrub_interval_420",
+        "description": "T\u0103ng chu k\u1ef3 scrub 320->420 m\u00f4 ph\u1ecfng gating s_v=='0 c\u1ee7a RTL",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 420
+        },
+        "bw_gbps": 2.2467,
+        "rd_lat_avg_ns": 807.1,
+        "act_traffic": 762,
+        "act_victim": 126,
+        "drm_victims": 80,
+        "scrub_acts": 46,
+        "rowpress_alerts": 20,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 10,
+        "delta_vic_vs_cal": -1,
+        "err_act_vs_rtl_pct": 109.34,
+        "err_vic_vs_rtl_pct": -70.83
+      },
+      {
+        "variant": "no_rowpress",
+        "description": "T\u1eaft c\u1ea3nh b\u00e1o RowPress (rowpress_thresh_ns=999999999)",
+        "overrides": {
+          "rowpress_thresh_ns": 999999999
+        },
+        "bw_gbps": 2.2523,
+        "rd_lat_avg_ns": 802.69,
+        "act_traffic": 724,
+        "act_victim": 50,
+        "drm_victims": 0,
+        "scrub_acts": 50,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": -28,
+        "delta_vic_vs_cal": -77,
+        "err_act_vs_rtl_pct": 98.9,
+        "err_vic_vs_rtl_pct": -88.43
+      },
+      {
+        "variant": "no_ref_postpone",
+        "description": "T\u1eaft ho\u00e3n REFab (ref_postpone_max=0)",
+        "overrides": {
+          "ref_postpone_max": 0
+        },
+        "bw_gbps": 2.2317,
+        "rd_lat_avg_ns": 812.59,
+        "act_traffic": 809,
+        "act_victim": 50,
+        "drm_victims": 0,
+        "scrub_acts": 50,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 57,
+        "delta_vic_vs_cal": -77,
+        "err_act_vs_rtl_pct": 122.25,
+        "err_vic_vs_rtl_pct": -88.43
+      },
+      {
+        "variant": "sdc_count_act_only",
+        "description": "\u0110\u1ebfm SDC theo ACT thay v\u00ec m\u1ecdi AXI req (sdc_count_requests=False)",
+        "overrides": {
+          "sdc_count_requests": false
+        },
+        "bw_gbps": 2.2467,
+        "rd_lat_avg_ns": 807.1,
+        "act_traffic": 752,
+        "act_victim": 127,
+        "drm_victims": 80,
+        "scrub_acts": 47,
+        "rowpress_alerts": 20,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 106.59,
+        "err_vic_vs_rtl_pct": -70.6
+      },
+      {
+        "variant": "no_sdc_drm",
+        "description": "T\u1eaft k\u00edch ho\u1ea1t SDC/DRM victim refresh (sdc_thresh=65535)",
+        "overrides": {
+          "sdc_thresh": 65535
+        },
+        "bw_gbps": 2.2467,
+        "rd_lat_avg_ns": 807.1,
+        "act_traffic": 752,
+        "act_victim": 127,
+        "drm_victims": 80,
+        "scrub_acts": 47,
+        "rowpress_alerts": 20,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 106.59,
+        "err_vic_vs_rtl_pct": -70.6
+      },
+      {
+        "variant": "frfcfs_sched",
+        "description": "\u0110\u1ed5i b\u1ed9 l\u1eadp l\u1ecbch FRFCFSRowHit -> FRFCFS",
+        "overrides": {
+          "scheduler_impl": "FRFCFS"
+        },
+        "bw_gbps": 2.2445,
+        "rd_lat_avg_ns": 807.67,
+        "act_traffic": 752,
+        "act_victim": 127,
+        "drm_victims": 80,
+        "scrub_acts": 47,
+        "rowpress_alerts": 20,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 106.59,
+        "err_vic_vs_rtl_pct": -70.6
+      }
+    ]
+  },
+  {
+    "split": "in_sample",
+    "wl": "hammer_double",
+    "cfg": "base",
+    "reason_selected": "Top act_victim l\u1ec7ch nh\u1ea5t trong m\u1eabu (+34.48%)",
+    "rtl_act_traffic": 2176,
+    "rtl_act_victim": 29,
+    "rtl_throttles": 0,
+    "cal_act_traffic": 2196,
+    "cal_act_victim": 39,
+    "cal_err_act_pct": 0.92,
+    "cal_err_vic_pct": 34.48,
+    "variants": [
+      {
+        "variant": "baseline_calibrated",
+        "description": "M\u00f4 h\u00ecnh hi\u1ec7u chu\u1ea9n \u0111\u00f3ng b\u0103ng",
+        "overrides": {},
+        "bw_gbps": 2.2863,
+        "rd_lat_avg_ns": 528.06,
+        "act_traffic": 2196,
+        "act_victim": 39,
+        "drm_victims": 0,
+        "scrub_acts": 39,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.92,
+        "err_vic_vs_rtl_pct": 34.48
+      },
+      {
+        "variant": "no_patrol_scrub",
+        "description": "T\u1eaft tu\u1ea7n tra ECC n\u1ec1n (scrub_interval=0)",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 0
+        },
+        "bw_gbps": 2.289,
+        "rd_lat_avg_ns": 527.44,
+        "act_traffic": 2195,
+        "act_victim": 0,
+        "drm_victims": 0,
+        "scrub_acts": 0,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": -1,
+        "delta_vic_vs_cal": -39,
+        "err_act_vs_rtl_pct": 0.87,
+        "err_vic_vs_rtl_pct": -100.0
+      },
+      {
+        "variant": "scrub_interval_420",
+        "description": "T\u0103ng chu k\u1ef3 scrub 320->420 m\u00f4 ph\u1ecfng gating s_v=='0 c\u1ee7a RTL",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 420
+        },
+        "bw_gbps": 2.2859,
+        "rd_lat_avg_ns": 528.15,
+        "act_traffic": 2196,
+        "act_victim": 41,
+        "drm_victims": 0,
+        "scrub_acts": 41,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 2,
+        "err_act_vs_rtl_pct": 0.92,
+        "err_vic_vs_rtl_pct": 41.38
+      },
+      {
+        "variant": "no_rowpress",
+        "description": "T\u1eaft c\u1ea3nh b\u00e1o RowPress (rowpress_thresh_ns=999999999)",
+        "overrides": {
+          "rowpress_thresh_ns": 999999999
+        },
+        "bw_gbps": 2.2863,
+        "rd_lat_avg_ns": 528.06,
+        "act_traffic": 2196,
+        "act_victim": 39,
+        "drm_victims": 0,
+        "scrub_acts": 39,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.92,
+        "err_vic_vs_rtl_pct": 34.48
+      },
+      {
+        "variant": "no_ref_postpone",
+        "description": "T\u1eaft ho\u00e3n REFab (ref_postpone_max=0)",
+        "overrides": {
+          "ref_postpone_max": 0
+        },
+        "bw_gbps": 2.2657,
+        "rd_lat_avg_ns": 532.9,
+        "act_traffic": 2199,
+        "act_victim": 41,
+        "drm_victims": 0,
+        "scrub_acts": 41,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 3,
+        "delta_vic_vs_cal": 2,
+        "err_act_vs_rtl_pct": 1.06,
+        "err_vic_vs_rtl_pct": 41.38
+      },
+      {
+        "variant": "sdc_count_act_only",
+        "description": "\u0110\u1ebfm SDC theo ACT thay v\u00ec m\u1ecdi AXI req (sdc_count_requests=False)",
+        "overrides": {
+          "sdc_count_requests": false
+        },
+        "bw_gbps": 2.2863,
+        "rd_lat_avg_ns": 528.06,
+        "act_traffic": 2196,
+        "act_victim": 39,
+        "drm_victims": 0,
+        "scrub_acts": 39,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.92,
+        "err_vic_vs_rtl_pct": 34.48
+      },
+      {
+        "variant": "no_sdc_drm",
+        "description": "T\u1eaft k\u00edch ho\u1ea1t SDC/DRM victim refresh (sdc_thresh=65535)",
+        "overrides": {
+          "sdc_thresh": 65535
+        },
+        "bw_gbps": 2.2863,
+        "rd_lat_avg_ns": 528.06,
+        "act_traffic": 2196,
+        "act_victim": 39,
+        "drm_victims": 0,
+        "scrub_acts": 39,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.92,
+        "err_vic_vs_rtl_pct": 34.48
+      },
+      {
+        "variant": "frfcfs_sched",
+        "description": "\u0110\u1ed5i b\u1ed9 l\u1eadp l\u1ecbch FRFCFSRowHit -> FRFCFS",
+        "overrides": {
+          "scheduler_impl": "FRFCFS"
+        },
+        "bw_gbps": 2.1789,
+        "rd_lat_avg_ns": 553.13,
+        "act_traffic": 2979,
+        "act_victim": 47,
+        "drm_victims": 0,
+        "scrub_acts": 47,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 783,
+        "delta_vic_vs_cal": 8,
+        "err_act_vs_rtl_pct": 36.9,
+        "err_vic_vs_rtl_pct": 62.07
+      }
+    ]
+  },
+  {
+    "split": "in_sample",
+    "wl": "random_rw",
+    "cfg": "secure",
+    "reason_selected": "Top act_victim l\u1ec7ch nh\u1ea5t trong m\u1eabu (-24.00%)",
+    "rtl_act_traffic": 3993,
+    "rtl_act_victim": 50,
+    "rtl_throttles": 0,
+    "cal_act_traffic": 3998,
+    "cal_act_victim": 38,
+    "cal_err_act_pct": 0.13,
+    "cal_err_vic_pct": -24.0,
+    "variants": [
+      {
+        "variant": "baseline_calibrated",
+        "description": "M\u00f4 h\u00ecnh hi\u1ec7u chu\u1ea9n \u0111\u00f3ng b\u0103ng",
+        "overrides": {},
+        "bw_gbps": 2.0715,
+        "rd_lat_avg_ns": 856.79,
+        "act_traffic": 3998,
+        "act_victim": 38,
+        "drm_victims": 0,
+        "scrub_acts": 38,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.13,
+        "err_vic_vs_rtl_pct": -24.0
+      },
+      {
+        "variant": "no_patrol_scrub",
+        "description": "T\u1eaft tu\u1ea7n tra ECC n\u1ec1n (scrub_interval=0)",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 0
+        },
+        "bw_gbps": 2.0709,
+        "rd_lat_avg_ns": 858.94,
+        "act_traffic": 3998,
+        "act_victim": 0,
+        "drm_victims": 0,
+        "scrub_acts": 0,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": -38,
+        "err_act_vs_rtl_pct": 0.13,
+        "err_vic_vs_rtl_pct": -100.0
+      },
+      {
+        "variant": "scrub_interval_420",
+        "description": "T\u0103ng chu k\u1ef3 scrub 320->420 m\u00f4 ph\u1ecfng gating s_v=='0 c\u1ee7a RTL",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 420
+        },
+        "bw_gbps": 2.0711,
+        "rd_lat_avg_ns": 855.0,
+        "act_traffic": 3998,
+        "act_victim": 38,
+        "drm_victims": 0,
+        "scrub_acts": 38,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.13,
+        "err_vic_vs_rtl_pct": -24.0
+      },
+      {
+        "variant": "no_rowpress",
+        "description": "T\u1eaft c\u1ea3nh b\u00e1o RowPress (rowpress_thresh_ns=999999999)",
+        "overrides": {
+          "rowpress_thresh_ns": 999999999
+        },
+        "bw_gbps": 2.0715,
+        "rd_lat_avg_ns": 856.79,
+        "act_traffic": 3998,
+        "act_victim": 38,
+        "drm_victims": 0,
+        "scrub_acts": 38,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.13,
+        "err_vic_vs_rtl_pct": -24.0
+      },
+      {
+        "variant": "no_ref_postpone",
+        "description": "T\u1eaft ho\u00e3n REFab (ref_postpone_max=0)",
+        "overrides": {
+          "ref_postpone_max": 0
+        },
+        "bw_gbps": 2.0518,
+        "rd_lat_avg_ns": 867.03,
+        "act_traffic": 3997,
+        "act_victim": 44,
+        "drm_victims": 0,
+        "scrub_acts": 44,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": -1,
+        "delta_vic_vs_cal": 6,
+        "err_act_vs_rtl_pct": 0.1,
+        "err_vic_vs_rtl_pct": -12.0
+      },
+      {
+        "variant": "sdc_count_act_only",
+        "description": "\u0110\u1ebfm SDC theo ACT thay v\u00ec m\u1ecdi AXI req (sdc_count_requests=False)",
+        "overrides": {
+          "sdc_count_requests": false
+        },
+        "bw_gbps": 2.0715,
+        "rd_lat_avg_ns": 856.79,
+        "act_traffic": 3998,
+        "act_victim": 38,
+        "drm_victims": 0,
+        "scrub_acts": 38,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.13,
+        "err_vic_vs_rtl_pct": -24.0
+      },
+      {
+        "variant": "no_sdc_drm",
+        "description": "T\u1eaft k\u00edch ho\u1ea1t SDC/DRM victim refresh (sdc_thresh=65535)",
+        "overrides": {
+          "sdc_thresh": 65535
+        },
+        "bw_gbps": 2.0715,
+        "rd_lat_avg_ns": 856.79,
+        "act_traffic": 3998,
+        "act_victim": 38,
+        "drm_victims": 0,
+        "scrub_acts": 38,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 0.13,
+        "err_vic_vs_rtl_pct": -24.0
+      },
+      {
+        "variant": "frfcfs_sched",
+        "description": "\u0110\u1ed5i b\u1ed9 l\u1eadp l\u1ecbch FRFCFSRowHit -> FRFCFS",
+        "overrides": {
+          "scheduler_impl": "FRFCFS"
+        },
+        "bw_gbps": 2.074,
+        "rd_lat_avg_ns": 856.6,
+        "act_traffic": 3998,
+        "act_victim": 40,
+        "drm_victims": 0,
+        "scrub_acts": 40,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 2,
+        "err_act_vs_rtl_pct": 0.13,
+        "err_vic_vs_rtl_pct": -20.0
+      }
+    ]
+  },
+  {
+    "split": "in_sample",
+    "wl": "stream_copy",
+    "cfg": "secure",
+    "reason_selected": "Ki\u1ec3m tra b\u1ed5 sung ch\u00eanh l\u1ec7ch ACT streaming 1:1 RD/WR",
+    "rtl_act_traffic": 1483,
+    "rtl_act_victim": 168,
+    "rtl_throttles": 67,
+    "cal_act_traffic": 1647,
+    "cal_act_victim": 171,
+    "cal_err_act_pct": 11.06,
+    "cal_err_vic_pct": 1.79,
+    "variants": [
+      {
+        "variant": "baseline_calibrated",
+        "description": "M\u00f4 h\u00ecnh hi\u1ec7u chu\u1ea9n \u0111\u00f3ng b\u0103ng",
+        "overrides": {},
+        "bw_gbps": 2.1178,
+        "rd_lat_avg_ns": 1142.35,
+        "act_traffic": 1647,
+        "act_victim": 171,
+        "drm_victims": 128,
+        "scrub_acts": 43,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 32,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 11.06,
+        "err_vic_vs_rtl_pct": 1.79
+      },
+      {
+        "variant": "no_patrol_scrub",
+        "description": "T\u1eaft tu\u1ea7n tra ECC n\u1ec1n (scrub_interval=0)",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 0
+        },
+        "bw_gbps": 2.1245,
+        "rd_lat_avg_ns": 1138.89,
+        "act_traffic": 1650,
+        "act_victim": 128,
+        "drm_victims": 128,
+        "scrub_acts": 0,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 32,
+        "delta_act_vs_cal": 3,
+        "delta_vic_vs_cal": -43,
+        "err_act_vs_rtl_pct": 11.26,
+        "err_vic_vs_rtl_pct": -23.81
+      },
+      {
+        "variant": "scrub_interval_420",
+        "description": "T\u0103ng chu k\u1ef3 scrub 320->420 m\u00f4 ph\u1ecfng gating s_v=='0 c\u1ee7a RTL",
+        "overrides": {
+          "scrub_interval_ctrl_cycles": 420
+        },
+        "bw_gbps": 2.1253,
+        "rd_lat_avg_ns": 1138.5,
+        "act_traffic": 1640,
+        "act_victim": 166,
+        "drm_victims": 128,
+        "scrub_acts": 38,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 32,
+        "delta_act_vs_cal": -7,
+        "delta_vic_vs_cal": -5,
+        "err_act_vs_rtl_pct": 10.59,
+        "err_vic_vs_rtl_pct": -1.19
+      },
+      {
+        "variant": "no_rowpress",
+        "description": "T\u1eaft c\u1ea3nh b\u00e1o RowPress (rowpress_thresh_ns=999999999)",
+        "overrides": {
+          "rowpress_thresh_ns": 999999999
+        },
+        "bw_gbps": 2.1178,
+        "rd_lat_avg_ns": 1142.35,
+        "act_traffic": 1647,
+        "act_victim": 171,
+        "drm_victims": 128,
+        "scrub_acts": 43,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 32,
+        "delta_act_vs_cal": 0,
+        "delta_vic_vs_cal": 0,
+        "err_act_vs_rtl_pct": 11.06,
+        "err_vic_vs_rtl_pct": 1.79
+      },
+      {
+        "variant": "no_ref_postpone",
+        "description": "T\u1eaft ho\u00e3n REFab (ref_postpone_max=0)",
+        "overrides": {
+          "ref_postpone_max": 0
+        },
+        "bw_gbps": 2.093,
+        "rd_lat_avg_ns": 1155.77,
+        "act_traffic": 1778,
+        "act_victim": 179,
+        "drm_victims": 128,
+        "scrub_acts": 51,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 32,
+        "delta_act_vs_cal": 131,
+        "delta_vic_vs_cal": 8,
+        "err_act_vs_rtl_pct": 19.89,
+        "err_vic_vs_rtl_pct": 6.55
+      },
+      {
+        "variant": "sdc_count_act_only",
+        "description": "\u0110\u1ebfm SDC theo ACT thay v\u00ec m\u1ecdi AXI req (sdc_count_requests=False)",
+        "overrides": {
+          "sdc_count_requests": false
+        },
+        "bw_gbps": 2.1234,
+        "rd_lat_avg_ns": 1139.53,
+        "act_traffic": 1595,
+        "act_victim": 77,
+        "drm_victims": 40,
+        "scrub_acts": 37,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 10,
+        "delta_act_vs_cal": -52,
+        "delta_vic_vs_cal": -94,
+        "err_act_vs_rtl_pct": 7.55,
+        "err_vic_vs_rtl_pct": -54.17
+      },
+      {
+        "variant": "no_sdc_drm",
+        "description": "T\u1eaft k\u00edch ho\u1ea1t SDC/DRM victim refresh (sdc_thresh=65535)",
+        "overrides": {
+          "sdc_thresh": 65535
+        },
+        "bw_gbps": 2.1214,
+        "rd_lat_avg_ns": 1140.62,
+        "act_traffic": 1710,
+        "act_victim": 45,
+        "drm_victims": 0,
+        "scrub_acts": 45,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 0,
+        "delta_act_vs_cal": 63,
+        "delta_vic_vs_cal": -126,
+        "err_act_vs_rtl_pct": 15.31,
+        "err_vic_vs_rtl_pct": -73.21
+      },
+      {
+        "variant": "frfcfs_sched",
+        "description": "\u0110\u1ed5i b\u1ed9 l\u1eadp l\u1ecbch FRFCFSRowHit -> FRFCFS",
+        "overrides": {
+          "scheduler_impl": "FRFCFS"
+        },
+        "bw_gbps": 2.1148,
+        "rd_lat_avg_ns": 1144.12,
+        "act_traffic": 1648,
+        "act_victim": 170,
+        "drm_victims": 128,
+        "scrub_acts": 42,
+        "rowpress_alerts": 0,
+        "sdc_throttles": 32,
+        "delta_act_vs_cal": 1,
+        "delta_vic_vs_cal": -1,
+        "err_act_vs_rtl_pct": 11.13,
+        "err_vic_vs_rtl_pct": 1.19
+      }
+    ]
+  }
+]

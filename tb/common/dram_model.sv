@@ -12,7 +12,13 @@ module dram_model
     parameter int DW      = 64,
     parameter int RL      = 8,    // RD -> beat dữ liệu đầu tiên
     parameter int WL      = 1,    // WR -> beat dữ liệu đầu tiên
-    parameter int MEM_LOG = 16    // bảng băm 2^MEM_LOG word (dò tuyến tính, lưu khoá đầy đủ)
+    parameter int MEM_LOG = 16,   // bảng băm 2^MEM_LOG word (dò tuyến tính, lưu khoá đầy đủ)
+    parameter bit TRACK_RH     = 1'b0, // Bật bộ đếm nhiễu RowHammer/RowPress theo hàng nạn nhân (T82)
+    parameter int RH_RADIUS    = 2,    // Bán kính hàng nạn nhân ±1..RH_RADIUS
+    parameter int RH_W1        = 1,    // Trọng số khoảng cách ±1
+    parameter int RH_W2        = 1,    // Trọng số khoảng cách ±2
+    parameter int RH_W3        = 1,    // Trọng số khoảng cách ±3
+    parameter int RH_TABLE_LOG = 13    // 2^RH_TABLE_LOG mục theo dõi hàng nạn nhân khi TRACK_RH=1
 ) (
     input  logic              clk,
     input  logic              rst_n,
@@ -30,9 +36,13 @@ module dram_model
     output logic [DW-1:0]     rddata,
     output logic [DW/8-1:0]   rddata_ecc
 );
-    localparam logic [2:0] RD = 3'd3, WR = 3'd4;
-    localparam int MEM_N = 1 << MEM_LOG;
-    localparam int RING  = 64;
+    localparam logic [2:0] ACT = 3'd1, PRE = 3'd2, RD = 3'd3, WR = 3'd4, REF = 3'd5, RFM = 3'd6;
+    localparam int MEM_N        = 1 << MEM_LOG;
+    localparam int RING         = 64;
+    localparam int NBANKS       = 1 << (BG_W + BANK_W);
+    localparam int RH_SLOT_BITS = TRACK_RH ? RH_TABLE_LOG : 2;
+    localparam int RH_SLOTS     = 1 << RH_SLOT_BITS;
+    localparam logic [ROW_W-1:0] RH_ROW_MAX = {ROW_W{1'b1}};
 
     // Bộ nhớ: bảng băm lưu khoá đầy đủ nên không bao giờ trả nhầm dữ liệu của ô khác (Icarus không có mảng kết hợp)
     bit [63:0]   mem_key  [MEM_N];
@@ -55,6 +65,34 @@ module dram_model
     int     wq_len  [$];
     longint wq_t0   [$];
     int     w_beat;
+
+    // Bộ đếm nhiễu RowHammer và thời gian mở RowPress theo từng hàng nạn nhân (chỉ cấp phát đầy đủ khi TRACK_RH=1)
+    bit               rh_bank_open      [NBANKS];
+    bit [ROW_W-1:0]   rh_open_row       [NBANKS];
+    longint           rh_open_start_cyc [NBANKS];
+    bit [31:0]        rh_key            [RH_SLOTS];
+    bit               rh_used           [RH_SLOTS];
+    int               rh_disturb        [RH_SLOTS];
+    int               rh_disturb_max    [RH_SLOTS];
+    longint           rh_rp_open_cyc    [RH_SLOTS];
+    longint           rh_rp_open_max    [RH_SLOTS];
+    longint           rh_rp_single_max  [RH_SLOTS];
+    int               rh_act_self       [RH_SLOTS];
+    int               rh_user_act_self  [RH_SLOTS];
+    int               rh_mit_act_self   [RH_SLOTS];
+    bit               rh_ignore_mit_act = 1'b0;
+    bit               rh_cur_act_is_mit = 1'b0;
+    int               rh_table_fill;
+    int               rh_err_table_full;
+    longint           rh_total_acts;
+    longint           rh_total_refs;
+    longint           rh_total_rfms;
+    int               rh_ref_ptr;
+    int               rh_global_max_disturb;
+    bit [31:0]        rh_global_max_disturb_key;
+    longint           rh_global_max_rp_open_cyc;
+    bit [31:0]        rh_global_max_rp_key;
+    longint           rh_global_max_single_open_cyc;
 
     function automatic bit [63:0] word_key(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
                                            input logic [ROW_W-1:0] r, input longint w);
@@ -174,8 +212,233 @@ module dram_model
         t = wq_t0.pop_front();
     endtask
 
+    // Hàm và task theo dõi nhiễu RowHammer / thời gian mở RowPress theo từng hàng nạn nhân
+    function automatic bit [31:0] rh_row_key(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                             input logic [ROW_W-1:0] r);
+        return (32'(g) << (BANK_W + ROW_W)) | (32'(b) << ROW_W) | 32'(r);
+    endfunction
+
+    function automatic int rh_slot_of(input bit [31:0] k);
+        bit [31:0] h;
+        h = k * 32'h9E37_79B1;
+        return int'(h[31 -: RH_SLOT_BITS]);
+    endfunction
+
+    function automatic int rh_find(input bit [31:0] k);
+        int i;
+        i = rh_slot_of(k);
+        for (int n = 0; n < RH_SLOTS; n++) begin
+            if (!rh_used[i]) return -1;
+            if (rh_key[i] == k) return i;
+            i = (i + 1) % RH_SLOTS;
+        end
+        return -1;
+    endfunction
+
+    function automatic int rh_weight(input int d);
+        if (d == 1) return RH_W1;
+        if (d == 2) return RH_W2;
+        if (d == 3) return RH_W3;
+        return 0;
+    endfunction
+
+    task automatic rh_get_or_alloc(input bit [31:0] k, output int idx);
+        int i;
+        bit done;
+        i = rh_slot_of(k);
+        idx = -1;
+        done = 1'b0;
+        for (int n = 0; n < RH_SLOTS && !done; n++) begin
+            if (!rh_used[i] || rh_key[i] == k) begin
+                if (!rh_used[i]) begin
+                    rh_used[i]          = 1'b1;
+                    rh_key[i]           = k;
+                    rh_disturb[i]       = 0;
+                    rh_disturb_max[i]   = 0;
+                    rh_rp_open_cyc[i]   = 0;
+                    rh_rp_open_max[i]   = 0;
+                    rh_rp_single_max[i] = 0;
+                    rh_act_self[i]      = 0;
+                    rh_user_act_self[i] = 0;
+                    rh_mit_act_self[i]  = 0;
+                    rh_table_fill++;
+                end
+                idx  = i;
+                done = 1'b1;
+            end else begin
+                i = (i + 1) % RH_SLOTS;
+            end
+        end
+        if (!done) rh_err_table_full++;
+    endtask
+
+    task automatic rh_credit_act_one(input bit [31:0] nk, input int w);
+        int idx;
+        rh_get_or_alloc(nk, idx);
+        if (idx >= 0) begin
+            rh_disturb[idx] += w;
+            if (rh_disturb[idx] > rh_disturb_max[idx])
+                rh_disturb_max[idx] = rh_disturb[idx];
+            if (rh_disturb[idx] > rh_global_max_disturb) begin
+                rh_global_max_disturb     = rh_disturb[idx];
+                rh_global_max_disturb_key = nk;
+            end
+        end
+    endtask
+
+    task automatic rh_credit_rp_one(input bit [31:0] nk, input longint dur, input longint w_dur);
+        int idx;
+        rh_get_or_alloc(nk, idx);
+        if (idx >= 0) begin
+            rh_rp_open_cyc[idx] += w_dur;
+            if (rh_rp_open_cyc[idx] > rh_rp_open_max[idx])
+                rh_rp_open_max[idx] = rh_rp_open_cyc[idx];
+            if (dur > rh_rp_single_max[idx])
+                rh_rp_single_max[idx] = dur;
+            if (rh_rp_open_cyc[idx] > rh_global_max_rp_open_cyc) begin
+                rh_global_max_rp_open_cyc = rh_rp_open_cyc[idx];
+                rh_global_max_rp_key      = nk;
+            end
+        end
+    endtask
+
+    task automatic rh_credit_rp(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                input logic [ROW_W-1:0] open_r, input longint dur);
+        int d, w;
+        longint r_base, w_dur;
+        logic [ROW_W-1:0] n_row;
+        if (dur > 0) begin
+            if (dur > rh_global_max_single_open_cyc) rh_global_max_single_open_cyc = dur;
+            r_base = longint'(open_r);
+            for (d = 1; d <= RH_RADIUS; d++) begin
+                w = rh_weight(d);
+                if (w > 0) begin
+                    w_dur = dur * longint'(w);
+                    if (r_base + longint'(d) <= longint'(RH_ROW_MAX)) begin
+                        n_row = ROW_W'(r_base + longint'(d));
+                        rh_credit_rp_one(rh_row_key(g, b, n_row), dur, w_dur);
+                    end
+                    if (r_base >= longint'(d)) begin
+                        n_row = ROW_W'(r_base - longint'(d));
+                        rh_credit_rp_one(rh_row_key(g, b, n_row), dur, w_dur);
+                    end
+                end
+            end
+        end
+    endtask
+
+    task automatic rh_reset_counters();
+        int i;
+        for (i = 0; i < NBANKS; i++) begin
+            rh_bank_open[i]      = 1'b0;
+            rh_open_row[i]       = '0;
+            rh_open_start_cyc[i] = 0;
+        end
+        for (i = 0; i < RH_SLOTS; i++) begin
+            rh_key[i]           = '0;
+            rh_used[i]          = 1'b0;
+            rh_disturb[i]       = 0;
+            rh_disturb_max[i]   = 0;
+            rh_rp_open_cyc[i]   = 0;
+            rh_rp_open_max[i]   = 0;
+            rh_rp_single_max[i] = 0;
+            rh_act_self[i]      = 0;
+            rh_user_act_self[i] = 0;
+            rh_mit_act_self[i]  = 0;
+        end
+        rh_table_fill                 = 0;
+        rh_err_table_full             = 0;
+        rh_total_acts                 = 0;
+        rh_total_refs                 = 0;
+        rh_total_rfms                 = 0;
+        rh_ref_ptr                    = 0;
+        rh_global_max_disturb         = 0;
+        rh_global_max_disturb_key     = '0;
+        rh_global_max_rp_open_cyc     = 0;
+        rh_global_max_rp_key          = '0;
+        rh_global_max_single_open_cyc = 0;
+    endtask
+
+    task automatic rh_flush_open_banks();
+        int b_idx;
+        logic [BG_W+BANK_W-1:0] gb_vec;
+        logic [BG_W-1:0] g;
+        logic [BANK_W-1:0] bk;
+        if (TRACK_RH) begin
+            for (b_idx = 0; b_idx < NBANKS; b_idx++) begin
+                if (rh_bank_open[b_idx]) begin
+                    gb_vec = (BG_W+BANK_W)'(b_idx);
+                    g      = gb_vec[BG_W+BANK_W-1 : BANK_W];
+                    bk     = gb_vec[BANK_W-1 : 0];
+                    rh_credit_rp(g, bk, rh_open_row[b_idx], cyc - rh_open_start_cyc[b_idx]);
+                    rh_open_start_cyc[b_idx] = cyc;
+                end
+            end
+        end
+    endtask
+
+    function automatic int rh_get_disturb_max(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                              input logic [ROW_W-1:0] r);
+        int idx;
+        if (!TRACK_RH) return 0;
+        idx = rh_find(rh_row_key(g, b, r));
+        return (idx >= 0) ? rh_disturb_max[idx] : 0;
+    endfunction
+
+    function automatic int rh_get_disturb_cur(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                              input logic [ROW_W-1:0] r);
+        int idx;
+        if (!TRACK_RH) return 0;
+        idx = rh_find(rh_row_key(g, b, r));
+        return (idx >= 0) ? rh_disturb[idx] : 0;
+    endfunction
+
+    function automatic int rh_get_user_act_self(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                                input logic [ROW_W-1:0] r);
+        int idx;
+        if (!TRACK_RH) return 0;
+        idx = rh_find(rh_row_key(g, b, r));
+        return (idx >= 0) ? rh_user_act_self[idx] : 0;
+    endfunction
+
+    function automatic int rh_get_mit_act_self(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                               input logic [ROW_W-1:0] r);
+        int idx;
+        if (!TRACK_RH) return 0;
+        idx = rh_find(rh_row_key(g, b, r));
+        return (idx >= 0) ? rh_mit_act_self[idx] : 0;
+    endfunction
+
+    function automatic longint rh_get_rp_open_max(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                                  input logic [ROW_W-1:0] r);
+        int idx;
+        if (!TRACK_RH) return 0;
+        idx = rh_find(rh_row_key(g, b, r));
+        return (idx >= 0) ? rh_rp_open_max[idx] : 0;
+    endfunction
+
+    function automatic longint rh_get_rp_single_max(input logic [BG_W-1:0] g, input logic [BANK_W-1:0] b,
+                                                    input logic [ROW_W-1:0] r);
+        int idx;
+        if (!TRACK_RH) return 0;
+        idx = rh_find(rh_row_key(g, b, r));
+        return (idx >= 0) ? rh_rp_single_max[idx] : 0;
+    endfunction
+
+    function automatic int rh_get_global_max_disturb();
+        return TRACK_RH ? rh_global_max_disturb : 0;
+    endfunction
+
+    function automatic longint rh_get_global_max_rp_open();
+        return TRACK_RH ? rh_global_max_rp_open_cyc : 0;
+    endfunction
+
+    function automatic longint rh_get_global_max_single_open();
+        return TRACK_RH ? rh_global_max_single_open_cyc : 0;
+    endfunction
+
     function automatic int errors();
-        return err_dq_conflict + err_wr_beats + err_wr_orphan + err_mem_full;
+        return err_dq_conflict + err_wr_beats + err_wr_orphan + err_mem_full + (TRACK_RH ? rh_err_table_full : 0);
     endfunction
 
     task automatic report(input string tag);
@@ -193,8 +456,71 @@ module dram_model
             wq_t0.delete();
             w_beat = 0;
             rddata_valid <= 1'b0;
+            if (TRACK_RH) rh_reset_counters();
         end else begin
             cyc++;
+            if (TRACK_RH) begin
+                if (cmd == ACT) begin
+                    int b_idx, s_idx, d, w;
+                    longint r_base;
+                    logic [ROW_W-1:0] n_row;
+                    bit [31:0] sk;
+                    rh_total_acts++;
+                    b_idx = (int'(bg) << BANK_W) | int'(bank);
+                    rh_bank_open[b_idx]      = 1'b1;
+                    rh_open_row[b_idx]       = row;
+                    rh_open_start_cyc[b_idx] = cyc;
+                    sk = rh_row_key(bg, bank, row);
+                    rh_get_or_alloc(sk, s_idx);
+                    if (s_idx >= 0) begin
+                        rh_act_self[s_idx]++;
+                        if (rh_cur_act_is_mit) rh_mit_act_self[s_idx]++;
+                        else                   rh_user_act_self[s_idx]++;
+                        rh_disturb[s_idx]     = 0;
+                        rh_rp_open_cyc[s_idx] = 0;
+                    end
+                    if (!(rh_ignore_mit_act && rh_cur_act_is_mit)) begin
+                        r_base = longint'(row);
+                        for (d = 1; d <= RH_RADIUS; d++) begin
+                            w = rh_weight(d);
+                            if (w > 0) begin
+                                if (r_base + longint'(d) <= longint'(RH_ROW_MAX)) begin
+                                    n_row = ROW_W'(r_base + longint'(d));
+                                    rh_credit_act_one(rh_row_key(bg, bank, n_row), w);
+                                end
+                                if (r_base >= longint'(d)) begin
+                                    n_row = ROW_W'(r_base - longint'(d));
+                                    rh_credit_act_one(rh_row_key(bg, bank, n_row), w);
+                                end
+                            end
+                        end
+                    end
+                end
+                if (cmd == PRE) begin
+                    int b_idx;
+                    b_idx = (int'(bg) << BANK_W) | int'(bank);
+                    if (rh_bank_open[b_idx]) begin
+                        rh_credit_rp(bg, bank, rh_open_row[b_idx], cyc - rh_open_start_cyc[b_idx]);
+                        rh_bank_open[b_idx] = 1'b0;
+                    end
+                end
+                if (cmd == REF) begin
+                    bit [12:0] ref_row_lsb;
+                    rh_total_refs++;
+                    ref_row_lsb = 13'(rh_ref_ptr);
+                    // Một tREFW gồm 8192 lệnh REFab: mỗi REFab làm tươi các hàng có row[12:0] khớp con trỏ xoay vòng
+                    for (int i = 0; i < RH_SLOTS; i++) begin
+                        if (rh_used[i] && (rh_key[i][12:0] == ref_row_lsb)) begin
+                            rh_disturb[i]     = 0;
+                            rh_rp_open_cyc[i] = 0;
+                        end
+                    end
+                    rh_ref_ptr = (rh_ref_ptr + 1) & 8191;
+                end
+                if (cmd == RFM) begin
+                    rh_total_rfms++;
+                end
+            end
             if (cmd == RD) begin
                 n_rd++;
                 for (int b = 0; b <= len; b++) begin

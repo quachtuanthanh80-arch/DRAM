@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-11-19T22:40:08.428882",
+  "device": "xczu7ev-ffvc1156-2-e",
+  "mode": "auto",
+  "vivado_bin": "C:\\AMDDesignTools\\2026.1\\Vivado\\bin\\vivado.bat",
+  "vivado_version": null,
+  "max_threads": null,
+  "no_reuse_dcp": false,
+  "os": "Windows-11-10.0.22631-SP0",
+  "cpu_count": 8,
+  "git_commit": "1c38d8b27d40f42a83ba73b0e88c93a596fab52c",
+  "git_dirty": true,
+  "runs": []
+}

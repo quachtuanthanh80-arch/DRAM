@@ -98,20 +98,110 @@ WORKLOADS = {
 }
 
 
+# 6 mẫu giữ lại ngoài mẫu (holdout T90) khác biệt với 8 mẫu cũ để kiểm chéo không hiệu chuẩn lại
+def random_70_30(n, rnd):
+    return [("ST" if rnd.random() < 0.30 else "LD", rnd.randrange(0, 1 << 26) & ~(LINE - 1)) for _ in range(n)]
+
+
+def large_stride(n, rnd):
+    # Bước nhảy 32 KB (512 cache line) quét qua nhiều hàng/bank theo tỷ lệ 3 đọc : 1 ghi
+    base = 0x0040_0000
+    stride = 32768
+    mask = (1 << 26) - 1
+    ops = []
+    for i in range(n):
+        addr = ((base + i * stride) & mask) & ~(LINE - 1)
+        ops.append(("ST" if (i % 4 == 3) else "LD", addr))
+    return ops
+
+
+def dual_interleaved(n, rnd):
+    # Hai luồng tuần tự khác bank xen kẽ với luồng truy cập ngẫu nhiên
+    a, b = 0x0080_0000, 0x0180_0000 + (2 << 16)
+    ia = ib = 0
+    ops = []
+    for i in range(n):
+        m = i % 3
+        if m == 0:
+            ops.append(("LD", a + ia * LINE))
+            ia += 1
+        elif m == 1:
+            ops.append(("ST", b + ib * LINE))
+            ib += 1
+        else:
+            ops.append(("LD", rnd.randrange(0, 1 << 26) & ~(LINE - 1)))
+    return ops
+
+
+def burst_idle_rw(n, rnd):
+    # Cụm 16 đọc tuần tự xen kẽ cụm 16 ghi tuần tự rồi nhảy sang hàng/bank ngẫu nhiên (mô phỏng burst rồi chuyển pha)
+    ops = []
+    phase = 0
+    while len(ops) < n:
+        row, bank = rnd.randrange(0, 1 << 10), rnd.randrange(4)
+        base_line = rnd.randrange(0, 1024 - 16 * 8, 8)
+        op = "LD" if (phase % 2 == 0) else "ST"
+        for k in range(16):
+            ops.append((op, row_addr(row, bank, base_line + 8 * k)))
+        phase += 1
+    return ops[:n]
+
+
+def hammer_3row(n, rnd):
+    # Tấn công 3 hàng (0x140, 0x142, 0x144) trong cùng bank 0 xen kẽ 2:1 với đọc ngẫu nhiên lành tính
+    rows = (0x140, 0x142, 0x144)
+    ops = []
+    h_idx = 0
+    for i in range(n):
+        if i % 3 != 2:
+            ops.append(("LD", row_addr(rows[h_idx % 3], 0, 0)))
+            h_idx += 1
+        else:
+            ops.append(("LD", rnd.randrange(0, 1 << 26) & ~(LINE - 1)))
+    return ops
+
+
+def hammer_multibank(n, rnd):
+    # Tấn công SledgeHammer nhiều bank (4 bank, mỗi bank kẹp 2 hàng) xen kẽ 1:1 với đọc ngẫu nhiên
+    ops = []
+    h_idx = 0
+    for i in range(n):
+        if i % 2 == 0:
+            b = h_idx % 4
+            side = (h_idx // 4) % 2
+            ops.append(("LD", row_addr(0x180 + 2 * side, b, 0)))
+            h_idx += 1
+        else:
+            ops.append(("LD", rnd.randrange(0, 1 << 26) & ~(LINE - 1)))
+    return ops
+
+
+HOLDOUT_WORKLOADS = {
+    "random_70_30": (random_70_30, "benign", "Uniform random lines over 64 MB, 70% read / 30% write"),
+    "large_stride": (large_stride, "benign", "32 KB large-stride traversal across rows/banks, 3:1 read:write"),
+    "dual_interleaved": (dual_interleaved, "benign", "Two sequential RD/WR streams interleaved with random reads"),
+    "burst_idle_rw": (burst_idle_rw, "benign", "Alternating 16-line sequential read and write bursts across random rows"),
+    "hammer_3row": (hammer_3row, "attack", "3-row RowHammer in bank 0 interleaved 2:1 with random reads"),
+    "hammer_multibank": (hammer_multibank, "attack", "4-bank multi-bank RowHammer interleaved 1:1 with random reads"),
+}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "sim", "traces", "rtl_bench"))
     ap.add_argument("--ops", type=int, default=4000)
     ap.add_argument("--seed", type=int, default=12345)
+    ap.add_argument("--holdout", action="store_true", help="Generate T90 out-of-sample holdout traces instead of original 8")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
-    for name, (fn, kind, desc) in WORKLOADS.items():
+    selected = HOLDOUT_WORKLOADS if args.holdout else WORKLOADS
+    for name, (fn, kind, desc) in selected.items():
         ops = fn(args.ops, random.Random(args.seed))
         path = os.path.join(args.out, f"{name}.trace")
         with open(path, "w", newline="\n") as f:
             for op, a in ops:
                 f.write(f"{op} {a:08x}\n")
-        print(f"{name:14s} {kind:7s} {len(ops):6d} ops  {desc}")
+        print(f"{name:16s} {kind:7s} {len(ops):6d} ops  {desc}")
 
 
 if __name__ == "__main__":

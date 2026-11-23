@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_slack_arbiter.py
 # Description: Verifies slack_aware_arbiter:
 #              1. Multi-tier priority: Starved > Normal High-QoS > Throttled.

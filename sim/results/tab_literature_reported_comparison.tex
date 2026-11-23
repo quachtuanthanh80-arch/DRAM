@@ -1,0 +1,21 @@
+% Table: figures reported in primary publications (verified against the PDF page given in the last column)
+\begin{table*}[t]
+\centering
+\small
+\caption{Figures reported in primary publications, quoted as stated by each paper. Thresholds, workloads, simulators and baselines differ between papers, so the rows are not comparable with each other or with this work's measurements (see \texttt{EVALUATION.md}).}
+\label{tab:literature_reported}
+\begin{tabular}{lp{2.4cm}p{5.6cm}p{3.6cm}l}
+\toprule
+\textbf{Scheme} & \textbf{Reference} & \textbf{Reported figure} & \textbf{Condition stated} & \textbf{PDF page} \\
+\midrule
+BlockHammer & \cite{segal2021blockhammer} (HPCA 2021) & 0.7\% performance, 0.06\% area, 0.6\% DRAM energy overhead for benign workloads; 0.14\,mm$^2$ per DRAM rank (CACTI) & $N_{RH}$ = 32K; 16-bank DDR4 & 2, 8 \\
+Graphene & \cite{park2020graphene} (MICRO 2020) & 0.1456\,mm$^2$ per rank (Synopsys DC, TSMC 40\,nm); refresh energy increase at most 0.34\% & adversarial patterns; 16 banks per rank & 9, 10 \\
+AQUA & \cite{park2022aqua} (MICRO 2022) & Average slowdown 2.1\%, 41\,KB SRAM per rank (gem5) & $T_{RH}$ = 1K & 1, 3 \\
+Rubix & \cite{saxena2024rubix} (ASPLOS 2024) & Rubix-S reduces the slowdown of AQUA from 15\% to 1\%, of SRS from 60\% to 3\%, of BlockHammer from 600\% to 3\%; 16\,bytes (Rubix-S) or less than 1\,KB (Rubix-D) of storage (gem5, DDR4 model) & $T_{RH}$ = 128 & 2, 4 \\
+PRAC & \cite{olgun2025chronus} (Chronus, arXiv 2024) & PRAC-4 average (maximum) system performance overhead 5.8\% (8.9\%) (Ramulator 2.0) & $N_{RH}$ = 1K & 6 \\
+DREAM & \cite{dream2025} (ISCA 2025) & DREAM-C needs 1\,KB per bank, 8$\times$ less than Graphene, with negligible slowdown & threshold 500 & 1 \\
+QPRAC & \cite{woo2025qprac} (HPCA 2025) & 0.8\% slowdown on 57 benign workloads (0\% with proactive mitigation); under 15 bytes of storage per DRAM bank; in-DRAM change & $T_{RH}$ = 71 & 1, 2 \\
+PrISM & \cite{prism2026} (ISCA 2026) & Average slowdown 1.5\% (MINT: 10.7\%) & threshold 250 & 1 \\
+\bottomrule
+\end{tabular}
+\end{table*}

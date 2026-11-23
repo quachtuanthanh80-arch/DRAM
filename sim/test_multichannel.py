@@ -26,13 +26,6 @@ TRACES_DIR = "/mnt/d/RAM/sim/traces"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 DRAM_CONFIGS = {
-    "DDR4-3200": {
-        "cls": ramulator.dram.DDR4,
-        "org": "DDR4_8Gb_x8",
-        "timing": "DDR4_3200AA",
-        "rank": 2,
-        "tCK_ns": 0.625,
-    },
     "DDR5-4800": {
         "cls": ramulator.dram.DDR5,
         "org": "DDR5_16Gb_x8",
@@ -187,7 +180,7 @@ def main():
     test_channels = [1, 2, 3, 4, 5, 6, 7, 8]
     all_results = []
 
-    for dram_name in ["DDR4-3200", "DDR5-4800"]:
+    for dram_name in ["DDR5-4800"]:
         dram_info = DRAM_CONFIGS[dram_name]
 
         for wl_name, wl_path in WORKLOADS.items():
@@ -195,7 +188,7 @@ def main():
             base_bw = None
 
             for ch in test_channels:
-                subchannels = ch * 2 if "DDR5" in dram_name else ch
+                subchannels = ch * 2
                 print(f"  Testing {ch}-Channel ({subchannels} Sub-CH) ...", end=" ", flush=True)
                 t0 = time.time()
                 

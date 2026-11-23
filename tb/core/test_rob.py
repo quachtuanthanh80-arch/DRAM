@@ -1,5 +1,5 @@
 #=============================================================================
-# Project:     Q-Shield Secure & Resilient DDR5/DDR4 Memory Controller
+# Project:     Q-Shield Secure & Resilient DDR5 Memory Controller
 # Testbench:   test_rob.py
 # Description: Verifies reorder_buffer_rob:
 #              1. Out-of-Order DRAM Data Reassembly & per-ID In-Order AXI R Retirement.

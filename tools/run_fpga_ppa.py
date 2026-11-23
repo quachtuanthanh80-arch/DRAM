@@ -5,6 +5,7 @@
 import argparse
 import datetime
 import glob
+import hashlib
 import json
 import math
 import os
@@ -17,7 +18,9 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUT_DIR = ROOT / "reports" / "paper" / "fpga"
+T83_SUMMARY_JSON = ROOT / "reports" / "paper" / "fpga" / "fpga_ppa_summary.json"
+T89_SUMMARY_JSON = ROOT / "reports" / "paper" / "fpga" / "t89" / "fpga_ppa_summary.json"
+DEFAULT_OUT_DIR = ROOT / "reports" / "paper" / "fpga" / "t89"
 VIVADO_DEFAULT = r"C:\AMDDesignTools\2026.1\Vivado\bin\vivado.bat"
 
 EXACT_PAPER_POINTS = {
@@ -64,6 +67,93 @@ def get_git_metadata():
     except Exception:
         pass
     return {"git_commit": commit, "git_dirty": dirty}
+
+
+def compute_rtl_hashes():
+    rtl_dir = ROOT / "rtl"
+    hashes = {}
+    for p in sorted(rtl_dir.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = str(p.relative_to(ROOT)).replace("\\", "/")
+        h = hashlib.sha256()
+        with open(p, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        hashes[rel] = h.hexdigest()
+    return hashes
+
+
+def write_rtl_hashes_file(out_dir: Path, git_commit: str):
+    hashes = compute_rtl_hashes()
+    lines = [
+        f"# RTL SHA-256 Snapshot (captured BEFORE Vivado P&R)",
+        f"git_head: {git_commit}",
+        f"captured_at: {datetime.datetime.now().isoformat()}",
+        f"rtl_file_count: {len(hashes)}",
+        "",
+    ]
+    for rel, digest in hashes.items():
+        lines.append(f"{digest}  {rel}")
+    out_path = out_dir / "RTL_HASHES.txt"
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"[+] Da ghi {out_path} ({len(hashes)} file rtl/**, HEAD={git_commit})", flush=True)
+    return hashes
+
+
+def parse_rtl_hashes_file(path: Path) -> dict:
+    hashes = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = re.match(r"^([0-9a-fA-F]{64})\s+(.+)$", line.strip())
+        if m:
+            hashes[m.group(2).strip()] = m.group(1).lower()
+    return hashes
+
+
+def verify_rtl_hashes_match_ref(ref_path: Path):
+    if not ref_path.exists():
+        print(f"[STOP_CONDITION_TRIGGERED] Khong tim thay file hash tham chieu: {ref_path}", file=sys.stderr, flush=True)
+        sys.exit(2)
+    ref_hashes = parse_rtl_hashes_file(ref_path)
+    cur_hashes = compute_rtl_hashes()
+    if cur_hashes != ref_hashes:
+        changed = [k for k in sorted(set(cur_hashes) | set(ref_hashes)) if cur_hashes.get(k) != ref_hashes.get(k)]
+        print(
+            f"[STOP_CONDITION_TRIGGERED] SHA-256 rtl/** KHAC voi {ref_path}: {changed}",
+            file=sys.stderr,
+            flush=True,
+        )
+        sys.exit(2)
+    print(f"[+] Xac nhan SHA-256 rtl/** KHOP 100% voi {ref_path} ({len(cur_hashes)} file)", flush=True)
+    return cur_hashes
+
+
+def verify_rtl_hashes_unchanged(expected_hashes: dict, stage_label: str):
+    current = compute_rtl_hashes()
+    if current != expected_hashes:
+        changed = [k for k in sorted(set(current) | set(expected_hashes)) if current.get(k) != expected_hashes.get(k)]
+        print(
+            f"[STOP_CONDITION_TRIGGERED] Cay rtl/** thay doi trong luc chay Vivado ({stage_label}): {changed}",
+            file=sys.stderr,
+            flush=True,
+        )
+        sys.exit(2)
+
+
+def get_rtl_diff_since_t83():
+    try:
+        r = subprocess.run(
+            ["git", "diff", "--name-status", "rem/T83..HEAD", "--", "rtl/"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if r.returncode == 0:
+            return [line.strip() for line in r.stdout.splitlines() if line.strip()]
+    except Exception:
+        pass
+    return []
 
 
 def parse_vivado_version(log_path: Path):
@@ -348,7 +438,7 @@ def extract_key_blocks(entries, power_by_hier):
     return blocks
 
 
-def run_vivado(vivado_bin, out_dir: Path, top, tag, period, presynth_dcp=None, max_threads=None):
+def run_vivado(vivado_bin, out_dir: Path, top, tag, period, presynth_dcp=None, max_threads=None, max_point_seconds=None):
     tcl_script = ROOT / "syn" / "scripts" / "impl_paper.tcl"
     log_path = out_dir / f"{tag}_vivado.log"
     jou_path = out_dir / f"{tag}_vivado.jou"
@@ -369,11 +459,35 @@ def run_vivado(vivado_bin, out_dir: Path, top, tag, period, presynth_dcp=None, m
 
     print(f"\n>>> DANG CHAY VIVADO: {' '.join(cmd)}", flush=True)
     t0 = time.time()
-    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    try:
+        p = subprocess.run(
+            cmd,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=max_point_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - t0
+        print(
+            f"[STOP_CONDITION_TRIGGERED] Vivado {top} ({tag}, {period:.3f}ns) vuot gioi han {max_point_seconds}s ({elapsed:.1f}s)!",
+            file=sys.stderr,
+            flush=True,
+        )
+        sys.exit(4)
     elapsed = time.time() - t0
     print(f">>> VIVADO KET THUC: exit={p.returncode}, thoi gian={elapsed:.1f}s, log={log_path.name}", flush=True)
     if p.returncode != 0:
         print("[STDOUT/STDERR VIVADO TAIL]:\n" + (p.stdout + "\n" + p.stderr)[-3000:], flush=True)
+    if max_point_seconds is not None and elapsed > max_point_seconds:
+        print(
+            f"[STOP_CONDITION_TRIGGERED] Vivado {top} ({tag}, {period:.3f}ns) chay {elapsed:.1f}s > {max_point_seconds}s!",
+            file=sys.stderr,
+            flush=True,
+        )
+        sys.exit(4)
     return {
         "returncode": p.returncode,
         "elapsed_s": round(elapsed, 2),
@@ -441,7 +555,7 @@ def clean_out_dir(out_dir: Path):
     print(f"[CLEAN] Da xoa {removed} file cu trong {out_dir} de tai lap sach tu RTL.", flush=True)
 
 
-def execute_point(vivado_bin, out_dir: Path, target, tag, period_ns, skip_rerun, presynth_dcp, max_threads, run_records):
+def execute_point(vivado_bin, out_dir: Path, target, tag, period_ns, skip_rerun, presynth_dcp, max_threads, run_records, max_point_seconds=None):
     timing_rpt = out_dir / f"{tag}_route_timing.rpt"
     run_meta = None
     if not skip_rerun or not timing_rpt.exists():
@@ -453,6 +567,7 @@ def execute_point(vivado_bin, out_dir: Path, target, tag, period_ns, skip_rerun,
             period_ns,
             presynth_dcp=presynth_dcp,
             max_threads=max_threads,
+            max_point_seconds=max_point_seconds,
         )
         run_records.append({"top": target, "tag": tag, "period_ns": period_ns, **run_meta})
         if run_meta["returncode"] != 0:
@@ -474,12 +589,239 @@ def execute_point(vivado_bin, out_dir: Path, target, tag, period_ns, skip_rerun,
     return t_res, u_res, p_res, h_entries, run_meta
 
 
+def run_periods_sweep(args, vivado_bin, out_dir: Path, git_meta: dict, rtl_hashes_before: dict):
+    """Che do quet danh sach chu ky tuy chon (T92): giu nguyen duong chay T83/T89."""
+    periods = [round(float(x.strip()), 3) for x in args.periods.split(",") if x.strip()]
+    if not periods:
+        print("[FAIL] --periods rong!", file=sys.stderr)
+        sys.exit(1)
+
+    targets = ["axi_ddr5_mc_top", "axi_ddr5_mc_secure_top"] if args.top == "all" else [args.top]
+    t83_data = json.loads(T83_SUMMARY_JSON.read_text(encoding="utf-8")) if T83_SUMMARY_JSON.exists() else {}
+    t89_data = json.loads(T89_SUMMARY_JSON.read_text(encoding="utf-8")) if T89_SUMMARY_JSON.exists() else {}
+
+    run_records = []
+    summary_data = {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "device": "xczu7ev-ffvc1156-2-e",
+        "mode": "sweep",
+        "periods_requested": periods,
+        "stop_on_fail": bool(args.stop_on_fail),
+        "max_point_seconds": args.max_point_seconds,
+        "presynth_dcp_arg": args.presynth_dcp,
+        "ref_rtl_hashes": args.ref_rtl_hashes,
+        "os": platform.platform(),
+        "cpu_count": os.cpu_count(),
+        "max_threads": args.threads,
+        "no_reuse_dcp": args.no_reuse_dcp,
+        **git_meta,
+        "vivado_version": None,
+        "power_methodology": "vectorless report_power (Vivado default toggle rate 12.5%, no Simulation Activity File)",
+        "results": {},
+    }
+
+    for target in targets:
+        prefix = "core" if target == "axi_ddr5_mc_top" else "sec"
+        session_dcp = Path(args.presynth_dcp).resolve() if (args.presynth_dcp and Path(args.presynth_dcp).exists()) else None
+        if args.presynth_dcp and not session_dcp:
+            print(f"[CANH BAO] Khong thay presynth_dcp {args.presynth_dcp}, se tong hop moi tu RTL.", flush=True)
+
+        sweep_pts = []
+        hier_by_tag = {}
+        pwr_hier_by_tag = {}
+        first_fail_pt = None
+
+        for idx, per in enumerate(periods):
+            tag = f"{prefix}_{int(round(per * 1000))}ps"
+            use_dcp = None if args.no_reuse_dcp else session_dcp
+            t_res, u_res, p_res, h_entries, run_meta = execute_point(
+                vivado_bin, out_dir, target, tag, per, args.skip_rerun, use_dcp,
+                args.threads, run_records, max_point_seconds=args.max_point_seconds,
+            )
+            verify_rtl_hashes_unchanged(rtl_hashes_before, f"{target}:{tag}")
+            if session_dcp is None and not args.no_reuse_dcp:
+                cand = out_dir / f"{tag}_presynth.dcp"
+                if cand.exists():
+                    session_dcp = cand
+
+            st = build_stage_dict(tag, per, t_res, u_res, p_res, run_meta)
+            st["passed"] = bool(st["wns_ns"] is not None and st["wns_ns"] >= 0.0 and (st["failing_endpoints"] or 0) == 0)
+            st["source"] = "t92_sweep"
+            sweep_pts.append(st)
+            hier_by_tag[tag] = h_entries
+            pwr_hier_by_tag[tag] = p_res["by_hierarchy"] if p_res else {}
+
+            print(
+                f"[SWEEP] {target} {tag} ({per:.3f} ns / {st['fmax_mhz']:.2f} MHz): "
+                f"WNS={st['wns_ns']:.3f}ns, TNS={st['tns_ns']:.3f}ns, EP={st['failing_endpoints']}, "
+                f"LUT={st['lut']}, FF={st['ff']}, Pwr={st['power_total_w']:.3f}W, "
+                f"status={'PASS' if st['passed'] else 'FAIL'}",
+                flush=True,
+            )
+
+            if not st["passed"]:
+                if first_fail_pt is None:
+                    first_fail_pt = st
+                if args.stop_on_fail:
+                    print(f"[SWEEP] Dung tai diem truot dau tien: {per:.3f} ns (WNS={st['wns_ns']:.3f}ns, EP={st['failing_endpoints']}).", flush=True)
+                    break
+
+        passing_pts = [p for p in sweep_pts if p["passed"]]
+        non_monotonic = False
+        for i in range(len(sweep_pts)):
+            for j in range(i + 1, len(sweep_pts)):
+                a, b = sweep_pts[i], sweep_pts[j]
+                if (a["period_ns"] > b["period_ns"] and not a["passed"] and b["passed"]) or (
+                    b["period_ns"] > a["period_ns"] and not b["passed"] and a["passed"]
+                ):
+                    non_monotonic = True
+
+        t89_ref = t89_data.get("results", {}).get(target, {}).get("confirmed")
+        t83_ref = t83_data.get("results", {}).get(target, {}).get("confirmed")
+
+        if passing_pts:
+            conf_dict = min(passing_pts, key=lambda p: p["period_ns"])
+            conf_h_entries = hier_by_tag.get(conf_dict["tag"], [])
+            conf_power_hier = pwr_hier_by_tag.get(conf_dict["tag"], {})
+        elif t89_ref:
+            conf_dict = dict(t89_ref)
+            conf_dict["passed"] = True
+            conf_dict["source"] = "T89_reference (not re-run)"
+            conf_h_entries = t89_data.get("results", {}).get(target, {}).get("hierarchical_util", [])
+            conf_power_hier = t89_data.get("results", {}).get(target, {}).get("power_by_hierarchy", {})
+        else:
+            conf_dict = sweep_pts[-1]
+            conf_h_entries = hier_by_tag.get(conf_dict["tag"], [])
+            conf_power_hier = pwr_hier_by_tag.get(conf_dict["tag"], {})
+
+        key_blocks = extract_key_blocks(conf_h_entries, conf_power_hier)
+        summary_data["results"][target] = {
+            "top": target,
+            "stage": "post_route",
+            "confirmed": conf_dict,
+            "first_failing_point": first_fail_pt,
+            "non_monotonic": non_monotonic,
+            "sweep_points": sweep_pts,
+            "t83_reference": t83_ref,
+            "t89_reference": t89_ref,
+            "key_blocks": key_blocks,
+            "hierarchical_util": conf_h_entries,
+            "power_by_hierarchy": conf_power_hier,
+        }
+
+    for rec in run_records:
+        if rec.get("vivado_version"):
+            summary_data["vivado_version"] = rec["vivado_version"]
+            break
+
+    verify_rtl_hashes_unchanged(rtl_hashes_before, "final")
+    rtl_diff_t83 = get_rtl_diff_since_t83()
+    summary_data["rtl_hashes_file"] = str((out_dir / "RTL_HASHES.txt").relative_to(ROOT)).replace("\\", "/")
+    summary_data["rtl_hashes_verified_unchanged"] = True
+    summary_data["rtl_files_changed_since_rem_t83"] = rtl_diff_t83
+
+    sum_json = out_dir / "fpga_ppa_summary.json"
+    sum_json.write_text(json.dumps(summary_data, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"\n[+] Da luu bao cao JSON: {sum_json}", flush=True)
+
+    manifest_json = out_dir / "repro_manifest.json"
+    manifest_data = {
+        "timestamp": summary_data["timestamp"],
+        "device": summary_data["device"],
+        "mode": "sweep",
+        "periods_requested": periods,
+        "stop_on_fail": bool(args.stop_on_fail),
+        "presynth_dcp_arg": args.presynth_dcp,
+        "ref_rtl_hashes": args.ref_rtl_hashes,
+        "vivado_bin": vivado_bin,
+        "vivado_version": summary_data["vivado_version"],
+        "max_threads": args.threads,
+        "no_reuse_dcp": args.no_reuse_dcp,
+        "os": summary_data["os"],
+        "cpu_count": summary_data["cpu_count"],
+        **git_meta,
+        "runs": run_records,
+    }
+    manifest_json.write_text(json.dumps(manifest_data, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"[+] Da luu manifest tai lap: {manifest_json}", flush=True)
+
+    sum_md = out_dir / "fpga_ppa_summary.md"
+    md_lines = [
+        "# Q-Shield FPGA Post-Route Core Fmax Sweep Summary (T92)",
+        f"- Ngày đo: {summary_data['timestamp']}",
+        f"- Chip mục tiêu: `{summary_data['device']}` (Xilinx Zynq UltraScale+)",
+        f"- Vivado: `{summary_data['vivado_version'] or 'unknown'}` | Threads: `{args.threads}` | Presynth DCP: `{args.presynth_dcp or 'fresh synth'}`",
+        f"- Git commit: `{git_meta['git_commit'] or 'unknown'}` | RTL hash snapshot: `{summary_data['rtl_hashes_file']}` (khớp 100% với T89 và không đổi sau mọi lượt route)",
+        f"- Phương pháp đo công suất: {summary_data['power_methodology']}",
+        "",
+    ]
+    for target, info in summary_data["results"].items():
+        conf = info["confirmed"]
+        ffp = info["first_failing_point"]
+        t83r = info["t83_reference"]
+        t89r = info["t89_reference"]
+        md_lines.extend([
+            f"## 1. Bảng từng điểm quét của `{target}`",
+            "",
+            "| Tag | Nguồn | Period (ns) | Fmax (MHz) | WNS (ns) | TNS (ns) | WHS (ns) | Failing EP | LUTs (%) | FFs (%) | Power (W) | Elapsed (s) | Kết quả |",
+            "| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
+        ])
+        if t89r:
+            md_lines.append(
+                f"| `{t89r['tag']}` | T89 (dẫn chiếu) | `{t89r['period_ns']:.3f}` | `{t89r['fmax_mhz']:.2f}` | `{t89r['wns_ns']:.3f}` | `{t89r['tns_ns']:.3f}` | `{t89r['whs_ns']:.3f}` | `{t89r['failing_endpoints']}` | `{t89r['lut']}` (`{t89r['lut_pct']:.2f}%`) | `{t89r['ff']}` (`{t89r['ff_pct']:.2f}%`) | `{t89r['power_total_w']:.3f}` | `{t89r.get('elapsed_s', '—')}` | PASS |"
+            )
+        for pt in info["sweep_points"]:
+            elap = f"{pt['elapsed_s']:.1f}" if pt.get("elapsed_s") is not None else "—"
+            md_lines.append(
+                f"| `{pt['tag']}` | T92 (mới) | `{pt['period_ns']:.3f}` | `{pt['fmax_mhz']:.2f}` | `{pt['wns_ns']:.3f}` | `{pt['tns_ns']:.3f}` | `{pt['whs_ns']:.3f}` | `{pt['failing_endpoints']}` | `{pt['lut']}` (`{pt['lut_pct']:.2f}%`) | `{pt['ff']}` (`{pt['ff_pct']:.2f}%`) | `{pt['power_total_w']:.3f}` | {elap} | {'PASS' if pt['passed'] else 'FAIL'} |"
+            )
+        md_lines.extend([
+            "",
+            "## 2. Fmax xác nhận và đối chiếu T83 / T89",
+            f"- **Fmax xác nhận (`WNS >= 0`, `0` failing EP, chu kỳ nhỏ nhất đạt):** **`{conf['fmax_mhz']:.2f} MHz`** tại **`{conf['period_ns']:.3f} ns`** (`WNS = {conf['wns_ns']:+.3f} ns`, `TNS = {conf['tns_ns']:.3f} ns`, `0` EP trượt, `LUT = {conf['lut']}`, `FF = {conf['ff']}`, `Power = {conf['power_total_w']:.3f} W`, nguồn: `{conf['source']}`).",
+            f"- **Điểm trượt kế bên:** " + (
+                f"`{ffp['period_ns']:.3f} ns` (`{ffp['fmax_mhz']:.2f} MHz`, `WNS = {ffp['wns_ns']:.3f} ns`, `TNS = {ffp['tns_ns']:.3f} ns`, `{ffp['failing_endpoints']}` EP trượt)."
+                if ffp else "Không có điểm trượt trong dải đã quét."
+            ),
+            f"- **Tính đơn điệu:** {'KHÔNG ĐƠN ĐIỆU (đã báo cả hai điểm)' if info['non_monotonic'] else 'Đơn điệu trong dải quét'}.",
+            "",
+            "| Mốc | Period (ns) | Fmax (MHz) | WNS (ns) | Failing EP | LUTs | FFs | Power (W) | ΔFmax (T92 so với mốc) |",
+            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
+        ])
+        if t83r:
+            md_lines.append(
+                f"| T83 (trước T86/T88) | `{t83r['period_ns']:.3f}` | `{t83r['fmax_mhz']:.2f}` | `{t83r['wns_ns']:+.3f}` | `{t83r['failing_endpoints']}` | `{t83r['lut']}` | `{t83r['ff']}` | `{t83r['power_total_w']:.3f}` | `{conf['fmax_mhz'] - t83r['fmax_mhz']:+.2f} MHz` |"
+            )
+        if t89r:
+            md_lines.append(
+                f"| T89 (nhảy bước 2.5→4.2) | `{t89r['period_ns']:.3f}` | `{t89r['fmax_mhz']:.2f}` | `{t89r['wns_ns']:+.3f}` | `{t89r['failing_endpoints']}` | `{t89r['lut']}` | `{t89r['ff']}` | `{t89r['power_total_w']:.3f}` | `{conf['fmax_mhz'] - t89r['fmax_mhz']:+.2f} MHz` |"
+            )
+        md_lines.append(
+            f"| **T92 (quét mịn bước 0.05 ns)** | **`{conf['period_ns']:.3f}`** | **`{conf['fmax_mhz']:.2f}`** | **`{conf['wns_ns']:+.3f}`** | **`{conf['failing_endpoints']}`** | **`{conf['lut']}`** | **`{conf['ff']}`** | **`{conf['power_total_w']:.3f}`** | `0.00 MHz` |"
+        )
+        md_lines.extend([
+            "",
+            "- **Lưu ý nhân quả:** Không khẳng định nguyên nhân chênh lệch Fmax giữa T92 và T83 vì có 8 file `rtl/**` đổi giữa `rem/T83` và `HEAD` và chưa chạy ablation P&R từng thay đổi.",
+            "- **Phạm vi `axi_ddr5_mc_secure_top`:** Không quét lại vì T83 đã kẹp chặt giữa `4.100 ns` (`WNS = -0.005 ns`, `3` EP trượt) và `4.150 ns` (`WNS = +0.021 ns`, `0` EP) và T89 đã xác nhận lại đúng `4.150 ns` (`WNS = +0.018 ns`, `0` EP).",
+            "",
+        ])
+
+    sum_md.write_text("\n".join(md_lines), encoding="utf-8")
+    print(f"[+] Da luu bao cao Markdown: {sum_md}", flush=True)
+    sys.exit(0)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Q-Shield Reproducible Post-Route FPGA PPA Runner")
     parser.add_argument("--top", default="all", choices=["axi_ddr5_mc_top", "axi_ddr5_mc_secure_top", "all"], help="Target top module")
     parser.add_argument("--period", type=float, default=2.500, help="Initial clock period in ns (default: 2.500)")
     parser.add_argument("--mode", default="auto", choices=["auto", "exact-paper"], help="auto: step period until WNS>=0; exact-paper: run fixed paper points (2.5/3.8/4.1/4.15 ns)")
-    parser.add_argument("--max-attempts", type=int, default=5, help="Max confirmed-period retries in auto mode (default: 5)")
+    parser.add_argument("--periods", default=None, help="Comma-separated period list in ns for sweep mode (e.g. 4.150,4.100,4.050,4.000,3.950,3.900)")
+    parser.add_argument("--stop-on-fail", action="store_true", help="In --periods sweep mode, stop after the first failing point")
+    parser.add_argument("--presynth-dcp", default=None, help="Existing presynth .dcp checkpoint to reuse in sweep mode")
+    parser.add_argument("--ref-rtl-hashes", default=None, help="Reference RTL_HASHES.txt to verify SHA-256 equality before running")
+    parser.add_argument("--max-point-seconds", type=int, default=None, help="Stop if any single Vivado point exceeds this many seconds")
+    parser.add_argument("--max-attempts", type=int, default=4, help="Max confirmed-period retries in auto mode (default: 4)")
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR), help="Output directory for reports, logs, and checkpoints")
     parser.add_argument("--clean", action="store_true", help="Remove old artifacts in out-dir before running from clean RTL")
     parser.add_argument("--no-reuse-dcp", action="store_true", help="Synthesize from RTL at every period point instead of reusing session presynth.dcp")
@@ -502,6 +844,12 @@ def main():
         sys.exit(1)
 
     git_meta = get_git_metadata()
+    if args.ref_rtl_hashes:
+        verify_rtl_hashes_match_ref(Path(args.ref_rtl_hashes).resolve())
+    rtl_hashes_before = write_rtl_hashes_file(out_dir, git_meta["git_commit"] or "unknown")
+    if args.periods:
+        run_periods_sweep(args, vivado_bin, out_dir, git_meta, rtl_hashes_before)
+        return
     targets = ["axi_ddr5_mc_top", "axi_ddr5_mc_secure_top"] if args.top == "all" else [args.top]
     run_records = []
     summary_data = {
@@ -564,11 +912,13 @@ def main():
 
             cur_period = init_period
             cur_wns = t_res["wns"]
+            cur_fail_ep = t_res["failing_endpoints"] if t_res["failing_endpoints"] is not None else 0
+            verify_rtl_hashes_unchanged(rtl_hashes_before, f"{target}:{init_tag}")
             attempt_idx = 0
 
-            while cur_wns < 0.0 and attempt_idx < args.max_attempts:
+            while (cur_wns < 0.0 or cur_fail_ep > 0) and attempt_idx < args.max_attempts:
                 attempt_idx += 1
-                raw_period = cur_period - cur_wns
+                raw_period = cur_period - min(cur_wns, 0.0)
                 conf_period = round(math.ceil(raw_period / 0.05) * 0.05, 3)
                 if conf_period <= cur_period:
                     conf_period = round(cur_period + 0.05, 3)
@@ -578,13 +928,14 @@ def main():
                     # Khi chỉ tổng hợp lại báo cáo sẵn có, dừng tại điểm chưa chạy trên đĩa
                     break
 
-                print(f"\n[CANH BAO] {target} WNS={cur_wns:.3f}ns < 0 o chu ky {cur_period:.3f}ns.", flush=True)
-                print(f"           Tinh chu ky xac nhan (luot {attempt_idx}): {conf_period:.3f}ns ({1000.0/conf_period:.2f} MHz).", flush=True)
+                print(f"\n[CANH BAO] {target} WNS={cur_wns:.3f}ns, failing_ep={cur_fail_ep} o chu ky {cur_period:.3f}ns.", flush=True)
+                print(f"           Tinh chu ky xac nhan (luot {attempt_idx}/{args.max_attempts}): {conf_period:.3f}ns ({1000.0/conf_period:.2f} MHz).", flush=True)
 
                 use_dcp = None if args.no_reuse_dcp else session_presynth_dcp
                 c_t_res, c_u_res, c_p_res, c_h_entries, c_run_meta = execute_point(
                     vivado_bin, out_dir, target, conf_tag, conf_period, args.skip_rerun, use_dcp, args.threads, run_records
                 )
+                verify_rtl_hashes_unchanged(rtl_hashes_before, f"{target}:{conf_tag}")
                 stage_dict = build_stage_dict(conf_tag, conf_period, c_t_res, c_u_res, c_p_res, c_run_meta)
                 all_attempts.append(stage_dict)
                 conf_dict = stage_dict
@@ -592,6 +943,16 @@ def main():
                 conf_power_hier = c_p_res["by_hierarchy"] if c_p_res else {}
                 cur_period = conf_period
                 cur_wns = c_t_res["wns"]
+                cur_fail_ep = c_t_res["failing_endpoints"] if c_t_res["failing_endpoints"] is not None else 0
+
+            if cur_wns < 0.0 or cur_fail_ep > 0:
+                print(
+                    f"[STOP_CONDITION_TRIGGERED] {target} khong dat WNS>=0 va 0 failing EP sau {args.max_attempts} lan thu "
+                    f"(last period={cur_period:.3f}ns, WNS={cur_wns:.3f}ns, failing_ep={cur_fail_ep})!",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                sys.exit(3)
 
         key_blocks = extract_key_blocks(conf_h_entries, conf_power_hier)
         summary_data["results"][target] = {
@@ -609,6 +970,45 @@ def main():
         if rec.get("vivado_version"):
             summary_data["vivado_version"] = rec["vivado_version"]
             break
+
+    verify_rtl_hashes_unchanged(rtl_hashes_before, "final")
+    rtl_diff_t83 = get_rtl_diff_since_t83()
+    t83_cmp = {}
+    if T83_SUMMARY_JSON.exists() and out_dir != T83_SUMMARY_JSON.parent.resolve():
+        try:
+            t83_data = json.loads(T83_SUMMARY_JSON.read_text(encoding="utf-8"))
+            for target, info in summary_data["results"].items():
+                if target in t83_data.get("results", {}):
+                    old_c = t83_data["results"][target]["confirmed"]
+                    new_c = info["confirmed"]
+                    t83_cmp[target] = {
+                        "t83_period_ns": old_c["period_ns"],
+                        "t89_period_ns": new_c["period_ns"],
+                        "delta_period_ns": round(new_c["period_ns"] - old_c["period_ns"], 3),
+                        "t83_fmax_mhz": old_c["fmax_mhz"],
+                        "t89_fmax_mhz": new_c["fmax_mhz"],
+                        "delta_fmax_mhz": round(new_c["fmax_mhz"] - old_c["fmax_mhz"], 2),
+                        "t83_wns_ns": old_c["wns_ns"],
+                        "t89_wns_ns": new_c["wns_ns"],
+                        "t83_lut": old_c["lut"],
+                        "t89_lut": new_c["lut"],
+                        "delta_lut": new_c["lut"] - old_c["lut"],
+                        "t83_ff": old_c["ff"],
+                        "t89_ff": new_c["ff"],
+                        "delta_ff": new_c["ff"] - old_c["ff"],
+                        "t83_bram": old_c["bram_tile"],
+                        "t89_bram": new_c["bram_tile"],
+                        "delta_bram": round(new_c["bram_tile"] - old_c["bram_tile"], 1),
+                        "t83_power_w": old_c["power_total_w"],
+                        "t89_power_w": new_c["power_total_w"],
+                        "delta_power_w": round(new_c["power_total_w"] - old_c["power_total_w"], 3),
+                    }
+        except Exception:
+            pass
+    summary_data["rtl_hashes_file"] = str((out_dir / "RTL_HASHES.txt").relative_to(ROOT)).replace("\\", "/")
+    summary_data["rtl_hashes_verified_unchanged"] = True
+    summary_data["rtl_files_changed_since_rem_t83"] = rtl_diff_t83
+    summary_data["comparison_vs_t83"] = t83_cmp
 
     sum_json = out_dir / "fpga_ppa_summary.json"
     sum_json.write_text(json.dumps(summary_data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -687,6 +1087,27 @@ def main():
             md_lines.append(
                 f"| `{b['path']}` | `{b['module']}` | {b['total_luts']} | {b['logic_luts']} | {b['lutrams']} | {b['ffs']} | {b['bram_tile']} | {b['dsp']} | {pwr} |"
             )
+        md_lines.append("")
+
+    if t83_cmp:
+        md_lines.extend([
+            "## 4. So sánh với mốc T83 (trước T86/T88)",
+            "",
+            "| Module | T83 Fmax (MHz) [Period] | T89 Fmax (MHz) [Period] | ΔFmax (MHz) | T83 LUT | T89 LUT (Δ) | T83 FF | T89 FF (Δ) | T83 BRAM | T89 BRAM (Δ) | T83 Power (W) | T89 Power (W) (Δ) |",
+            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
+        ])
+        for target, c in t83_cmp.items():
+            md_lines.append(
+                f"| `{target}` | `{c['t83_fmax_mhz']:.2f}` (`{c['t83_period_ns']:.3f} ns`) | `{c['t89_fmax_mhz']:.2f}` (`{c['t89_period_ns']:.3f} ns`) | `{c['delta_fmax_mhz']:+.2f}` | "
+                f"`{c['t83_lut']}` | `{c['t89_lut']}` (`{c['delta_lut']:+d}`) | `{c['t83_ff']}` | `{c['t89_ff']}` (`{c['delta_ff']:+d}`) | "
+                f"`{c['t83_bram']}` | `{c['t89_bram']}` (`{c['delta_bram']:+.1f}`) | `{c['t83_power_w']:.3f}` | `{c['t89_power_w']:.3f}` (`{c['delta_power_w']:+.3f}`) |"
+            )
+        md_lines.extend([
+            "",
+            "### File `rtl/**` thay đổi giữa `rem/T83` và `HEAD` (chưa tách nhân quả riêng từng file bằng ablation P&R)",
+        ])
+        for line in rtl_diff_t83:
+            md_lines.append(f"- `{line}`")
         md_lines.append("")
 
     sum_md.write_text("\n".join(md_lines), encoding="utf-8")

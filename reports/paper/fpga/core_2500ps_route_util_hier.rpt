@@ -1,0 +1,55 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2026.1 (win64) Build 6511674 Tue Jun 16 11:02:23 MDT 2026
+| Date         : Sun Nov 15 12:17:56 2026
+| Host         : DESKTOP-9DADM3P running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file D:/RAM/reports/paper/fpga/core_2500ps_route_util_hier.rpt
+| Design       : axi_ddr5_mc_top
+| Device       : xczu7ev-ffvc1156-2-e
+| Speed File   : -2
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++------------------------+-----------------------------------+------------+------------+---------+------+-------+--------+--------+------+------------+
+|        Instance        |               Module              | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs  | RAMB36 | RAMB18 | URAM | DSP Blocks |
++------------------------+-----------------------------------+------------+------------+---------+------+-------+--------+--------+------+------------+
+| axi_ddr5_mc_top        |                             (top) |      65170 |      65019 |     108 |   43 | 44293 |      0 |      0 |    0 |          0 |
+|   (axi_ddr5_mc_top)    |                             (top) |        211 |        159 |      52 |    0 |   760 |      0 |      0 |    0 |          0 |
+|   u_addr_mapper        |                  addr_mapper_ddr5 |        477 |        446 |       0 |   31 |   153 |      0 |      0 |    0 |          0 |
+|     u_scarf_randomizer |           scarf_dram_randomizer_2 |        440 |        430 |       0 |   10 |   111 |      0 |      0 |    0 |          0 |
+|   u_ar_split           |                axi_burst_splitter |        172 |        172 |       0 |    0 |   112 |      0 |      0 |    0 |          0 |
+|   u_arbiter            |               slack_aware_arbiter |        281 |        281 |       0 |    0 |    11 |      0 |      0 |    0 |          0 |
+|   u_ate                |         adaptive_threshold_engine |        286 |        286 |       0 |    0 |   246 |      0 |      0 |    0 |          0 |
+|   u_aw_split           |              axi_burst_splitter_0 |        208 |        208 |       0 |    0 |   112 |      0 |      0 |    0 |          0 |
+|   u_bank_credit        |                  bank_credit_ctrl |       1045 |       1045 |       0 |    0 |   204 |      0 |      0 |    0 |          0 |
+|   u_cmd_engine         |                   ddr5_cmd_engine |      10770 |      10758 |      12 |    0 |  4396 |      0 |      0 |    0 |          0 |
+|   u_decoy_prf          |             scarf_dram_randomizer |        173 |        173 |       0 |    0 |    95 |      0 |      0 |    0 |          0 |
+|   u_drm                |          directed_refresh_manager |       2537 |       2537 |       0 |    0 |  2354 |      0 |      0 |    0 |          0 |
+|   u_ecc_scrubber       |                      ecc_scrubber |         74 |         74 |       0 |    0 |    87 |      0 |      0 |    0 |          0 |
+|   u_frontend           |                axi_slave_frontend |        193 |        193 |       0 |    0 |   517 |      0 |      0 |    0 |          0 |
+|     u_w_skid           |  axi4_skid_buffer__parameterized0 |         63 |         63 |       0 |    0 |   148 |      0 |      0 |    0 |          0 |
+|     u_ar_skid          |                  axi4_skid_buffer |         39 |         39 |       0 |    0 |   108 |      0 |      0 |    0 |          0 |
+|     u_aw_skid          |                axi4_skid_buffer_1 |         32 |         32 |       0 |    0 |   108 |      0 |      0 |    0 |          0 |
+|     u_r_skid           |  axi4_skid_buffer__parameterized2 |         54 |         54 |       0 |    0 |   142 |      0 |      0 |    0 |          0 |
+|   u_pmu                |                 perf_monitor_unit |        328 |        328 |       0 |    0 |   263 |      0 |      0 |    0 |          0 |
+|   u_qos_queue          |               qos_scheduler_queue |      15973 |      15973 |       0 |    0 |  5312 |      0 |      0 |    0 |          0 |
+|   u_rd_iq              |                    rd_issue_queue |       1376 |       1376 |       0 |    0 |   503 |      0 |      0 |    0 |          0 |
+|   u_rd_ks              | scrambler_ks_pipe__parameterized0 |        400 |        399 |       0 |    1 |   391 |      0 |      0 |    0 |          0 |
+|   u_rob                |                reorder_buffer_rob |       4553 |       4553 |       0 |    0 |  9218 |      0 |      0 |    0 |          0 |
+|   u_sdc_filter         |              sdc_resilient_filter |      12161 |      12161 |       0 |    0 |  9271 |      0 |      0 |    0 |          0 |
+|   u_wdata_buffer       |                      wdata_buffer |        295 |        251 |      44 |    0 |   364 |      0 |      0 |    0 |          0 |
+|   u_wds                |                     wr_data_store |      13300 |      13300 |       0 |    0 |  9444 |      0 |      0 |    0 |          0 |
+|   u_wr_ks              |                 scrambler_ks_pipe |        448 |        437 |       0 |   11 |   458 |      0 |      0 |    0 |          0 |
++------------------------+-----------------------------------+------------+------------+---------+------+-------+--------+--------+------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

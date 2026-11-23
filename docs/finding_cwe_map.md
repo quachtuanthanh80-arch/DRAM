@@ -2,7 +2,7 @@
 
 Tài liệu này ánh xạ toàn bộ 36 finding trong báo cáo xác minh độc lập (`docs/verification_findings.md`) sang các định danh điểm yếu phần cứng **MITRE CWE (Common Weakness Enumeration)** và các mẫu hình tấn công **CAPEC (Common Attack Pattern Enumeration and Classification)**.
 
-Mọi mã CWE và CAPEC đều được tra cứu từ cơ sở dữ liệu MITRE chính thức kèm đường dẫn URL. Đối với các finding thuộc hạ tầng kiểm thử, đo lường hoặc tài liệu không ánh xạ được sang điểm yếu bảo mật phần cứng cụ thể, tài liệu ghi nhận `KHONG_XAC_MINH` theo quy tắc R3/R14.
+Mã CWE và CAPEC được ghi kèm đường dẫn URL của MITRE. Repo không chứa bản sao cơ sở dữ liệu MITRE nên lần rà soát T96 **chưa đối chiếu lại từng mã** với nguồn; trước khi trích một mã trong bài báo cần mở lại URL tương ứng. Bảng chỉ ánh xạ 36 finding của báo cáo xác minh gốc; phát hiện sau đó (ví dụ nhiễu ngoài bán kính làm tươi, xem `LIMITATIONS.md` mục 2.3) chưa được ánh xạ. Đối với các finding thuộc hạ tầng kiểm thử, đo lường hoặc tài liệu không ánh xạ được sang điểm yếu bảo mật phần cứng cụ thể, tài liệu ghi nhận `KHONG_XAC_MINH` theo quy tắc R3/R14.
 
 ---
 

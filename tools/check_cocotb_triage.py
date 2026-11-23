@@ -17,7 +17,7 @@ DEFAULT_LOG = ROOT / "reports" / "remediation" / "T45.log"
 # Danh sách các stage FAIL đã biết kèm lý do môi trường/giới hạn được duyệt
 KNOWN_FAILURES: dict[str, str] = {
     "PyUVM Constrained-Random & Corner Verification (MC + CSR)": (
-        "MÔI TRƯỜNG: WSL Ubuntu thiếu gói pyuvm (GEMINI_SAFETY.md cấm pip install); "
+        "MÔI TRƯỜNG: WSL Ubuntu thiếu gói pyuvm (quy tắc an toàn của dự án cấm pip install); "
         "đã kiểm chứng PASS 23/23 bins trên Windows Python 3.13 + Icarus tại T60 (rem/T60)."
     ),
 }

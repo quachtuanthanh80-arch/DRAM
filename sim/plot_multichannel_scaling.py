@@ -42,16 +42,11 @@ plt.rcParams.update({
     'grid.linestyle': '--',
 })
 
-# Filter data for Benign and Mixed on DDR4-3200 and DDR5-4800
+# Filter data for Benign and Mixed on DDR5-4800 (DDR5-only scope)
 channels = [1, 2, 4, 8]
 
-ddr4_benign_bw = [next(r["throughput_mbps"] for r in data if r["dram"] == "DDR4-3200" and r["workload"] == "Benign" and r["channels"] == ch) for ch in channels]
 ddr5_benign_bw = [next(r["throughput_mbps"] for r in data if r["dram"] == "DDR5-4800" and r["workload"] == "Benign" and r["channels"] == ch) for ch in channels]
-
-ddr4_benign_lat = [next(r["read_latency_ns"] for r in data if r["dram"] == "DDR4-3200" and r["workload"] == "Benign" and r["channels"] == ch) for ch in channels]
 ddr5_benign_lat = [next(r["read_latency_ns"] for r in data if r["dram"] == "DDR5-4800" and r["workload"] == "Benign" and r["channels"] == ch) for ch in channels]
-
-ddr4_mixed_bw = [next(r["throughput_mbps"] for r in data if r["dram"] == "DDR4-3200" and r["workload"] == "Mixed" and r["channels"] == ch) for ch in channels]
 ddr5_mixed_bw = [next(r["throughput_mbps"] for r in data if r["dram"] == "DDR5-4800" and r["workload"] == "Mixed" and r["channels"] == ch) for ch in channels]
 
 #------------------------------------------------------------------------------
@@ -60,16 +55,14 @@ ddr5_mixed_bw = [next(r["throughput_mbps"] for r in data if r["dram"] == "DDR5-4
 fig, ax = plt.subplots(figsize=(6.5, 4.0))
 
 x = np.arange(len(channels))
-width = 0.20
+width = 0.30
 
-rects1 = ax.bar(x - 1.5*width, [bw/1000.0 for bw in ddr4_benign_bw], width, label='DDR4-3200 (Benign)', color='#1f77b4', edgecolor='black', linewidth=0.8)
-rects2 = ax.bar(x - 0.5*width, [bw/1000.0 for bw in ddr4_mixed_bw], width, label='DDR4-3200 (Mixed)', color='#aec7e8', edgecolor='black', linewidth=0.8, hatch='//')
-rects3 = ax.bar(x + 0.5*width, [bw/1000.0 for bw in ddr5_benign_bw], width, label='DDR5-4800 (Benign)', color='#2ca02c', edgecolor='black', linewidth=0.8)
-rects4 = ax.bar(x + 1.5*width, [bw/1000.0 for bw in ddr5_mixed_bw], width, label='DDR5-4800 (Mixed)', color='#98df8a', edgecolor='black', linewidth=0.8, hatch='\\\\')
+rects3 = ax.bar(x - 0.5*width, [bw/1000.0 for bw in ddr5_benign_bw], width, label='DDR5-4800 (Benign)', color='#2ca02c', edgecolor='black', linewidth=0.8)
+rects4 = ax.bar(x + 0.5*width, [bw/1000.0 for bw in ddr5_mixed_bw], width, label='DDR5-4800 (Mixed)', color='#98df8a', edgecolor='black', linewidth=0.8, hatch='\\\\')
 
 ax.set_xlabel('Memory Channel Configuration')
 ax.set_ylabel('Aggregated Throughput (GB/s)')
-ax.set_title('Throughput Scaling: 1-CH, 2-CH, 4-CH, and 8-CH')
+ax.set_title('DDR5-4800 Throughput Scaling: 1-CH, 2-CH, 4-CH, and 8-CH')
 ax.set_xticks(x)
 ax.set_xticklabels(['1-CH (Single)', '2-CH (Dual)', '4-CH (Quad)', '8-CH (Octa)'])
 ax.legend(frameon=True, loc='upper left')
@@ -95,13 +88,10 @@ print(f"[+] Saved Figure 1: {fig1_path_pdf}")
 #------------------------------------------------------------------------------
 fig, ax = plt.subplots(figsize=(6.0, 3.8))
 
-ax.plot(channels, ddr4_benign_lat, marker='o', linewidth=2.0, markersize=6, color='#1f77b4', label='DDR4-3200 (Benign)')
 ax.plot(channels, ddr5_benign_lat, marker='s', linewidth=2.0, markersize=6, color='#2ca02c', label='DDR5-4800 (Benign)')
 
 # Mixed Latency
-ddr4_mixed_lat = [next(r["read_latency_ns"] for r in data if r["dram"] == "DDR4-3200" and r["workload"] == "Mixed" and r["channels"] == ch) for ch in channels]
 ddr5_mixed_lat = [next(r["read_latency_ns"] for r in data if r["dram"] == "DDR5-4800" and r["workload"] == "Mixed" and r["channels"] == ch) for ch in channels]
-ax.plot(channels, ddr4_mixed_lat, marker='^', linestyle='--', linewidth=1.8, markersize=6, color='#ff7f0e', label='DDR4-3200 (Mixed)')
 ax.plot(channels, ddr5_mixed_lat, marker='d', linestyle='--', linewidth=1.8, markersize=6, color='#d62728', label='DDR5-4800 (Mixed)')
 
 ax.set_xlabel('Number of Channels')

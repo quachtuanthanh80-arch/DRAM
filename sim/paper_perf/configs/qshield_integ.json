@@ -1,0 +1,142 @@
+{
+  "scheme": "QShield_Integ",
+  "dram_support": "none",
+  "dram_support_evidence": "qshield_controller.cpp:1255-1311,1406-1425 (standard ACT->tRAS->PREpb + BMT/MAC)",
+  "common": {
+    "frontend": {
+      "impl": "BHO3",
+      "clock_ratio": 5,
+      "ipc": 4,
+      "inst_window_depth": 128,
+      "llc_capacity_per_core": "2MB",
+      "llc_num_mshr_per_core": 16,
+      "translation": {
+        "impl": "NoTranslation",
+        "max_addr": 17179869184
+      }
+    },
+    "memory_system": {
+      "impl": "GenericDRAM",
+      "clock_ratio": 2,
+      "channel_mapper": {
+        "impl": "CacheLineInterleave"
+      }
+    },
+    "dram": {
+      "impl": "DDR5_VRR",
+      "org_preset": "DDR5_16Gb_x4",
+      "timing_preset": "DDR5_3200C",
+      "rank": 1
+    },
+    "scheduler": {
+      "impl": "FRFCFS"
+    },
+    "refresh_manager": {
+      "impl": "AllBank"
+    },
+    "row_policy": {
+      "impl": "Open"
+    },
+    "addr_mapper": {
+      "impl": "RoBaRaCoCh"
+    }
+  },
+  "per_nrh": {
+    "1024": {
+      "controller": "QShield",
+      "sdc_thresh": 127,
+      "table_entries": 256,
+      "dual_hash_en": true,
+      "pxor_mode": true,
+      "pxor_seed_hex": "A5A55A5A01234567",
+      "refw_refs": 8192,
+      "window_size_ctrl_cycles": 4096,
+      "multibank_thresh": 2,
+      "blast_radius": 2,
+      "proq_depth": 32,
+      "throttle_pace_clk": 80,
+      "raammt_thresh": 32,
+      "tras_max_ns": 21937,
+      "rowpress_thresh_ns": 12500,
+      "rowpress_curve": 0,
+      "integrity_en": true,
+      "mc_sets": 16,
+      "mc_ways": 4,
+      "prot_lines": 1048576,
+      "tree_levels": 4,
+      "crypto_extra_lat_clk": 84
+    },
+    "512": {
+      "controller": "QShield",
+      "sdc_thresh": 63,
+      "table_entries": 256,
+      "dual_hash_en": true,
+      "pxor_mode": true,
+      "pxor_seed_hex": "A5A55A5A01234567",
+      "refw_refs": 8192,
+      "window_size_ctrl_cycles": 4096,
+      "multibank_thresh": 2,
+      "blast_radius": 2,
+      "proq_depth": 32,
+      "throttle_pace_clk": 80,
+      "raammt_thresh": 32,
+      "tras_max_ns": 21937,
+      "rowpress_thresh_ns": 12500,
+      "rowpress_curve": 0,
+      "integrity_en": true,
+      "mc_sets": 16,
+      "mc_ways": 4,
+      "prot_lines": 1048576,
+      "tree_levels": 4,
+      "crypto_extra_lat_clk": 84
+    },
+    "256": {
+      "controller": "QShield",
+      "sdc_thresh": 31,
+      "table_entries": 256,
+      "dual_hash_en": true,
+      "pxor_mode": true,
+      "pxor_seed_hex": "A5A55A5A01234567",
+      "refw_refs": 8192,
+      "window_size_ctrl_cycles": 4096,
+      "multibank_thresh": 2,
+      "blast_radius": 2,
+      "proq_depth": 32,
+      "throttle_pace_clk": 80,
+      "raammt_thresh": 32,
+      "tras_max_ns": 21937,
+      "rowpress_thresh_ns": 12500,
+      "rowpress_curve": 0,
+      "integrity_en": true,
+      "mc_sets": 16,
+      "mc_ways": 4,
+      "prot_lines": 1048576,
+      "tree_levels": 4,
+      "crypto_extra_lat_clk": 84
+    },
+    "128": {
+      "controller": "QShield",
+      "sdc_thresh": 15,
+      "table_entries": 256,
+      "dual_hash_en": true,
+      "pxor_mode": true,
+      "pxor_seed_hex": "A5A55A5A01234567",
+      "refw_refs": 8192,
+      "window_size_ctrl_cycles": 4096,
+      "multibank_thresh": 2,
+      "blast_radius": 2,
+      "proq_depth": 32,
+      "throttle_pace_clk": 80,
+      "raammt_thresh": 32,
+      "tras_max_ns": 21937,
+      "rowpress_thresh_ns": 12500,
+      "rowpress_curve": 0,
+      "integrity_en": true,
+      "mc_sets": 16,
+      "mc_ways": 4,
+      "prot_lines": 1048576,
+      "tree_levels": 4,
+      "crypto_extra_lat_clk": 84
+    }
+  }
+}
