@@ -2,7 +2,7 @@
 
 [![Host Protocol](https://img.shields.io/badge/Host%20Protocol-AMBA%20AXI4-blue.svg)](rtl/frontend/)
 [![Hardware RTL](https://img.shields.io/badge/Hardware%20RTL-SystemVerilog%20IEEE%201800--2017-blue.svg)](rtl/)
-[![Status](https://img.shields.io/badge/Status-research%20prototype-orange.svg)](#status-read-this-first)
+[![Status](https://img.shields.io/badge/Status-research%20prototype-orange.svg)](#key-results-and-status)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
 
 Q-Shield is a synthesizable SystemVerilog (IEEE 1800-2017) DDR5 memory controller that combines
@@ -12,7 +12,25 @@ cache) placed outside the controller core. It does not require in-DRAM modificat
 
 ![Simplified block diagram of the Q-Shield RTL](docs/figures/qshield_block_diagram.svg)
 
-## Status (read this first)
+## Overview
+
+- **What it is.** A synthesizable DDR5 memory controller (SystemVerilog) with controller-side RowHammer and RowPress mitigation, SEC-DED error correction, and an optional encryption and integrity layer outside the core.
+- **What was measured.** Post-route FPGA timing and area, a cycle-accurate Ramulator2 evaluation of the mitigation against baseline schemes, a 56-case RowHammer/RowPress attack matrix on the RTL, bounded formal checks, and simulation testbenches.
+- **What was not.** ASIC area, power and timing; bit flips on real DRAM; side-channel leakage; any DRAM generation other than DDR5.
+- **Where the numbers are.** Every figure in this README links to a report or log file in the repository (mostly under [`reports/paper/`](reports/paper/)).
+
+## Contents
+
+1. [Key results and status](#key-results-and-status)
+2. [Repository structure](#repository-structure)
+3. [Architecture](#architecture)
+4. [Results](#results)
+5. [Reproducing the results](#reproducing-the-results)
+6. [Known limitations](#known-limitations)
+7. [Documentation](#documentation)
+8. [Citation](#citation) and [License](#license)
+
+## Key results and status
 
 This repository is an **academic research prototype under active verification**. Numbers below are limited to what
 has a report or a test log in this repository. Anything not listed as measured is **not yet measured**.
@@ -25,7 +43,61 @@ has a report or a test log in this repository. Anything not listed as measured i
 | Cycle-accurate performance and RowHammer security evaluation (Ramulator2 + RTL) | **Measured (with caveats).** Commercial-DRAM and non-JEDEC/in-DRAM baselines are evaluated separately in [`reports/paper/perf/perf_report_v2.md`](reports/paper/perf/perf_report_v2.md) and [`reports/paper/perf/perf_report_long.md`](reports/paper/perf/perf_report_long.md) (`33.6 ms >= 1 tREFW`); RTL RowHammer/RowPress matrix (`56/56` cases) is in [`reports/paper/security/security_eval_report.md`](reports/paper/security/security_eval_report.md). Earlier unbacked overhead and zero-disturbance tables were withdrawn. See [`EVALUATION.md`](EVALUATION.md) and [`LIMITATIONS.md`](LIMITATIONS.md). |
 | Formal verification | Partial. Bounded model checking (`depth 15`) and cover (`depth 8-15`) for the five suites in [`FORMAL.md`](FORMAL.md); integrity invariants are checked on an abstract model. |
 
-### Measured timing and area (FPGA, out-of-context, `xczu7ev-ffvc1156-2-e`)
+## Repository structure
+
+| Path | Content |
+| :--- | :--- |
+| [`rtl/`](rtl/) | SystemVerilog sources: `frontend/`, `core/`, `backend/`, `crypto/`, `bus/`, `cdc/`, `memory/`, `interfaces/`, `top/`. |
+| [`tb/`](tb/) | Testbenches (SystemVerilog, cocotb, pyuvm), attack and defect-reproduction suites, the behavioural DRAM model and the JEDEC timing checker. |
+| [`formal/`](formal/) | SymbiYosys specifications and the log of the bounded model-checking runs (`evidence/`). |
+| [`sim/`](sim/) | Ramulator2 Q-Shield model overlay, workload definitions (`paper_perf/`) and simulation scripts. |
+| [`syn/`](syn/) | Vivado synthesis scripts and timing reports used as evidence for the FPGA results. |
+| [`synth/`](synth/) | ASIC synthesis scripts. They have not produced a result in this repository; no ASIC result is claimed. |
+| [`reports/paper/`](reports/paper/) | Measured results: `fpga/`, `perf/`, `crossval/`, `security/`. |
+| [`tools/`](tools/) | Runners for the evaluations, regression helpers and static checks. |
+| [`docs/`](docs/) | Figures, the standards matrix and the weakness-class mapping. |
+| [`GOLDEN_OUTPUTS/`](GOLDEN_OUTPUTS/), [`config/`](config/) | Reference outputs for regression checks; benchmark configuration. |
+
+Top-level documents are listed in [Documentation](#documentation).
+
+## Architecture
+
+Data path of the controller core (see also the block diagram at the top of this page):
+
+1. AXI4 slave port with a skid buffer.
+2. SCARF address mapper.
+3. In parallel: the PXOR SDC filter (activation tracking), the reorder buffer, and the SEC-DED ECC with its scrubber.
+4. Timing-slack aware QoS arbiter, together with directed (victim) refresh.
+5. JEDEC DDR5 command FSM.
+6. DFI interface to the DDR5 PHY.
+
+Secure top (optional): AXI4, then AES-256-XTS with a MAC, a Bonsai Merkle tree and a metadata cache, then the controller core.
+
+### RTL map
+
+| Component | Source | Notes | Test |
+| :--- | :--- | :--- | :--- |
+| SDC filter | [`sdc_resilient_filter.sv`](rtl/core/sdc_resilient_filter.sv) | Dual-hash count-min sketch with epoch tags; configure the threshold at most half the RowHammer threshold. | `test_sdc_filter.py`, `tb_security_attacks_vcd` |
+| PXOR hash | [`pxor_hash_engine.sv`](rtl/core/pxor_hash_engine.sv) | Parallel XOR reduction for filter bins. | `tb_pxor_sdc_filter` |
+| SCARF randomizer | [`scarf_dram_randomizer.sv`](rtl/core/scarf_dram_randomizer.sv) | Row-address Feistel, bijective. | `tb_scarf_randomizer` |
+| Key table | [`multi_vm_key_table.sv`](rtl/crypto/multi_vm_key_table.sv) | Per-ASID keys, write-only, secure-privileged writes. | `tb_multi_vm_key_table` |
+| Fault-hardened CSR | [`fault_hardened_csr.sv`](rtl/core/fault_hardened_csr.sv) | Triple-redundant registers, 2-of-3 vote, glitch latch. | `tb_fault_hardened_csr` |
+| Adaptive threshold | [`adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv) | EWMA, clamped. | `tb_adaptive_threshold_engine` |
+| Reorder buffer | [`reorder_buffer_rob.sv`](rtl/core/reorder_buffer_rob.sv) | In-order retire per AXI ID. | `tb_reorder_buffer_rob` |
+| QoS queue | [`qos_scheduler_queue.sv`](rtl/core/qos_scheduler_queue.sv) | Same-address dependency masks. | `tb_qos_scheduler_queue` |
+| Command engine | [`ddr5_cmd_engine.sv`](rtl/backend/ddr5_cmd_engine.sv) | JEDEC timing FSM, refresh, RFM, victim refresh. | `tb_ddr5_cmd_engine`, JEDEC checker in every top-level TB |
+| SEC-DED ECC | [`secded_72_64_pkg.sv`](rtl/backend/secded_72_64_pkg.sv), [`ecc_scrubber.sv`](rtl/backend/ecc_scrubber.sv) | Hamming (72,64), inverted check bits. The scrubber also implements zero-cycle fault masking (ZEM); **ZEM is not connected to the core read path** because it exceeded the timing budget (see [`LIMITATIONS.md`](LIMITATIONS.md)). | `tb_eccfail_zem_scrubber`, `tb_rt03_rd_integrity` |
+| Chipkill RS(18,16) | [`rs_chipkill_decoder.sv`](rtl/backend/rs_chipkill_decoder.sv) | Standalone module, **not** wired into the top. | `tb_rs_chipkill_selfcheck` |
+| Bus scrambler | [`bus_scrambler.sv`](rtl/memory/bus_scrambler.sv) | Pattern obfuscation, not encryption. | `tb_e2e_scoreboard` |
+| Encryption/integrity bridge | [`qshield_axi_crypto_bridge.sv`](rtl/crypto/qshield_axi_crypto_bridge.sv) | AES-256-XTS, MAC, tree and cache around the core. Partial-strobe writes and non-16-byte-aligned bursts are rejected with SLVERR. | `tb_secure_top_integrity` |
+| Integrity engines | [`qshield_bmt_engine.sv`](rtl/crypto/qshield_bmt_engine.sv), [`qshield_meta_cache.sv`](rtl/crypto/qshield_meta_cache.sv), [`qshield_mac_unit.sv`](rtl/crypto/qshield_mac_unit.sv), [`qshield_counter_unit.sv`](rtl/crypto/qshield_counter_unit.sv) | Bonsai Merkle tree, trusted cache, MAC, split counters. | `tb_qshield_bmt_engine`, `tb_qshield_meta_cache` |
+| Canonical top | [`axi_ddr5_mc_top.sv`](rtl/top/axi_ddr5_mc_top.sv) | Controller core used for verification and synthesis. | `tb_axi_ddr5_mc_top` |
+| Secure top | [`axi_ddr5_mc_secure_top.sv`](rtl/top/axi_ddr5_mc_secure_top.sv) | Core plus encryption and integrity layer. | `tb_axi_ddr5_mc_secure_top` |
+| Demo top | [`sec_ddr5_controller_top.sv`](rtl/top/sec_ddr5_controller_top.sv) | Early integration demo. Do not use for results. | `tb_sec_ddr5_controller_top` |
+
+## Results
+
+### FPGA timing and area (out-of-context, `xczu7ev-ffvc1156-2-e`)
 
 ![Worst negative slack after place and route versus target clock period](docs/figures/fpga_timing_post_route.png)
 
@@ -60,7 +132,7 @@ Metadata cache `qshield_meta_cache` alone: synthesis WNS is `+0.037 ns` at `2.50
 > Synthesis-only slack is optimistic: for the current core RTL at `2.500 ns`, out-of-context synthesis reported `-0.508 ns`
 > while the routed result was `-1.673 ns` (and `-0.022 ns` vs `-1.273 ns` on pre-T86/T88 RTL). Use post-route numbers when comparing.
 
-## Verification evidence
+### Verification evidence
 
 All counts below come from testbenches and evaluation scripts in this repository; run commands are in [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md).
 
@@ -82,39 +154,34 @@ A static check (`tools/check_multidriver.py`) rejects registers driven from more
 synthesis exposed such a defect that simulation had hidden: a read-path integrity-failure flag was forced to zero in
 the synthesized netlist.
 
-## Architecture overview
+## Reproducing the results
 
+Run commands in the order below from the repository root. Details, toolchain versions and container setup: [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) and [`INSTALL.md`](INSTALL.md).
+
+| Result | Command | Output |
+| :--- | :--- | :--- |
+| Simulation regression (Icarus Verilog) | `python run_iverilog_regression.py` | console summary |
+| Known-defect reproduction suite | `python tb/findings/run_findings.py` | console summary |
+| Static multi-driver check | `python tools/check_multidriver.py` | console summary |
+| RowHammer / RowPress attack matrix on the RTL | `python tools/run_security_eval.py` | `reports/paper/security/` |
+| Ramulator2 performance evaluation (WSL, Ramulator2 build required) | `python tools/run_paper_perf.py` | `reports/paper/perf/` |
+| FPGA place and route (Vivado required) | `python tools/run_fpga_ppa.py` | `reports/paper/fpga/` |
+| Formal checks (SymbiYosys, Z3) | `cd formal && bash run_all_formal.sh` | `formal/reports/` |
+
+The Ramulator2 and Vivado runs take from one hour to several hours on a workstation (for example 50 minutes for the 1,983-run matrix and 83 minutes for the 321 long-window runs); the static checks are quick.
+
+### Quick start
+
+```bash
+# Native (Ubuntu 22.04+ / WSL2), Icarus Verilog and Python 3.13
+python3 -m pip install -r requirements.txt
+python run_iverilog_regression.py --only tb_axi_ddr5_mc_top
+python tools/check_multidriver.py
 ```
-AXI4 slave -> [skid buffer] -> [SCARF address mapper] -> [PXOR SDC filter] / [reorder buffer] / [SEC-DED + scrubber]
-                                                   -> [timing-slack aware QoS arbiter + directed refresh]
-                                                   -> [JEDEC DDR5 command FSM] -> DFI
 
-Secure top (optional): AXI4 -> [AES-256-XTS + MAC + Bonsai Merkle tree + metadata cache] -> controller core
-```
+For the full regression and container setup see [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md).
 
-### RTL map
-
-| Component | Source | Notes | Test |
-| :--- | :--- | :--- | :--- |
-| SDC filter | [`sdc_resilient_filter.sv`](rtl/core/sdc_resilient_filter.sv) | Dual-hash count-min sketch with epoch tags; configure the threshold at most half the RowHammer threshold. | `test_sdc_filter.py`, `tb_security_attacks_vcd` |
-| PXOR hash | [`pxor_hash_engine.sv`](rtl/core/pxor_hash_engine.sv) | Parallel XOR reduction for filter bins. | `tb_pxor_sdc_filter` |
-| SCARF randomizer | [`scarf_dram_randomizer.sv`](rtl/core/scarf_dram_randomizer.sv) | Row-address Feistel, bijective. | `tb_scarf_randomizer` |
-| Key table | [`multi_vm_key_table.sv`](rtl/crypto/multi_vm_key_table.sv) | Per-ASID keys, write-only, secure-privileged writes. | `tb_multi_vm_key_table` |
-| Fault-hardened CSR | [`fault_hardened_csr.sv`](rtl/core/fault_hardened_csr.sv) | Triple-redundant registers, 2-of-3 vote, glitch latch. | `tb_fault_hardened_csr` |
-| Adaptive threshold | [`adaptive_threshold_engine.sv`](rtl/core/adaptive_threshold_engine.sv) | EWMA, clamped. | `tb_adaptive_threshold_engine` |
-| Reorder buffer | [`reorder_buffer_rob.sv`](rtl/core/reorder_buffer_rob.sv) | In-order retire per AXI ID. | `tb_reorder_buffer_rob` |
-| QoS queue | [`qos_scheduler_queue.sv`](rtl/core/qos_scheduler_queue.sv) | Same-address dependency masks. | `tb_qos_scheduler_queue` |
-| Command engine | [`ddr5_cmd_engine.sv`](rtl/backend/ddr5_cmd_engine.sv) | JEDEC timing FSM, refresh, RFM, victim refresh. | `tb_ddr5_cmd_engine`, JEDEC checker in every top-level TB |
-| SEC-DED ECC | [`secded_72_64_pkg.sv`](rtl/backend/secded_72_64_pkg.sv), [`ecc_scrubber.sv`](rtl/backend/ecc_scrubber.sv) | Hamming (72,64), inverted check bits. The scrubber also implements zero-cycle fault masking (ZEM); **ZEM is not connected to the core read path** because it exceeded the timing budget (see [`LIMITATIONS.md`](LIMITATIONS.md)). | `tb_eccfail_zem_scrubber`, `tb_rt03_rd_integrity` |
-| Chipkill RS(18,16) | [`rs_chipkill_decoder.sv`](rtl/backend/rs_chipkill_decoder.sv) | Standalone module, **not** wired into the top. | `tb_rs_chipkill_selfcheck` |
-| Bus scrambler | [`bus_scrambler.sv`](rtl/memory/bus_scrambler.sv) | Pattern obfuscation, not encryption. | `tb_e2e_scoreboard` |
-| Encryption/integrity bridge | [`qshield_axi_crypto_bridge.sv`](rtl/crypto/qshield_axi_crypto_bridge.sv) | AES-256-XTS, MAC, tree and cache around the core. Partial-strobe writes and non-16-byte-aligned bursts are rejected with SLVERR. | `tb_secure_top_integrity` |
-| Integrity engines | [`qshield_bmt_engine.sv`](rtl/crypto/qshield_bmt_engine.sv), [`qshield_meta_cache.sv`](rtl/crypto/qshield_meta_cache.sv), [`qshield_mac_unit.sv`](rtl/crypto/qshield_mac_unit.sv), [`qshield_counter_unit.sv`](rtl/crypto/qshield_counter_unit.sv) | Bonsai Merkle tree, trusted cache, MAC, split counters. | `tb_qshield_bmt_engine`, `tb_qshield_meta_cache` |
-| Canonical top | [`axi_ddr5_mc_top.sv`](rtl/top/axi_ddr5_mc_top.sv) | Controller core used for verification and synthesis. | `tb_axi_ddr5_mc_top` |
-| Secure top | [`axi_ddr5_mc_secure_top.sv`](rtl/top/axi_ddr5_mc_secure_top.sv) | Core plus encryption and integrity layer. | `tb_axi_ddr5_mc_secure_top` |
-| Demo top | [`sec_ddr5_controller_top.sv`](rtl/top/sec_ddr5_controller_top.sv) | Early integration demo. Do not use for results. | `tb_sec_ddr5_controller_top` |
-
-## Known limitations (summary)
+## Known limitations
 
 The full list is in [`LIMITATIONS.md`](LIMITATIONS.md). The most important ones:
 
@@ -140,16 +207,16 @@ The full list is in [`LIMITATIONS.md`](LIMITATIONS.md). The most important ones:
 | [`INSTALL.md`](INSTALL.md), [`VERSIONING.md`](VERSIONING.md) | Toolchain and versions. |
 | [`docs/standards_matrix.md`](docs/standards_matrix.md), [`docs/finding_cwe_map.md`](docs/finding_cwe_map.md) | Mapping to external standards and weakness classes. |
 
-## Quick start
+## Citation
 
-```bash
-# Native (Ubuntu 22.04+ / WSL2), Icarus Verilog and Python 3.13
-python3 -m pip install -r requirements.txt
-python run_iverilog_regression.py --only tb_axi_ddr5_mc_top
-python tools/check_multidriver.py
+If you use this code, please cite the repository (see [`CITATION.cff`](CITATION.cff)):
+
+```
+Q-Shield: A DDR5 Secure Memory Controller (Research Prototype).
+https://github.com/quachtuanthanh80-arch/DRAM
 ```
 
-For the full regression and container setup see [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md).
+No paper describing this work has been published; this entry will be updated if one is.
 
 ## License
 

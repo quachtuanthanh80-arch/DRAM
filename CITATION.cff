@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Q-Shield: A DDR5 Secure Memory Controller (Research Prototype)"
+type: software
+authors:
+  - family-names: "Quach"
+    given-names: "Tuan Thanh"
+repository-code: "https://github.com/quachtuanthanh80-arch/DRAM"
+license: MIT
+keywords:
+  - DDR5
+  - memory controller
+  - RowHammer
+  - SystemVerilog
